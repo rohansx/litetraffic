@@ -1,0 +1,644 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LiteTraffic — Standalone Product Specification</title><style>*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#f5f6f8;color:#182237;font:17px/1.72 system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}main{max-width:1100px;margin:40px auto;padding:60px 64px;background:white;border:1px solid #e3e7ec;border-radius:16px}.eyebrow{font:700 12px/1.5 system-ui;letter-spacing:.2em;color:#5c50bb}h1{font-size:64px;line-height:1.05;letter-spacing:-3px;margin:12px 0 20px;color:#32286f}h2{font-size:28px;line-height:1.3;margin:55px 0 22px;padding-top:26px;border-top:2px solid #e8e5f3;letter-spacing:-.6px}h3{font-size:21px;margin-top:32px}p{margin:16px 0}a{color:#5546ad;text-underline-offset:3px}strong{color:#20263b}table{display:block;overflow:auto;border-collapse:collapse;width:100%;font-size:14px;line-height:1.55;margin:24px 0}th{background:#efedf8;text-align:left;color:#382e73}td,th{padding:13px 15px;border:1px solid #e1e4ec;vertical-align:top;min-width:130px}tr:nth-child(even){background:#fafafd}pre{padding:24px;background:#171c2e;color:#ebeff9;border-radius:10px;overflow:auto;font-size:13px;line-height:1.65}code{font-size:.87em}p code,li code,td code{background:#f0eef7;padding:2px 5px;border-radius:3px}figure{margin:30px 0;padding:20px 8px;border:1px solid #e0e4ec;border-radius:10px;overflow:auto;background:white}figure svg{display:block;max-width:100%;height:auto;margin:auto}li{margin:8px 0}footer{margin-top:50px;padding-top:22px;border-top:1px solid #ddd;color:#6a7282;font-size:13px}@media(max-width:720px){main{margin:0;padding:28px 20px;border:0;border-radius:0}h1{font-size:48px}h2{font-size:24px}body{font-size:16px}}@media print{body{background:white}main{border:0;margin:0;padding:15px;max-width:none}h2,h3{break-after:avoid}tr,figure,pre{break-inside:avoid}a{color:inherit}}</style></head><body><main><div class="eyebrow">INDEPENDENT PRODUCT · ARCHITECTURE & TECHNICAL SPECIFICATION</div><h1 id="litetraffic">LiteTraffic</h1>
+<h2 id="standalone-product-technical-specification">Standalone product technical specification</h2>
+<p>18 September 2026 · Design proposal · Independent repository and distribution</p>
+<p><strong>LiteTraffic gives a running application a reproducible population of stateful users and verifies the effects of their actions.</strong> It runs on a developer's machine, in CI, or beside an application in a sandbox. It does not require an assessment platform, a hosted LiteTraffic account, a particular database, or E2B.</p>
+<p>This document supersedes the assessment-oriented document as the product architecture. It can be copied directly into a new LiteTraffic repository. All APIs, schemas and commands below are proposed interfaces, not currently released functionality. Public documentation was researched; no engine benchmark or product implementation was performed for this document.</p>
+<h2 id="1-product-boundary">1. Product boundary</h2>
+<p>The primary user is a developer or coding agent changing a running HTTP application. Their job is: create realistic activity, reproduce a meaningful workload, change the code, and determine whether behaviour improved without losing correctness.</p>
+<p>The product has two distinct capabilities:</p>
+<ul>
+<li><strong>Population:</strong> actors with identities, weighted behaviours, owned entities and bounded lifecycles make an application look used.</li>
+<li><strong>Verification:</strong> a finite experiment uses a frozen population and schedule, then checks independent expectations against client observations and final application state.</li>
+</ul>
+<p>Population mode can be useful without business assertions. Verification cannot claim business correctness without them. The UI and CLI must make that distinction visible.</p>
+<p>The first release supports HTTP/JSON services with either OpenAPI or accessible source, test authentication, and a safe fixture strategy. Source language does not constrain runtime support: a Go, Python, Java or Node application is usable if its API contract and test setup are available. Authentication that requires interactive browser challenges and applications with no safe test-data boundary are unsupported initially.</p>
+<p>“E2B + ShadowTraffic” is a product analogy: disposable execution environments plus believable synthetic activity. LiteTraffic does not fork E2B, recreate its infrastructure, or wrap the ShadowTraffic container. It supplies the application users and verification layer above an already running target.</p>
+<h3 id="non-goals-for-v01">Non-goals for v0.1</h3>
+<p>No hosted control plane, billing, organisation management, browser automation, distributed maximum-load generation, production replay, arbitrary event-bus producers, universal database seeding, runtime LLM calls, or unrestricted fault-injection framework. HTTP interfaces may exercise systems that internally use queues; final queue effects need an explicit observer.</p>
+<p>A standalone product does not require a SaaS. The first complete distribution is a local CLI with a reusable Python API, portable scenario bundles and exported reports.</p>
+<h2 id="2-research-conclusions-and-differentiation">2. Research conclusions and differentiation</h2>
+<h3 id="what-existing-tools-already-solve">What existing tools already solve</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Verified capability</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>k6</td>
+<td>HTTP execution, open-arrival iteration scheduling, stages, metrics, checks and thresholds</td>
+<td>Use as the execution process</td>
+</tr>
+<tr>
+<td>k6 authoring tools</td>
+<td>OpenAPI-to-k6 client generation; AI skills and MCP integration through <code>k6 x agent</code></td>
+<td>Evaluate as authoring aids; do not claim script generation is novel</td>
+</tr>
+<tr>
+<td>ShadowTraffic</td>
+<td>Declarative synthetic events, weighted choices, forked generators, state machines and schedules</td>
+<td>Borrow modelling concepts; implement an app-client model independently</td>
+</tr>
+<tr>
+<td>Locust</td>
+<td>Stateful Python users and HTTP sessions</td>
+<td>Alternative only if k6 fails measured requirements; ordinary user loops are not an equivalent open-arrival model</td>
+</tr>
+<tr>
+<td>Artillery</td>
+<td>HTTP flows, capture and response chaining</td>
+<td>Chaining is established functionality, not our differentiator</td>
+</tr>
+<tr>
+<td>Schemathesis / RESTler</td>
+<td>Stateful API tests and operation dependency inference</td>
+<td>Potential authoring inputs; no need to bundle multiple engines</td>
+</tr>
+<tr>
+<td>Speedscale / GoReplay</td>
+<td>Capture and replay workflows</td>
+<td>Different starting point; Speedscale also supports local/staging capture, not just production</td>
+</tr>
+<tr>
+<td>E2B</td>
+<td>Cloud sandbox control through SDKs</td>
+<td>Optional deployment integration, outside core execution semantics</td>
+</tr>
+</tbody>
+</table>
+<p>Primary sources: <a href="https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/arrival-rate-vu-allocation/">k6 arrival allocation</a>, <a href="https://grafana.com/docs/k6/latest/set-up/configure-ai-assistant/bootstrap-with-k6-x-agent/">k6 agent setup</a>, <a href="https://grafana.com/docs/k6/latest/using-k6/test-authoring/create-test-script-using-openapi/">OpenAPI-to-k6</a>, <a href="https://docs.shadowtraffic.io/functions/stateMachine/">ShadowTraffic state machines</a>, <a href="https://docs.locust.io/en/stable/api.html">Locust</a>, <a href="https://www.artillery.io/docs/reference/engines/http">Artillery HTTP</a>, <a href="https://schemathesis.readthedocs.io/en/latest/guides/stateful-testing/">Schemathesis</a>, <a href="https://github.com/microsoft/restler-fuzzer/blob/main/docs/user-guide/Compiling.md">RESTler</a>, <a href="https://docs.speedscale.com/">Speedscale</a>, <a href="https://github.com/probelabs/goreplay">GoReplay</a>, <a href="https://github.com/e2b-dev/E2B">E2B repository</a>.</p>
+<p>The original overview's “nobody owns this” should be treated as a hypothesis. There is strong adjacent tooling. The defensible product experiment is whether LiteTraffic can reliably turn an unfamiliar app into <strong>owned fixtures + believable journeys + calibrated timing + a useful independent verdict</strong>, with substantially less work than using those tools directly.</p>
+<h3 id="shadowtraffic-what-borrow-means">ShadowTraffic: what “borrow” means</h3>
+<p>Its public <a href="https://github.com/ShadowTraffic">GitHub organisation</a> and <a href="https://github.com/ShadowTraffic/shadowtraffic-examples">examples</a> are research references; the reviewed repositories did not expose the production engine source. The <a href="https://docs.shadowtraffic.io/connections/webhook/">webhook documentation</a> establishes HTTP delivery, but does not establish the arbitrary response-value chaining needed for our user sessions. We should not infer that capability or build around it.</p>
+<table>
+<thead>
+<tr>
+<th>Modelling idea</th>
+<th>LiteTraffic implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Weighted generators</td>
+<td>Actor classes and journey weights; explicit hot/cold or small/large entity classes</td>
+</tr>
+<tr>
+<td>Forked stateful generators</td>
+<td>Many logical actors, each with bounded journey-local state</td>
+</tr>
+<tr>
+<td>Entity relationships</td>
+<td>Fixture references and response captures such as cart ID → checkout request</td>
+</tr>
+<tr>
+<td>State machines</td>
+<td>Explicit transitions driven by declared response conditions; bounded loops</td>
+</tr>
+<tr>
+<td>Time stages</td>
+<td>Frozen constant/ramp/burst/plateau journey-admission plans</td>
+</tr>
+<tr>
+<td>Reproducibility</td>
+<td>Versioned bundle, seeded input generation, engine lock and recorded effective schedule</td>
+</tr>
+</tbody>
+</table>
+<p>We borrow these general ideas, not source code, JSON syntax or a commercial runtime. LiteTraffic must react to application responses and distinguish intended actions from persisted effects.</p>
+<h3 id="build-versus-reuse">Build versus reuse</h3>
+<p><strong>Build:</strong> scenario authoring workflow, fixture ownership, a small compiler, business assertions, evidence collection/reduction, calibration records, run comparison and product UX.</p>
+<p><strong>Reuse:</strong> k6 networking/scheduling, Python process/file/JSON primitives, Pydantic validation and schema generation, HTTPX for preparation and observations, the selected LLM provider's SDK at authoring time, optional E2B SDK for provisioning.</p>
+<p><strong>Do not build:</strong> a scheduler, HTTP stack, VM platform, generic AST framework, telemetry backend, SQL console, plugin marketplace, or engine abstraction before a second engine is actually required.</p>
+<h2 id="3-technology-and-distribution-decisions">3. Technology and distribution decisions</h2>
+<p>Choose <strong>Python for the CLI/controller and authoring pipeline; JavaScript for generated k6 journeys</strong>. This creates a clear process boundary and keeps fixtures, observers and future agent integrations straightforward. k6 JS is not Node.js: generated scripts use only pinned k6 APIs and bundled helpers, with no assumption that npm modules work at runtime.</p>
+<p>Alternatives considered:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Benefit</th>
+<th>Cost</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python controller + k6</td>
+<td>Mature scheduling; simple CLI and data analysis; no custom networking</td>
+<td>Two runtimes and event transport to validate</td>
+<td>Recommended</td>
+</tr>
+<tr>
+<td>Python + Locust</td>
+<td>One implementation language; flexible user logic</td>
+<td>Need to establish promised open-arrival and evidence semantics separately</td>
+<td>Keep as contingency, not a second adapter now</td>
+</tr>
+<tr>
+<td>TypeScript product + k6</td>
+<td>Familiar to web developers and agent SDK consumers</td>
+<td>Still two different JS environments; no clear first-release capability advantage</td>
+<td>Reasonable alternative if the implementation team strongly prefers TS</td>
+</tr>
+</tbody>
+</table>
+<p>Proposed package: Python 3.11+, <code>pyproject.toml</code>, console entry point <code>litetraffic</code>. Base dependencies are Pydantic and HTTPX. Optional extras add a chosen authoring-provider SDK or E2B; verification of an existing bundle needs neither an LLM key nor an E2B key. Use <code>argparse</code>, <code>subprocess</code>, <code>pathlib</code>, <code>hashlib</code>, <code>json</code>, <code>sqlite3</code> only if indexing is needed, and ordinary file locks/atomic writes where supported. Start without a local database.</p>
+<p>Ship source-installable packaging first. Proposed installation is <code>pipx install litetraffic</code> once the package name is reserved and published; this command is a product target, not a claim that a package exists. <code>litetraffic doctor</code> checks Python, the supported k6 release, permissions, target connectivity and available disk. It does not install binaries silently.</p>
+<p>Initially require an officially installed compatible k6 executable via <code>--k6-path</code> or PATH. A later combined container may simplify installation after licensing review. Pin tested engine versions and checksums; record the actual binary version in every run. No automatic upgrades during a run, extension fetching, or remote JS imports in frozen scenarios.</p>
+<p>k6 is <a href="https://github.com/grafana/k6/blob/master/LICENSE.md">AGPL-3.0</a>. Separate-process execution is not a legal guarantee about distribution obligations. Before public packaging, decide LiteTraffic's own license, review all bundled components, and satisfy applicable notice/source obligations. E2B's repository lists Apache-2.0, but optional cloud use also has its own service terms. Do not select a public license solely to imitate another product.</p>
+<h2 id="4-architecture-and-trust-boundaries">4. Architecture and trust boundaries</h2>
+<figure><svg id="ltarchitecture" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="flowchart" style="max-width: 2101.5px; background-color: white;" viewBox="0 0 2101.5 354" role="graphics-document document" aria-roledescription="flowchart-v2"><style>#ltarchitecture{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#000000;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#ltarchitecture .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#ltarchitecture .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#ltarchitecture .error-icon{fill:#552222;}#ltarchitecture .error-text{fill:#552222;stroke:#552222;}#ltarchitecture .edge-thickness-normal{stroke-width:1px;}#ltarchitecture .edge-thickness-thick{stroke-width:3.5px;}#ltarchitecture .edge-pattern-solid{stroke-dasharray:0;}#ltarchitecture .edge-thickness-invisible{stroke-width:0;fill:none;}#ltarchitecture .edge-pattern-dashed{stroke-dasharray:3;}#ltarchitecture .edge-pattern-dotted{stroke-dasharray:2;}#ltarchitecture .marker{fill:#666;stroke:#666;}#ltarchitecture .marker.cross{stroke:#666;}#ltarchitecture svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#ltarchitecture p{margin:0;}#ltarchitecture .label{font-family:"trebuchet ms",verdana,arial,sans-serif;color:#000000;}#ltarchitecture .cluster-label text{fill:#333;}#ltarchitecture .cluster-label span{color:#333;}#ltarchitecture .cluster-label span p{background-color:transparent;}#ltarchitecture .label text,#ltarchitecture span{fill:#000000;color:#000000;}#ltarchitecture .node rect,#ltarchitecture .node circle,#ltarchitecture .node ellipse,#ltarchitecture .node polygon,#ltarchitecture .node path{fill:#eee;stroke:#999;stroke-width:1px;}#ltarchitecture .rough-node .label text,#ltarchitecture .node .label text,#ltarchitecture .image-shape .label,#ltarchitecture .icon-shape .label{text-anchor:middle;}#ltarchitecture .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#ltarchitecture .rough-node .label,#ltarchitecture .node .label,#ltarchitecture .image-shape .label,#ltarchitecture .icon-shape .label{text-align:center;}#ltarchitecture .node.clickable{cursor:pointer;}#ltarchitecture .root .anchor path{fill:#666!important;stroke-width:0;stroke:#666;}#ltarchitecture .arrowheadPath{fill:#333333;}#ltarchitecture .edgePath .path{stroke:#666;stroke-width:1px;}#ltarchitecture .flowchart-link{stroke:#666;fill:none;}#ltarchitecture .edgeLabel{background-color:white;text-align:center;}#ltarchitecture .edgeLabel p{background-color:white;}#ltarchitecture .edgeLabel rect{opacity:0.5;background-color:white;fill:white;}#ltarchitecture .labelBkg{background-color:rgba(255, 255, 255, 0.5);}#ltarchitecture .cluster rect{fill:hsl(0, 0%, 98.9215686275%);stroke:#707070;stroke-width:1px;}#ltarchitecture .cluster text{fill:#333;}#ltarchitecture .cluster span{color:#333;}#ltarchitecture div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:12px;background:hsl(-160, 0%, 93.3333333333%);border:1px solid #707070;border-radius:2px;pointer-events:none;z-index:100;}#ltarchitecture .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#000000;}#ltarchitecture rect.text{fill:none;stroke-width:0;}#ltarchitecture .icon-shape,#ltarchitecture .image-shape{background-color:white;text-align:center;}#ltarchitecture .icon-shape p,#ltarchitecture .image-shape p{background-color:white;padding:2px;}#ltarchitecture .icon-shape .label rect,#ltarchitecture .image-shape .label rect{opacity:0.5;background-color:white;fill:white;}#ltarchitecture .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#ltarchitecture .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#ltarchitecture .node .neo-node{stroke:#999;}#ltarchitecture [data-look="neo"].node rect,#ltarchitecture [data-look="neo"].cluster rect,#ltarchitecture [data-look="neo"].node polygon{stroke:url(#ltarchitecture-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltarchitecture [data-look="neo"].node path{stroke:url(#ltarchitecture-gradient);stroke-width:1px;}#ltarchitecture [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltarchitecture [data-look="neo"].node .neo-line path{stroke:#999;filter:none;}#ltarchitecture [data-look="neo"].node circle{stroke:url(#ltarchitecture-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltarchitecture [data-look="neo"].node circle .state-start{fill:#000000;}#ltarchitecture [data-look="neo"].icon-shape .icon{fill:url(#ltarchitecture-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltarchitecture [data-look="neo"].icon-shape .icon-neo path{stroke:url(#ltarchitecture-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltarchitecture :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker id="ltarchitecture_flowchart-v2-pointEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-pointStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="4.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 5 L 10 10 L 10 0 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-pointEnd-margin" class="marker flowchart-v2" viewBox="0 0 11.5 14" refX="11.5" refY="7" markerUnits="userSpaceOnUse" markerWidth="10.5" markerHeight="14" orient="auto"><path d="M 0 0 L 11.5 7 L 0 14 z" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-pointStart-margin" class="marker flowchart-v2" viewBox="0 0 11.5 14" refX="1" refY="7" markerUnits="userSpaceOnUse" markerWidth="11.5" markerHeight="14" orient="auto"><polygon points="0,7 11.5,14 11.5,0" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-circleEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-circleStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-1" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-circleEnd-margin" class="marker flowchart-v2" viewBox="0 0 10 10" refY="5" refX="12.25" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-circleStart-margin" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-2" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 0; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-crossEnd" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="12" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-crossStart" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="-1" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"/></marker><marker id="ltarchitecture_flowchart-v2-crossEnd-margin" class="marker cross flowchart-v2" viewBox="0 0 15 15" refX="17.7" refY="7.5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M 1,1 L 14,14 M 1,14 L 14,1" class="arrowMarkerPath" style="stroke-width: 2.5;"/></marker><marker id="ltarchitecture_flowchart-v2-crossStart-margin" class="marker cross flowchart-v2" viewBox="0 0 15 15" refX="-3.5" refY="7.5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M 1,1 L 14,14 M 1,14 L 14,1" class="arrowMarkerPath" style="stroke-width: 2.5; stroke-dasharray: 1, 0;"/></marker><g class="root"><g class="clusters"/><g class="edgePaths"><path d="M491.984,151L496.151,151C500.318,151,508.651,151,518.615,151C528.578,151,540.172,151,545.969,151L551.766,151" id="ltarchitecture-L_A_B_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_A_B_0" data-points="W3sieCI6NDkxLjk4NDM3NSwieSI6MTUxfSx7IngiOjUxNi45ODQzNzUsInkiOjE1MX0seyJ4Ijo1NTUuNzY1NjI1LCJ5IjoxNTF9XQ==" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M194.297,255L198.464,255C202.63,255,210.964,255,223.596,255C236.229,255,253.161,255,261.628,255L270.094,255" id="ltarchitecture-L_R_C_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_R_C_0" data-points="W3sieCI6MTk0LjI5Njg3NSwieSI6MjU1fSx7IngiOjIxOS4yOTY4NzUsInkiOjI1NX0seyJ4IjoyNzQuMDkzNzUsInkiOjI1NX1d" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M462.188,255L471.32,255C480.453,255,498.719,255,511.352,255C523.984,255,530.984,255,534.484,255L537.984,255" id="ltarchitecture-L_C_D_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_C_D_0" data-points="W3sieCI6NDYyLjE4NzUsInkiOjI1NX0seyJ4Ijo1MTYuOTg0Mzc1LCJ5IjoyNTV9LHsieCI6NTQxLjk4NDM3NSwieSI6MjU1fV0=" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M755.422,151L761.885,151C768.349,151,781.276,151,795.54,154.87C809.804,158.741,825.406,166.481,833.206,170.352L841.007,174.222" id="ltarchitecture-L_B_E_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_B_E_0" data-points="W3sieCI6NzU1LjQyMTg3NSwieSI6MTUxfSx7IngiOjc5NC4yMDMxMjUsInkiOjE1MX0seyJ4Ijo4NDQuNTg5OTkzOTkwMzg0NiwieSI6MTc2fV0=" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M769.203,255L773.37,255C777.536,255,785.87,255,797.837,251.13C809.804,247.259,825.406,239.519,833.206,235.648L841.007,231.778" id="ltarchitecture-L_D_E_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_D_E_0" data-points="W3sieCI6NzY5LjIwMzEyNSwieSI6MjU1fSx7IngiOjc5NC4yMDMxMjUsInkiOjI1NX0seyJ4Ijo4NDQuNTg5OTkzOTkwMzg0NiwieSI6MjMwfV0=" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M929.925,176L946.91,161.167C963.895,146.333,997.866,116.667,1033.24,101.833C1068.615,87,1105.393,87,1123.783,87L1142.172,87" id="ltarchitecture-L_E_K_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_E_K_0" data-points="W3sieCI6OTI5LjkyNDcwMzY2Mzc5MzEsInkiOjE3Nn0seyJ4IjoxMDMxLjgzNTkzNzUsInkiOjg3fSx7IngiOjExNDYuMTcxODc1LCJ5Ijo4N31d" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M1282.359,60L1296.943,54.167C1311.526,48.333,1340.693,36.667,1358.778,31.118C1376.864,25.569,1383.868,26.138,1387.37,26.423L1390.873,26.708" id="ltarchitecture-L_K_T_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_K_T_0" data-points="W3sieCI6MTI4Mi4zNTkzNzUsInkiOjYwfSx7IngiOjEzNjkuODU5Mzc1LCJ5IjoyNX0seyJ4IjoxMzk0Ljg1OTM3NSwieSI6MjcuMDMxNjE3MDQwMTg3OTI1fV0=" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M1276.403,114L1291.979,120.833C1307.555,127.667,1338.707,141.333,1358.306,148.167C1377.904,155,1385.948,155,1389.97,155L1393.992,155" id="ltarchitecture-L_K_L_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_K_L_0" data-points="W3sieCI6MTI3Ni40MDM0OTI2NDcwNTg4LCJ5IjoxMTR9LHsieCI6MTM2OS44NTkzNzUsInkiOjE1NX0seyJ4IjoxMzk3Ljk5MjE4NzUsInkiOjE1NX1d" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M978.813,203L987.65,203C996.487,203,1014.161,203,1031.169,203C1048.177,203,1064.518,203,1072.689,203L1080.859,203" id="ltarchitecture-L_E_O_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_E_O_0" data-points="W3sieCI6OTc4LjgxMjUsInkiOjIwM30seyJ4IjoxMDMxLjgzNTkzNzUsInkiOjIwM30seyJ4IjoxMDg0Ljg1OTM3NSwieSI6MjAzfV0=" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M1269.814,164L1286.488,152.167C1303.162,140.333,1336.511,116.667,1363.544,99.951C1390.577,83.235,1411.294,73.47,1421.653,68.588L1432.012,63.705" id="ltarchitecture-L_O_T_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_O_T_0" data-points="W3sieCI6MTI2OS44MTM5MjA0NTQ1NDU1LCJ5IjoxNjR9LHsieCI6MTM2OS44NTkzNzUsInkiOjkzfSx7IngiOjE0MzUuNjI5OTgzODM2MjA3LCJ5Ijo2Mn1d" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M1587.836,155L1592.525,155C1597.214,155,1606.591,155,1620.333,159.852C1634.074,164.703,1652.179,174.407,1661.232,179.259L1670.284,184.11" id="ltarchitecture-L_L_V_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_L_V_0" data-points="W3sieCI6MTU4Ny44MzU5Mzc1LCJ5IjoxNTV9LHsieCI6MTYxNS45Njg3NSwieSI6MTU1fSx7IngiOjE2NzMuODA5ODA2MDM0NDgyOCwieSI6MTg2fV0=" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M1344.859,237.387L1349.026,238.489C1353.193,239.591,1361.526,241.796,1386.202,242.898C1410.878,244,1451.896,244,1492.914,244C1533.932,244,1574.951,244,1598.985,242.99C1623.02,241.98,1630.072,239.96,1633.598,238.95L1637.123,237.94" id="ltarchitecture-L_O_V_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_O_V_0" data-points="W3sieCI6MTM0NC44NTkzNzUsInkiOjIzNy4zODcwOTY3NzQxOTM1NH0seyJ4IjoxMzY5Ljg1OTM3NSwieSI6MjQ0fSx7IngiOjE0OTIuOTE0MDYyNSwieSI6MjQ0fSx7IngiOjE2MTUuOTY4NzUsInkiOjI0NH0seyJ4IjoxNjQwLjk2ODc1LCJ5IjoyMzYuODM4NTc5MjY2NTMxOX1d" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M1807.406,213L1811.573,213C1815.74,213,1824.073,213,1831.74,213C1839.406,213,1846.406,213,1849.906,213L1853.406,213" id="ltarchitecture-L_V_S_0" class="edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_V_S_0" data-points="W3sieCI6MTgwNy40MDYyNSwieSI6MjEzfSx7IngiOjE4MzIuNDA2MjUsInkiOjIxM30seyJ4IjoxODU3LjQwNjI1LCJ5IjoyMTN9XQ==" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/><path d="M929.925,230L946.91,244.833C963.895,259.667,997.866,289.333,1025.679,304.167C1053.492,319,1075.148,319,1085.977,319L1096.805,319" id="ltarchitecture-L_E_X_0" class="edge-thickness-normal edge-pattern-dotted edge-thickness-normal edge-pattern-solid flowchart-link" style=";" data-edge="true" data-et="edge" data-id="L_E_X_0" data-points="W3sieCI6OTI5LjkyNDcwMzY2Mzc5MzEsInkiOjIzMH0seyJ4IjoxMDMxLjgzNTkzNzUsInkiOjMxOX0seyJ4IjoxMTAwLjgwNDY4NzUsInkiOjMxOX1d" data-look="classic" marker-end="url(#ltarchitecture_flowchart-v2-pointEnd)"/></g><g class="edgeLabels"><g class="edgeLabel"><g class="label" data-id="L_A_B_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_R_C_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_C_D_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_B_E_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_D_E_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_E_K_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_K_T_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_K_L_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_E_O_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_O_T_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_L_V_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_O_V_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" data-id="L_V_S_0" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"></span></div></foreignObject></g></g><g class="edgeLabel" transform="translate(1031.8359375, 319)"><g class="label" data-id="L_E_X_0" transform="translate(-28.0234375, -12)"><foreignObject width="56.046875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"><p>optional</p></span></div></foreignObject></g></g></g><g class="nodes"><g class="node default" id="ltarchitecture-flowchart-A-0" data-look="classic" transform="translate(368.140625, 151)"><rect class="basic label-container" style="" x="-123.84375" y="-27" width="247.6875" height="54"/><g class="label" style="" transform="translate(-93.84375, -12)"><rect/><foreignObject width="187.6875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Developer or coding agent</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-B-1" data-look="classic" transform="translate(655.59375, 151)"><rect class="basic label-container" style="" x="-99.828125" y="-27" width="199.65625" height="54"/><g class="label" style="" transform="translate(-69.828125, -12)"><rect/><foreignObject width="139.65625" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>CLI and Python API</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-R-2" data-look="classic" transform="translate(101.1484375, 255)"><rect class="basic label-container" style="" x="-93.1484375" y="-27" width="186.296875" height="54"/><g class="label" style="" transform="translate(-63.1484375, -12)"><rect/><foreignObject width="126.296875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Repo or OpenAPI</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-C-3" data-look="classic" transform="translate(368.140625, 255)"><rect class="basic label-container" style="" x="-94.046875" y="-27" width="188.09375" height="54"/><g class="label" style="" transform="translate(-64.046875, -12)"><rect/><foreignObject width="128.09375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Authoring pipeline</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-D-5" data-look="classic" transform="translate(655.59375, 255)"><rect class="basic label-container" style="" x="-113.609375" y="-27" width="227.21875" height="54"/><g class="label" style="" transform="translate(-83.609375, -12)"><rect/><foreignObject width="167.21875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Frozen scenario bundle</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-E-7" data-look="classic" transform="translate(899.0078125, 203)"><rect class="basic label-container" style="" x="-79.8046875" y="-27" width="159.609375" height="54"/><g class="label" style="" transform="translate(-49.8046875, -12)"><rect/><foreignObject width="99.609375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Run controller</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-K-11" data-look="classic" transform="translate(1214.859375, 87)"><rect class="basic label-container" style="" x="-68.6875" y="-27" width="137.375" height="54"/><g class="label" style="" transform="translate(-38.6875, -12)"><rect/><foreignObject width="77.375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>k6 process</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-T-13" data-look="classic" transform="translate(1492.9140625, 35)"><rect class="basic label-container" style="" x="-98.0546875" y="-27" width="196.109375" height="54"/><g class="label" style="" transform="translate(-68.0546875, -12)"><rect/><foreignObject width="136.109375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Running target app</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-L-15" data-look="classic" transform="translate(1492.9140625, 155)"><rect class="basic label-container" style="" x="-94.921875" y="-27" width="189.84375" height="54"/><g class="label" style="" transform="translate(-64.921875, -12)"><rect/><foreignObject width="129.84375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Evidence collector</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-O-17" data-look="classic" transform="translate(1214.859375, 203)"><rect class="basic label-container" style="" x="-130" y="-39" width="260" height="78"/><g class="label" style="" transform="translate(-100, -24)"><rect/><foreignObject width="200" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;"><span class="nodeLabel"><p>Fixture and observer recipes</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-V-21" data-look="classic" transform="translate(1724.1875, 213)"><rect class="basic label-container" style="" x="-83.21875" y="-27" width="166.4375" height="54"/><g class="label" style="" transform="translate(-53.21875, -12)"><rect/><foreignObject width="106.4375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Verifier and diff</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-S-25" data-look="classic" transform="translate(1975.453125, 213)"><rect class="basic label-container" style="" x="-118.046875" y="-27" width="236.09375" height="54"/><g class="label" style="" transform="translate(-88.046875, -12)"><rect/><foreignObject width="176.09375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>Local artifacts and report</p></span></div></foreignObject></g></g><g class="node default" id="ltarchitecture-flowchart-X-27" data-look="classic" transform="translate(1214.859375, 319)"><rect class="basic label-container" style="" x="-114.0546875" y="-27" width="228.109375" height="54"/><g class="label" style="" transform="translate(-84.0546875, -12)"><rect/><foreignObject width="168.109375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel"><p>E2B runner deployment</p></span></div></foreignObject></g></g></g></g></g><defs><filter id="ltarchitecture-drop-shadow" height="130%" width="130%"><feDropShadow dx="4" dy="4" stdDeviation="0" flood-opacity="0.06" flood-color="#000000"/></filter></defs><defs><filter id="ltarchitecture-drop-shadow-small" height="150%" width="150%"><feDropShadow dx="2" dy="2" stdDeviation="0" flood-opacity="0.06" flood-color="#000000"/></filter></defs><linearGradient id="ltarchitecture-gradient" gradientUnits="objectBoundingBox" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="hsl(0, 0%, 83.3333333333%)" stop-opacity="1"/><stop offset="100%" stop-color="hsl(0, 0%, 88.9215686275%)" stop-opacity="1"/></linearGradient></svg></figure>
+
+<p>These are modules in one package plus the k6 child process, not independent network services.</p>
+<p><strong>Authoring plane:</strong> gathers evidence, proposes a bounded scenario, probes it in an approved test environment, and freezes reviewed inputs. It may call an LLM.</p>
+<p><strong>Execution plane:</strong> validates provenance, prepares fixtures, starts the engine, captures events and performs final observations. It has no LLM dependency.</p>
+<p><strong>Evidence plane:</strong> stores immutable inputs and observations, evaluates explicit assertions, and produces results. Its expected values come from approved contracts/fixtures, not whatever the target happens to return.</p>
+<p><strong>Integration boundary:</strong> callers supply a target URL, approved bundle, run configuration and artifact destination. A shell command is the universal first integration. A Python library calls the same functions. An E2B wrapper supplies a reachable target and isolated execution. No core module imports a customer backend.</p>
+<p>Run the controller and verifier outside the application being tested. When an agent can change application code, keep the approved scenario and expected values outside that agent's writable checkout for trustworthy evaluation. A local developer can of course edit both; LiteTraffic is not a tamper-proof attestation product in that deployment.</p>
+<h3 id="proposed-independent-repository">Proposed independent repository</h3>
+<pre><code class="language-text">litetraffic/
+  pyproject.toml
+  src/litetraffic/
+    cli.py
+    models.py
+    author.py
+    compile.py
+    runner.py
+    evidence.py
+    verify.py
+    k6/runtime.js
+  examples/
+    reporting/
+    cache/
+    payments/
+    inventory/
+    tenant-api/
+  integrations/e2b/       # add after local contract works
+  tests/
+  docs/
+</code></pre>
+<p>Do not scaffold every directory before the first vertical slice. This layout describes ownership and extraction boundaries; merge tiny modules until separation helps.</p>
+<h2 id="5-user-workflow-and-public-interfaces">5. User workflow and public interfaces</h2>
+<h3 id="first-use">First use</h3>
+<p>The app is already running. LiteTraffic does not guess how to build and execute an arbitrary repository.</p>
+<pre><code class="language-text">litetraffic doctor --target http://localhost:3000
+litetraffic author --repo . --target http://localhost:3000 --out ./traffic
+litetraffic inspect ./traffic
+litetraffic approve ./traffic --target-profile local-test
+litetraffic up --scenario ./traffic --target http://localhost:3000
+litetraffic verify --scenario ./traffic --seed 42 --json
+litetraffic diff run_a run_b --json
+</code></pre>
+<p><code>up --repo .</code> is the eventual shorthand: reuse a valid approved bundle, or run authoring first and stop at a reviewable plan if approval is missing. It must not silently generate arbitrary writes. Interactive approval records the bundle digest and target profile; noninteractive agents/CI supply an already approved digest. A changed contract invalidates approval.</p>
+<h3 id="required-inputs">Required inputs</h3>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Mandatory when</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Target URL</td>
+<td>Every execution</td>
+<td>Localhost, container network URL or sandbox endpoint</td>
+</tr>
+<tr>
+<td>Scenario bundle</td>
+<td>Every runtime run</td>
+<td>Handwritten first; generated later</td>
+</tr>
+<tr>
+<td>Source or API description</td>
+<td>Automatic authoring</td>
+<td>Repository path or OpenAPI file</td>
+</tr>
+<tr>
+<td>Test auth recipe</td>
+<td>Authenticated operations</td>
+<td>Environment-referenced tokens or explicit login flow</td>
+</tr>
+<tr>
+<td>Fixture strategy</td>
+<td>Writes or known-data correctness checks</td>
+<td>Owned namespace creation or isolated reset/seed recipe</td>
+</tr>
+<tr>
+<td>Business contract</td>
+<td>Business verification</td>
+<td>Capacity, expected totals or one effect per logical payment</td>
+</tr>
+<tr>
+<td>Observer</td>
+<td>Client-visible API cannot establish truth</td>
+<td>Read-only scoped export or DB query recipe</td>
+</tr>
+<tr>
+<td>LLM credentials</td>
+<td>Built-in model authoring only</td>
+<td>Chosen provider configured locally</td>
+</tr>
+</tbody>
+</table>
+<p>The operator need not add application instrumentation to run HTTP scenarios. Correlated logs/traces are optional diagnostic integration, not a prerequisite for using the product.</p>
+<h3 id="command-semantics">Command semantics</h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>author</code></td>
+<td>Produce a draft bundle plus coverage/assumptions; no hidden approval</td>
+</tr>
+<tr>
+<td><code>inspect</code></td>
+<td>Explain actors, writes, schedule, budgets, assertions, secrets and unsupported operations</td>
+</tr>
+<tr>
+<td><code>approve</code></td>
+<td>Bind reviewed bundle digest to target profile and allowed capabilities</td>
+</tr>
+<tr>
+<td><code>up</code></td>
+<td>Foreground background-activity process by default; emits status and artifact path</td>
+</tr>
+<tr>
+<td><code>verify</code></td>
+<td>Finite experiment; prepare, execute, observe, evaluate, persist and exit</td>
+</tr>
+<tr>
+<td><code>diff</code></td>
+<td>Compare compatible immutable run directories/IDs; no target access</td>
+</tr>
+<tr>
+<td><code>doctor</code></td>
+<td>Check prerequisites without application writes</td>
+</tr>
+</tbody>
+</table>
+<p>Use Ctrl-C or the caller's process handle to stop <code>up</code>; do not build a daemon manager first. A service manager can supervise it later. Persist a workspace selection so omitted target/scenario flags resolve deterministically, and always print the resolved values.</p>
+<p><code>--json</code> produces one terminal JSON object on stdout; progress uses stderr. Exit codes: 0 pass/completed activity, 1 observed assertion failure, 2 inconclusive, 3 invalid configuration or runner error, 130 interrupted. Activity completion must say <code>mode=background</code>, not <code>verdict=pass</code>.</p>
+<p>Proposed Python surface: <code>verify(target, bundle, seed, output_dir) -&gt; RunResult</code>, <code>compare(run_a, run_b) -&gt; Comparison</code>, and a context-managed <code>start_activity(...)</code> handle with <code>stop()</code>/<code>status()</code>. Validate through the same models and execute the same controller. Do not maintain separate SDK semantics. TypeScript consumers initially invoke the CLI with JSON; add a native SDK only when an actual integration needs it. MCP is a later thin wrapper, not the core API.</p>
+<h2 id="6-scenario-model-and-format-evolution">6. Scenario model and format evolution</h2>
+<p>Five hand-authored bundles establish the model before a general DSL. A bundle is versioned data plus reviewed scripts and fixture/observer recipes. Generated scenarios eventually use a bounded intermediate representation compiled into the same k6 helper calls.</p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Required semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Actors</td>
+<td>Identity class, auth recipe, stable fixture selection and behaviour weights</td>
+</tr>
+<tr>
+<td>Fixtures</td>
+<td>Entity relationships, distributions, ownership, initial expected state and reset/cleanup rules</td>
+</tr>
+<tr>
+<td>Operations</td>
+<td>Method/path, typed inputs, captures, expected response classes, retry policy and bounded transitions</td>
+</tr>
+<tr>
+<td>Timing</td>
+<td>Journey admission schedule, think-time bounds, phases, seed and concurrency envelope</td>
+</tr>
+<tr>
+<td>Assertions</td>
+<td>Expected values, observation source, deadlines, positive-progress requirements and evidence fields</td>
+</tr>
+<tr>
+<td>Budgets</td>
+<td>Duration, HTTP/write attempts, fan-out, fixture growth, artifact size and allowed origins</td>
+</tr>
+</tbody>
+</table>
+<p>Keep target bindings and secrets out of the portable behavioural bundle. The same scenario may run against localhost and a remote preview; calibration/environment compatibility determines whether their performance is comparable.</p>
+<h3 id="example-v0-manifest">Example v0 manifest</h3>
+<p>This is an illustrative handwritten-bundle schema. The implementation must validate all referenced recipes and prove budget bounds before execution.</p>
+<pre><code class="language-json">{
+  &quot;schema_version&quot;: 1,
+  &quot;name&quot;: &quot;checkout&quot;,
+  &quot;script&quot;: &quot;journeys.js&quot;,
+  &quot;actors&quot;: [{&quot;class&quot;: &quot;buyer&quot;, &quot;count&quot;: 50, &quot;auth_recipe&quot;: &quot;test-login&quot;}],
+  &quot;fixtures&quot;: {&quot;recipe&quot;: &quot;owned-shop&quot;, &quot;small_carts&quot;: 80, &quot;large_carts&quot;: 20},
+  &quot;journeys&quot;: [{&quot;name&quot;: &quot;purchase&quot;, &quot;max_requests&quot;: 7, &quot;max_writes&quot;: 3}],
+  &quot;schedule&quot;: {
+    &quot;unit&quot;: &quot;journeys_per_second&quot;,
+    &quot;phases&quot;: [
+      {&quot;name&quot;: &quot;warmup&quot;, &quot;seconds&quot;: 10, &quot;rate&quot;: 1},
+      {&quot;name&quot;: &quot;measure&quot;, &quot;seconds&quot;: 120, &quot;rate&quot;: 2},
+      {&quot;name&quot;: &quot;recovery&quot;, &quot;seconds&quot;: 20, &quot;rate&quot;: 1}
+    ]
+  },
+  &quot;assertions&quot;: [&quot;one_effect_per_payment&quot;, &quot;accepted_orders_persist&quot;, &quot;order_totals_match&quot;],
+  &quot;observer&quot;: &quot;owned-order-ledger&quot;,
+  &quot;budgets&quot;: {
+    &quot;max_seconds&quot;: 210,
+    &quot;max_requests&quot;: 2400,
+    &quot;max_write_attempts&quot;: 900,
+    &quot;max_in_flight&quot;: 8,
+    &quot;max_artifact_bytes&quot;: 67108864
+  }
+}
+</code></pre>
+<p>There are at most 270 planned journeys in this example: 1,890 journey requests and 810 journey writes at their maxima. Preparation, authentication not already counted in a journey, final observations and cleanup must fit the remaining allocations. Reject the bundle if their declared bounds do not fit. Numbers illustrate accounting, not recommended load for every shop.</p>
+<p>A proposed later operation representation needs only literal/fixture/capture inputs, JSON Pointer response extraction, expected statuses, finite retries/polls and a small transition table. Do not add arbitrary evaluated expressions. Start with JSON; expose YAML only if users need it and keep canonical JSON for hashing.</p>
+<h3 id="identity-and-capture-rules">Identity and capture rules</h3>
+<p>A journey ID is <code>(run_id, scenario, admitted_iteration)</code>. An actor ID selects a logical identity independently of which VU executes it. A payment retry retains the same business key and payload digest; a new logical purchase gets a new key.</p>
+<p>Captures are journey-local, typed, and fail closed when absent. An ID captured from <code>/orders</code> may populate an approved path segment; it cannot become an arbitrary destination URL. Encode path/query values through fixed templates. Each iteration establishes its intended actor's authentication rather than inheriting an accidental VU session.</p>
+<p>Mutable state across arbitrary journeys is not initially supported. Recurring users reuse immutable identity fixtures; response-dependent lifecycles remain within a bounded journey. Shared mutable inventory lives in the app and is checked by an observer. This is an explicit limit to “stateful users”, not hidden shared-memory magic.</p>
+<h2 id="7-authoring-is-the-main-product-investment">7. Authoring is the main product investment</h2>
+<p>A generic product needs a first-class authoring contract, not an internal task-generation hook. Inputs are an unfamiliar app, its API/source evidence, and the operator's test intent. The output is a reviewable executable hypothesis with honest coverage.</p>
+<h3 id="pipeline">Pipeline</h3>
+<ol>
+<li><strong>Inventory.</strong> Prefer supplied OpenAPI. For source-only apps, select bounded route/model/auth/seed files, record source references, and let the model propose operations. Ignore secrets, dependencies and generated files. Do not execute repository setup scripts automatically.</li>
+<li><strong>Relationship graph.</strong> Identify producer/consumer IDs, identities, ownership boundaries and likely entity lifecycles. Track whether each edge came from schema, source, user instruction or a successful probe.</li>
+<li><strong>Behaviour proposal.</strong> Suggest actor classes, journey mix, fixture skew and known failure hypotheses. Start with the requested workflow rather than every discovered route.</li>
+<li><strong>Contract proposal.</strong> Separate protocol assertions from business assertions. A response schema can establish field types; it cannot establish the correct tax calculation or tenancy rule by itself.</li>
+<li><strong>Fixture planning.</strong> Select supplied fixtures, namespace creation, or a user-provided disposable reset recipe. If none is safe, propose read-only activity with explicitly limited verification.</li>
+<li><strong>Probe.</strong> Test operations and captures at minimal pressure in an approved disposable environment. Probing writes requires the same ownership limits as runtime. Retain failing intended paths as findings; never remove them just to report a successful scenario.</li>
+<li><strong>Compile and validate.</strong> Check references, finite loops, resource bounds, route policy and instrumentation coverage. Use trusted code templates for generated runtime behaviour.</li>
+<li><strong>Review, calibrate and freeze.</strong> Present expected effects and unresolved assumptions; bind approval to the final digest; store reproducible artifacts.</li>
+</ol>
+<p>Draft states: <code>discovered → proposed → probed → reviewed → calibrated → frozen</code>. A changed operation or oracle returns to review; a new target resource class requires recalibration for latency, not necessarily a new business contract.</p>
+<h3 id="model-contract-and-cost">Model contract and cost</h3>
+<p>Use one configured model provider initially; no home-grown model gateway. Record provider/model, prompt version, input file digests and output validation errors. Do not store secret-bearing prompt bodies in reports. Restrict source transmission to the user's selected provider and explicitly selected workspace content. Support imported/handwritten bundles so runtime works fully offline.</p>
+<p>Proposed default repair budget: two model revisions per failed operation, a configurable total token/spend ceiling, and a finite probe count. Exhaustion produces a draft with unsupported operations, not endless retries. Model output is untrusted data: it cannot authorize shell commands, disable policies or approve its own business assertions.</p>
+<h3 id="coverage-report">Coverage report</h3>
+<p>Report discovered operations, attempted operations, executable operations, exercised relationships, observed actor classes, unsupported auth, skipped mutations, and assertions with no independent oracle. Include confidence/provenance per inferred rule. “18 of 23 routes executed” must not be presented as “78% of business behaviour verified”.</p>
+<p>For the first generic milestone, support OpenAPI plus static/test-login authentication and an explicit fixture recipe well. Add framework-specific extraction only when five outside apps show a repeated gap. Do not promise arbitrary repositories from day one.</p>
+<h2 id="8-execution-engine-and-scheduling">8. Execution engine and scheduling</h2>
+<p>One controller launches one pinned k6 process. The controller writes an immutable resolved plan, prepares fixture data, starts bounded execution and consumes event/metric streams. VUs execute complete journeys.</p>
+<p>k6 arrival executors admit <strong>iterations</strong>, not individual HTTP requests. A journey's number of requests depends on steps, retries and polling. Show both planned journeys/second and observed HTTP requests/second. Open scheduling avoids automatically slowing admissions merely because responses slowed, but sufficient VUs are required. Insufficient capacity creates dropped iterations, which are evidence of under-delivered load, not completed work. <a href="https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/arrival-rate-vu-allocation/">Official scheduling semantics</a>.</p>
+<p>Use constant and ramping arrival executors. Precompute seeded burst placement, amplitude and plateau lengths, then freeze the stage plan. Within-stage regular admissions are not a Poisson process; describe them accurately. Preallocate the required VUs to avoid dynamic VU allocation changing the measurement environment.</p>
+<p>Derive randomness from independent streams keyed by seed, scenario and iteration identity. A slow response must not shift all subsequent data choices. Fixed seed reproduces inputs and planned admissions, not thread scheduling or identical latency.</p>
+<p>k6 VUs do not share mutable JS state. <code>SharedArray</code> provides read-only data, and setup values do not provide a shared result registry. <a href="https://grafana.com/docs/k6/latest/using-k6/test-lifecycle/">Lifecycle</a> and <a href="https://grafana.com/docs/k6/latest/javascript-api/k6-data/sharedarray/">SharedArray</a>. Use journey-local state and external evidence reduction.</p>
+<h3 id="budget-enforcement">Budget enforcement</h3>
+<p>Before running, calculate the maximum calls/writes per journey, admitted slots per phase, setup/observer/cleanup allocations and parallel fan-out. The helper rejects iterations beyond their slot budget and caps retry/poll loops. Sum concurrent scenarios' <code>VU limit × maximum per-VU parallel requests</code> to bound in-flight work. There is no fake global counter in VU memory.</p>
+<p>This limits client attempts, not arbitrary downstream side effects caused by a broken app. Fixture isolation and target resource limits remain necessary. A strict global HTTP-RPS admission limit would require an additional coordination design; do not advertise one based only on journey rates.</p>
+<p>For contention, use independent VUs or bounded <code>http.batch</code>. Record actual dispatch intervals and require overlap on the same resource; a “burst” label does not prove a race was exercised. <a href="https://grafana.com/docs/k6/latest/javascript-api/k6-http/batch/">Batch API</a>.</p>
+<h3 id="timing-completeness">Timing completeness</h3>
+<p>Collect scheduled/admitted/completed/dropped journeys and measured starts per phase. Exact late-start accounting must be proven against the pinned executor: skipped arrivals cannot simply be reconstructed from the ordinal of executed iterations. Engine-fit testing must establish a reliable expected-slot mapping or instrumented scheduling signal. If unavailable, report aggregate delivery and explicitly mark per-arrival lateness unsupported; do not claim it is measured.</p>
+<h2 id="9-calibration-and-realistic-populations">9. Calibration and realistic populations</h2>
+<p>A workload is <code>population × journey mix × time profile</code>. Prefer explicit interpretable classes before fitting elaborate distributions: 80% small carts and 20% large carts; hot keys receiving most reads; two tenants sharing the same local ID; a small inventory receiving simultaneous demand.</p>
+<p>Borrow skew as a modelling idea, but determine parameters from the app's intended use or the operator's supplied traces/statistics. In the absence of those, label the workload synthetic and hypothesis-driven. “Believable” does not mean a faithful reconstruction of unknown production behaviour.</p>
+<p>Calibration prepares isolated fixtures, runs a small fixed pressure ladder, measures runner overhead and target behaviour, and freezes a selected envelope. Never continuously reduce verification pressure until a broken app passes. Without a known-good reference, calibration can establish an operational envelope but cannot invent the product's business or latency requirements.</p>
+<p>A stable interval offers the sizing estimate <code>average in-flight ≈ journey arrival rate × average journey duration</code>. Add headroom for tails and fan-out. When the target saturates, this is a diagnostic relationship rather than a capacity guarantee.</p>
+<p>Define warmup, measurement, recovery and final observation separately. The default verification measurement is 1–5 minutes; preparation may take longer and must be reported separately. Measure per route, actor/data class and phase. Preserve errors and timeout denominators so dropping work cannot look faster.</p>
+<p>A proposed pilot floor is 200 observations per p95-gated class; it is not a confidence guarantee. Insufficient samples produce inconclusive performance checks. Do not infer useful p99 estimates from a tiny run. Use repeated runs and reported dispersion for noisy small machines.</p>
+<p>Thresholds come from a stated requirement or reviewed baseline policy and are locked before the code change. Without thresholds, report comparative measurements rather than manufacture a pass. Server instrumentation can explain latency; external request duration is the independently observed user experience.</p>
+<h2 id="10-fixture-authentication-and-observer-contracts">10. Fixture, authentication and observer contracts</h2>
+<h3 id="fixture-strategies">Fixture strategies</h3>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>Requirements</th>
+<th>Claims available</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Read-only existing data</td>
+<td>Supplied safe identities/resource references</td>
+<td>Activity and observable protocol checks; only known expected values support correctness</td>
+</tr>
+<tr>
+<td>Owned API-created namespace</td>
+<td>Proven creation/ownership and bounded cleanup</td>
+<td>Stateful writes scoped to synthetic resources</td>
+</tr>
+<tr>
+<td>Disposable reset/seed recipe</td>
+<td>Explicit operator-approved command in isolated app environment</td>
+<td>Reproducible full known-state experiments</td>
+</tr>
+<tr>
+<td>External supplied fixture manifest</td>
+<td>Trusted expected entities and ownership</td>
+<td>Portable repeatable runs without generic seeding</td>
+</tr>
+</tbody>
+</table>
+<p>A fixture recipe returns namespace, actor secret references, owned entity references, expected values, initial counts, version and cleanup metadata. Secrets are stored separately. Ownership must be established by the recipe/validated creation context, not merely an ID returned by the untrusted app.</p>
+<p>Cleanup only targets owned objects. A failed cleanup reports leftovers and preserves the evidence. Do not recursively reset a developer's database from a guessed command. Compare runs using equivalent initial states; run-specific namespaces may differ physically while logical fixture values and distributions remain identical.</p>
+<h3 id="authentication">Authentication</h3>
+<p>Start with environment-supplied bearer/API tokens and explicit test-login HTTP recipes. Define extraction, session expiry and bounded reauthentication. Cookie state belongs to the intended logical actor. CSRF/OAuth flows need a supplied tested recipe; no automatic bypass. Reauthentication consumes budget and cannot silently switch to an administrator identity.</p>
+<h3 id="observers">Observers</h3>
+<p>A client ledger cannot prove hidden persistence. An observer obtains final truth through an independently specified API/export or a user-supplied read-only database recipe. Generic v0 should not contain a SQL generator with broad credentials. A trusted executable observer is an explicit opt-in, run with the minimum credentials and a timeout; it reads a fixed request JSON and returns validated observation JSON.</p>
+<p>Observer input: run ID, owned namespace, expected logical keys and deadline. Output: schema version, observation timestamp, source identity, completeness, typed records and errors. Missing or incomplete records cannot be treated as zero effects without the observer proving the query's scope was complete.</p>
+<p>Application logs and metrics are optional diagnostic signals. They cannot certify a business assertion merely because the application says “success”. Request IDs belong in logs/traces; use bounded route/status/class labels in metrics. <a href="https://opentelemetry.io/docs/concepts/instrumentation/">OpenTelemetry instrumentation</a>.</p>
+<h2 id="11-evidence-pipeline-and-verdicts">11. Evidence pipeline and verdicts</h2>
+<p>Every generated HTTP operation goes through a shared helper. It records intent before sending, then response or transport error. IDs include run, scenario, journey, step and attempt. Store method, route template, logical resource/business key, payload digest, selected redacted response fields, elapsed time and status/error classification.</p>
+<p>An intent is not proof that bytes reached the app. A timed-out write may have committed. Record unknown outcome and resolve it through the observer; retry only when the declared operation is idempotent, with the same logical key and finite limits.</p>
+<p>k6's metric JSON and final summary are not the business ledger. Prototype a structured script event stream captured by the supervisor, alongside engine metrics. Pin and validate its framing; do not assume concurrent console output is a durable JSON protocol. <a href="https://grafana.com/docs/k6/latest/get-started/results-output/">k6 output</a> and <a href="https://grafana.com/docs/k6/latest/results-output/end-of-test/custom-summary/">custom summary</a>.</p>
+<p>The collector is the single writer of sequenced JSONL chunks. Flush periodically, hash closed chunks, and maintain a finalization manifest. Reconcile intents/responses, engine HTTP counts, completed journeys and dropped admissions. Missing evidence prevents a pass. Use selected small response projections, not unrestricted body capture; post-read size checks do not prevent k6 buffering large responses, so fixture and process-memory limits also matter.</p>
+<pre><code class="language-text">.litetraffic/runs/&lt;run_id&gt;/
+  run.json
+  scenario.lock.json
+  fixture-manifest.json
+  events/000001.jsonl
+  metrics.json
+  observations.json
+  result.json
+  report.html
+  artifacts.json
+</code></pre>
+<p>Keep runtime artifacts out of the application source repository by default through an ignored output directory or explicit external path. No mandatory S3, Postgres or cloud account. Remote runners stream closed chunks back to the caller; local unflushed data can be lost on VM death, and completeness must reflect that.</p>
+<h3 id="assertion-library">Assertion library</h3>
+<p>Initial assertions: capacity never exceeded; accepted logical writes eventually exist; at most/at least one effect per logical key as required; totals match known fixtures; cross-identity access is forbidden; updated values become visible by a deadline; required work makes progress. Every safety rule needs a positive control where appropriate: rejecting all requests must not pass inventory or isolation verification.</p>
+<h3 id="verdict-policy">Verdict policy</h3>
+<ul>
+<li><code>pass</code>: every required assertion and coverage check passes, evidence is complete, and the declared workload was delivered.</li>
+<li><code>fail</code>: definite violation, including a fast wrong response or persisted duplicate. A partial run may prove failure but remains partial.</li>
+<li><code>inconclusive</code>: no definite failure but missing oracle, unknown effects, insufficient coverage/samples or incomplete evidence prevents a pass.</li>
+<li><code>error</code>: configuration, preparation or runner defect prevents a meaningful experiment.</li>
+</ul>
+<p>Keep process lifecycle separate: preparing, running, draining, observing, finalizing, finished, cancelled or crashed. A target 500 is an observed application outcome, not automatically a runner error. k6 checks alone do not set a failing exit status; LiteTraffic must compute business verdicts and interpret engine thresholds explicitly. <a href="https://grafana.com/docs/k6/latest/using-k6/thresholds/">Thresholds</a>.</p>
+<pre><code class="language-json">{
+  &quot;schema_version&quot;: 1,
+  &quot;run_id&quot;: &quot;run_example&quot;,
+  &quot;mode&quot;: &quot;verify&quot;,
+  &quot;verdict&quot;: &quot;fail&quot;,
+  &quot;completeness&quot;: &quot;complete&quot;,
+  &quot;assertions&quot;: [{
+    &quot;id&quot;: &quot;one_effect_per_payment&quot;,
+    &quot;status&quot;: &quot;fail&quot;,
+    &quot;logical_key&quot;: &quot;payment-17&quot;,
+    &quot;expected&quot;: 1,
+    &quot;observed&quot;: 2,
+    &quot;evidence&quot;: [&quot;observations.json#/payments/17&quot;]
+  }],
+  &quot;limitations&quot;: []
+}
+</code></pre>
+<h2 id="12-lifecycle-background-mode-and-comparison">12. Lifecycle, background mode and comparison</h2>
+<figure><svg id="ltlifecycle" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="max-width: 1197px; background-color: white;" viewBox="-50 -10 1197 577" role="graphics-document document" aria-roledescription="sequence"><g><rect x="947" y="491" fill="#eaeaea" stroke="#666" width="150" height="65" name="O" rx="3" ry="3" class="actor actor-bottom"/><text x="1022" y="523.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="1022" dy="0">Observer</tspan></text></g><g><rect x="747" y="491" fill="#eaeaea" stroke="#666" width="150" height="65" name="A" rx="3" ry="3" class="actor actor-bottom"/><text x="822" y="523.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="822" dy="0">Application</tspan></text></g><g><rect x="547" y="491" fill="#eaeaea" stroke="#666" width="150" height="65" name="K" rx="3" ry="3" class="actor actor-bottom"/><text x="622" y="523.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="622" dy="0">k6</tspan></text></g><g><rect x="249" y="491" fill="#eaeaea" stroke="#666" width="150" height="65" name="C" rx="3" ry="3" class="actor actor-bottom"/><text x="324" y="523.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="324" dy="0">Controller</tspan></text></g><g><rect x="0" y="491" fill="#eaeaea" stroke="#666" width="150" height="65" name="U" rx="3" ry="3" class="actor actor-bottom"/><text x="75" y="523.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="75" dy="0">Caller</tspan></text></g><g><line id="actor4" x1="1022" y1="65" x2="1022" y2="491" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="O" data-et="life-line" data-id="O"/><g id="root-4" data-et="participant" data-type="participant" data-id="O"><rect x="947" y="0" fill="#eaeaea" stroke="#666" width="150" height="65" name="O" rx="3" ry="3" class="actor actor-top"/><text x="1022" y="32.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="1022" dy="0">Observer</tspan></text></g></g><g><line id="actor3" x1="822" y1="65" x2="822" y2="491" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="A" data-et="life-line" data-id="A"/><g id="root-3" data-et="participant" data-type="participant" data-id="A"><rect x="747" y="0" fill="#eaeaea" stroke="#666" width="150" height="65" name="A" rx="3" ry="3" class="actor actor-top"/><text x="822" y="32.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="822" dy="0">Application</tspan></text></g></g><g><line id="actor2" x1="622" y1="65" x2="622" y2="491" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="K" data-et="life-line" data-id="K"/><g id="root-2" data-et="participant" data-type="participant" data-id="K"><rect x="547" y="0" fill="#eaeaea" stroke="#666" width="150" height="65" name="K" rx="3" ry="3" class="actor actor-top"/><text x="622" y="32.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="622" dy="0">k6</tspan></text></g></g><g><line id="actor1" x1="324" y1="65" x2="324" y2="491" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="C" data-et="life-line" data-id="C"/><g id="root-1" data-et="participant" data-type="participant" data-id="C"><rect x="249" y="0" fill="#eaeaea" stroke="#666" width="150" height="65" name="C" rx="3" ry="3" class="actor actor-top"/><text x="324" y="32.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="324" dy="0">Controller</tspan></text></g></g><g><line id="actor0" x1="75" y1="65" x2="75" y2="491" class="actor-line 200" stroke-width="0.5px" stroke="#999" name="U" data-et="life-line" data-id="U"/><g id="root-0" data-et="participant" data-type="participant" data-id="U"><rect x="0" y="0" fill="#eaeaea" stroke="#666" width="150" height="65" name="U" rx="3" ry="3" class="actor actor-top"/><text x="75" y="32.5" dominant-baseline="central" alignment-baseline="central" class="actor actor-box" style="text-anchor: middle; font-size: 16px; font-weight: 400;"><tspan x="75" dy="0">Caller</tspan></text></g></g><style>#ltlifecycle{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#000000;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#ltlifecycle .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#ltlifecycle .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#ltlifecycle .error-icon{fill:#552222;}#ltlifecycle .error-text{fill:#552222;stroke:#552222;}#ltlifecycle .edge-thickness-normal{stroke-width:1px;}#ltlifecycle .edge-thickness-thick{stroke-width:3.5px;}#ltlifecycle .edge-pattern-solid{stroke-dasharray:0;}#ltlifecycle .edge-thickness-invisible{stroke-width:0;fill:none;}#ltlifecycle .edge-pattern-dashed{stroke-dasharray:3;}#ltlifecycle .edge-pattern-dotted{stroke-dasharray:2;}#ltlifecycle .marker{fill:#666;stroke:#666;}#ltlifecycle .marker.cross{stroke:#666;}#ltlifecycle svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#ltlifecycle p{margin:0;}#ltlifecycle .actor{stroke:hsl(0, 0%, 83%);fill:#eee;stroke-width:1;}#ltlifecycle rect.actor.outer-path[data-look="neo"]{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltlifecycle rect.note[data-look="neo"]{stroke:#999;fill:#666;filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltlifecycle text.actor&gt;tspan{fill:#333;stroke:none;}#ltlifecycle .actor-line{stroke:hsl(0, 0%, 83%);}#ltlifecycle .innerArc{stroke-width:1.5;stroke-dasharray:none;}#ltlifecycle .messageLine0{stroke-width:1.5;stroke-dasharray:none;stroke:#333;}#ltlifecycle .messageLine1{stroke-width:1.5;stroke-dasharray:2,2;stroke:#333;}#ltlifecycle [id$="-arrowhead"] path{fill:#333;stroke:#333;}#ltlifecycle .sequenceNumber{fill:white;}#ltlifecycle [id$="-sequencenumber"]{fill:#333;}#ltlifecycle [id$="-crosshead"] path{fill:#333;stroke:#333;}#ltlifecycle .messageText{fill:#333;stroke:none;}#ltlifecycle .labelBox{stroke:hsl(0, 0%, 83%);fill:#eee;filter:none;}#ltlifecycle .labelText,#ltlifecycle .labelText&gt;tspan{fill:#333;stroke:none;}#ltlifecycle .loopText,#ltlifecycle .loopText&gt;tspan{fill:#333;stroke:none;}#ltlifecycle .sectionTitle,#ltlifecycle .sectionTitle&gt;tspan{fill:#333;stroke:none;}#ltlifecycle .loopLine{stroke-width:2px;stroke-dasharray:2,2;stroke:hsl(0, 0%, 83%);fill:hsl(0, 0%, 83%);}#ltlifecycle .note{stroke:#999;fill:#666;}#ltlifecycle .noteText,#ltlifecycle .noteText&gt;tspan{fill:#fff;stroke:none;font-weight:normal;}#ltlifecycle .activation0{fill:#f4f4f4;stroke:#666;}#ltlifecycle .activation1{fill:#f4f4f4;stroke:#666;}#ltlifecycle .activation2{fill:#f4f4f4;stroke:#666;}#ltlifecycle .actorPopupMenu{position:absolute;}#ltlifecycle .actorPopupMenuPanel{position:absolute;fill:#eee;box-shadow:0px 8px 16px 0px rgba(0,0,0,0.2);filter:drop-shadow(3px 5px 2px rgb(0 0 0 / 0.4));}#ltlifecycle .actor-man circle,#ltlifecycle line{fill:#eee;stroke-width:2px;}#ltlifecycle g rect.rect{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));stroke:#999;}#ltlifecycle .node .neo-node{stroke:#999;}#ltlifecycle [data-look="neo"].node rect,#ltlifecycle [data-look="neo"].cluster rect,#ltlifecycle [data-look="neo"].node polygon{stroke:url(#ltlifecycle-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltlifecycle [data-look="neo"].node path{stroke:url(#ltlifecycle-gradient);stroke-width:1px;}#ltlifecycle [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltlifecycle [data-look="neo"].node .neo-line path{stroke:#999;filter:none;}#ltlifecycle [data-look="neo"].node circle{stroke:url(#ltlifecycle-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltlifecycle [data-look="neo"].node circle .state-start{fill:#000000;}#ltlifecycle [data-look="neo"].icon-shape .icon{fill:url(#ltlifecycle-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltlifecycle [data-look="neo"].icon-shape .icon-neo path{stroke:url(#ltlifecycle-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#ltlifecycle :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g/><defs><symbol id="ltlifecycle-computer" width="24" height="24"><path transform="scale(.5)" d="M2 2v13h20v-13h-20zm18 11h-16v-9h16v9zm-10.228 6l.466-1h3.524l.467 1h-4.457zm14.228 3h-24l2-6h2.104l-1.33 4h18.45l-1.297-4h2.073l2 6zm-5-10h-14v-7h14v7z"/></symbol></defs><defs><symbol id="ltlifecycle-database" fill-rule="evenodd" clip-rule="evenodd"><path transform="scale(.5)" d="M12.258.001l.256.004.255.005.253.008.251.01.249.012.247.015.246.016.242.019.241.02.239.023.236.024.233.027.231.028.229.031.225.032.223.034.22.036.217.038.214.04.211.041.208.043.205.045.201.046.198.048.194.05.191.051.187.053.183.054.18.056.175.057.172.059.168.06.163.061.16.063.155.064.15.066.074.033.073.033.071.034.07.034.069.035.068.035.067.035.066.035.064.036.064.036.062.036.06.036.06.037.058.037.058.037.055.038.055.038.053.038.052.038.051.039.05.039.048.039.047.039.045.04.044.04.043.04.041.04.04.041.039.041.037.041.036.041.034.041.033.042.032.042.03.042.029.042.027.042.026.043.024.043.023.043.021.043.02.043.018.044.017.043.015.044.013.044.012.044.011.045.009.044.007.045.006.045.004.045.002.045.001.045v17l-.001.045-.002.045-.004.045-.006.045-.007.045-.009.044-.011.045-.012.044-.013.044-.015.044-.017.043-.018.044-.02.043-.021.043-.023.043-.024.043-.026.043-.027.042-.029.042-.03.042-.032.042-.033.042-.034.041-.036.041-.037.041-.039.041-.04.041-.041.04-.043.04-.044.04-.045.04-.047.039-.048.039-.05.039-.051.039-.052.038-.053.038-.055.038-.055.038-.058.037-.058.037-.06.037-.06.036-.062.036-.064.036-.064.036-.066.035-.067.035-.068.035-.069.035-.07.034-.071.034-.073.033-.074.033-.15.066-.155.064-.16.063-.163.061-.168.06-.172.059-.175.057-.18.056-.183.054-.187.053-.191.051-.194.05-.198.048-.201.046-.205.045-.208.043-.211.041-.214.04-.217.038-.22.036-.223.034-.225.032-.229.031-.231.028-.233.027-.236.024-.239.023-.241.02-.242.019-.246.016-.247.015-.249.012-.251.01-.253.008-.255.005-.256.004-.258.001-.258-.001-.256-.004-.255-.005-.253-.008-.251-.01-.249-.012-.247-.015-.245-.016-.243-.019-.241-.02-.238-.023-.236-.024-.234-.027-.231-.028-.228-.031-.226-.032-.223-.034-.22-.036-.217-.038-.214-.04-.211-.041-.208-.043-.204-.045-.201-.046-.198-.048-.195-.05-.19-.051-.187-.053-.184-.054-.179-.056-.176-.057-.172-.059-.167-.06-.164-.061-.159-.063-.155-.064-.151-.066-.074-.033-.072-.033-.072-.034-.07-.034-.069-.035-.068-.035-.067-.035-.066-.035-.064-.036-.063-.036-.062-.036-.061-.036-.06-.037-.058-.037-.057-.037-.056-.038-.055-.038-.053-.038-.052-.038-.051-.039-.049-.039-.049-.039-.046-.039-.046-.04-.044-.04-.043-.04-.041-.04-.04-.041-.039-.041-.037-.041-.036-.041-.034-.041-.033-.042-.032-.042-.03-.042-.029-.042-.027-.042-.026-.043-.024-.043-.023-.043-.021-.043-.02-.043-.018-.044-.017-.043-.015-.044-.013-.044-.012-.044-.011-.045-.009-.044-.007-.045-.006-.045-.004-.045-.002-.045-.001-.045v-17l.001-.045.002-.045.004-.045.006-.045.007-.045.009-.044.011-.045.012-.044.013-.044.015-.044.017-.043.018-.044.02-.043.021-.043.023-.043.024-.043.026-.043.027-.042.029-.042.03-.042.032-.042.033-.042.034-.041.036-.041.037-.041.039-.041.04-.041.041-.04.043-.04.044-.04.046-.04.046-.039.049-.039.049-.039.051-.039.052-.038.053-.038.055-.038.056-.038.057-.037.058-.037.06-.037.061-.036.062-.036.063-.036.064-.036.066-.035.067-.035.068-.035.069-.035.07-.034.072-.034.072-.033.074-.033.151-.066.155-.064.159-.063.164-.061.167-.06.172-.059.176-.057.179-.056.184-.054.187-.053.19-.051.195-.05.198-.048.201-.046.204-.045.208-.043.211-.041.214-.04.217-.038.22-.036.223-.034.226-.032.228-.031.231-.028.234-.027.236-.024.238-.023.241-.02.243-.019.245-.016.247-.015.249-.012.251-.01.253-.008.255-.005.256-.004.258-.001.258.001zm-9.258 20.499v.01l.001.021.003.021.004.022.005.021.006.022.007.022.009.023.01.022.011.023.012.023.013.023.015.023.016.024.017.023.018.024.019.024.021.024.022.025.023.024.024.025.052.049.056.05.061.051.066.051.07.051.075.051.079.052.084.052.088.052.092.052.097.052.102.051.105.052.11.052.114.051.119.051.123.051.127.05.131.05.135.05.139.048.144.049.147.047.152.047.155.047.16.045.163.045.167.043.171.043.176.041.178.041.183.039.187.039.19.037.194.035.197.035.202.033.204.031.209.03.212.029.216.027.219.025.222.024.226.021.23.02.233.018.236.016.24.015.243.012.246.01.249.008.253.005.256.004.259.001.26-.001.257-.004.254-.005.25-.008.247-.011.244-.012.241-.014.237-.016.233-.018.231-.021.226-.021.224-.024.22-.026.216-.027.212-.028.21-.031.205-.031.202-.034.198-.034.194-.036.191-.037.187-.039.183-.04.179-.04.175-.042.172-.043.168-.044.163-.045.16-.046.155-.046.152-.047.148-.048.143-.049.139-.049.136-.05.131-.05.126-.05.123-.051.118-.052.114-.051.11-.052.106-.052.101-.052.096-.052.092-.052.088-.053.083-.051.079-.052.074-.052.07-.051.065-.051.06-.051.056-.05.051-.05.023-.024.023-.025.021-.024.02-.024.019-.024.018-.024.017-.024.015-.023.014-.024.013-.023.012-.023.01-.023.01-.022.008-.022.006-.022.006-.022.004-.022.004-.021.001-.021.001-.021v-4.127l-.077.055-.08.053-.083.054-.085.053-.087.052-.09.052-.093.051-.095.05-.097.05-.1.049-.102.049-.105.048-.106.047-.109.047-.111.046-.114.045-.115.045-.118.044-.12.043-.122.042-.124.042-.126.041-.128.04-.13.04-.132.038-.134.038-.135.037-.138.037-.139.035-.142.035-.143.034-.144.033-.147.032-.148.031-.15.03-.151.03-.153.029-.154.027-.156.027-.158.026-.159.025-.161.024-.162.023-.163.022-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.011-.178.01-.179.008-.179.008-.181.006-.182.005-.182.004-.184.003-.184.002h-.37l-.184-.002-.184-.003-.182-.004-.182-.005-.181-.006-.179-.008-.179-.008-.178-.01-.176-.011-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.022-.162-.023-.161-.024-.159-.025-.157-.026-.156-.027-.155-.027-.153-.029-.151-.03-.15-.03-.148-.031-.146-.032-.145-.033-.143-.034-.141-.035-.14-.035-.137-.037-.136-.037-.134-.038-.132-.038-.13-.04-.128-.04-.126-.041-.124-.042-.122-.042-.12-.044-.117-.043-.116-.045-.113-.045-.112-.046-.109-.047-.106-.047-.105-.048-.102-.049-.1-.049-.097-.05-.095-.05-.093-.052-.09-.051-.087-.052-.085-.053-.083-.054-.08-.054-.077-.054v4.127zm0-5.654v.011l.001.021.003.021.004.021.005.022.006.022.007.022.009.022.01.022.011.023.012.023.013.023.015.024.016.023.017.024.018.024.019.024.021.024.022.024.023.025.024.024.052.05.056.05.061.05.066.051.07.051.075.052.079.051.084.052.088.052.092.052.097.052.102.052.105.052.11.051.114.051.119.052.123.05.127.051.131.05.135.049.139.049.144.048.147.048.152.047.155.046.16.045.163.045.167.044.171.042.176.042.178.04.183.04.187.038.19.037.194.036.197.034.202.033.204.032.209.03.212.028.216.027.219.025.222.024.226.022.23.02.233.018.236.016.24.014.243.012.246.01.249.008.253.006.256.003.259.001.26-.001.257-.003.254-.006.25-.008.247-.01.244-.012.241-.015.237-.016.233-.018.231-.02.226-.022.224-.024.22-.025.216-.027.212-.029.21-.03.205-.032.202-.033.198-.035.194-.036.191-.037.187-.039.183-.039.179-.041.175-.042.172-.043.168-.044.163-.045.16-.045.155-.047.152-.047.148-.048.143-.048.139-.05.136-.049.131-.05.126-.051.123-.051.118-.051.114-.052.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.051.07-.052.065-.051.06-.05.056-.051.051-.049.023-.025.023-.024.021-.025.02-.024.019-.024.018-.024.017-.024.015-.023.014-.023.013-.024.012-.022.01-.023.01-.023.008-.022.006-.022.006-.022.004-.021.004-.022.001-.021.001-.021v-4.139l-.077.054-.08.054-.083.054-.085.052-.087.053-.09.051-.093.051-.095.051-.097.05-.1.049-.102.049-.105.048-.106.047-.109.047-.111.046-.114.045-.115.044-.118.044-.12.044-.122.042-.124.042-.126.041-.128.04-.13.039-.132.039-.134.038-.135.037-.138.036-.139.036-.142.035-.143.033-.144.033-.147.033-.148.031-.15.03-.151.03-.153.028-.154.028-.156.027-.158.026-.159.025-.161.024-.162.023-.163.022-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.011-.178.009-.179.009-.179.007-.181.007-.182.005-.182.004-.184.003-.184.002h-.37l-.184-.002-.184-.003-.182-.004-.182-.005-.181-.007-.179-.007-.179-.009-.178-.009-.176-.011-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.022-.162-.023-.161-.024-.159-.025-.157-.026-.156-.027-.155-.028-.153-.028-.151-.03-.15-.03-.148-.031-.146-.033-.145-.033-.143-.033-.141-.035-.14-.036-.137-.036-.136-.037-.134-.038-.132-.039-.13-.039-.128-.04-.126-.041-.124-.042-.122-.043-.12-.043-.117-.044-.116-.044-.113-.046-.112-.046-.109-.046-.106-.047-.105-.048-.102-.049-.1-.049-.097-.05-.095-.051-.093-.051-.09-.051-.087-.053-.085-.052-.083-.054-.08-.054-.077-.054v4.139zm0-5.666v.011l.001.02.003.022.004.021.005.022.006.021.007.022.009.023.01.022.011.023.012.023.013.023.015.023.016.024.017.024.018.023.019.024.021.025.022.024.023.024.024.025.052.05.056.05.061.05.066.051.07.051.075.052.079.051.084.052.088.052.092.052.097.052.102.052.105.051.11.052.114.051.119.051.123.051.127.05.131.05.135.05.139.049.144.048.147.048.152.047.155.046.16.045.163.045.167.043.171.043.176.042.178.04.183.04.187.038.19.037.194.036.197.034.202.033.204.032.209.03.212.028.216.027.219.025.222.024.226.021.23.02.233.018.236.017.24.014.243.012.246.01.249.008.253.006.256.003.259.001.26-.001.257-.003.254-.006.25-.008.247-.01.244-.013.241-.014.237-.016.233-.018.231-.02.226-.022.224-.024.22-.025.216-.027.212-.029.21-.03.205-.032.202-.033.198-.035.194-.036.191-.037.187-.039.183-.039.179-.041.175-.042.172-.043.168-.044.163-.045.16-.045.155-.047.152-.047.148-.048.143-.049.139-.049.136-.049.131-.051.126-.05.123-.051.118-.052.114-.051.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.052.07-.051.065-.051.06-.051.056-.05.051-.049.023-.025.023-.025.021-.024.02-.024.019-.024.018-.024.017-.024.015-.023.014-.024.013-.023.012-.023.01-.022.01-.023.008-.022.006-.022.006-.022.004-.022.004-.021.001-.021.001-.021v-4.153l-.077.054-.08.054-.083.053-.085.053-.087.053-.09.051-.093.051-.095.051-.097.05-.1.049-.102.048-.105.048-.106.048-.109.046-.111.046-.114.046-.115.044-.118.044-.12.043-.122.043-.124.042-.126.041-.128.04-.13.039-.132.039-.134.038-.135.037-.138.036-.139.036-.142.034-.143.034-.144.033-.147.032-.148.032-.15.03-.151.03-.153.028-.154.028-.156.027-.158.026-.159.024-.161.024-.162.023-.163.023-.165.021-.166.02-.167.019-.169.018-.169.017-.171.016-.173.015-.173.014-.175.013-.175.012-.177.01-.178.01-.179.009-.179.007-.181.006-.182.006-.182.004-.184.003-.184.001-.185.001-.185-.001-.184-.001-.184-.003-.182-.004-.182-.006-.181-.006-.179-.007-.179-.009-.178-.01-.176-.01-.176-.012-.175-.013-.173-.014-.172-.015-.171-.016-.17-.017-.169-.018-.167-.019-.166-.02-.165-.021-.163-.023-.162-.023-.161-.024-.159-.024-.157-.026-.156-.027-.155-.028-.153-.028-.151-.03-.15-.03-.148-.032-.146-.032-.145-.033-.143-.034-.141-.034-.14-.036-.137-.036-.136-.037-.134-.038-.132-.039-.13-.039-.128-.041-.126-.041-.124-.041-.122-.043-.12-.043-.117-.044-.116-.044-.113-.046-.112-.046-.109-.046-.106-.048-.105-.048-.102-.048-.1-.05-.097-.049-.095-.051-.093-.051-.09-.052-.087-.052-.085-.053-.083-.053-.08-.054-.077-.054v4.153zm8.74-8.179l-.257.004-.254.005-.25.008-.247.011-.244.012-.241.014-.237.016-.233.018-.231.021-.226.022-.224.023-.22.026-.216.027-.212.028-.21.031-.205.032-.202.033-.198.034-.194.036-.191.038-.187.038-.183.04-.179.041-.175.042-.172.043-.168.043-.163.045-.16.046-.155.046-.152.048-.148.048-.143.048-.139.049-.136.05-.131.05-.126.051-.123.051-.118.051-.114.052-.11.052-.106.052-.101.052-.096.052-.092.052-.088.052-.083.052-.079.052-.074.051-.07.052-.065.051-.06.05-.056.05-.051.05-.023.025-.023.024-.021.024-.02.025-.019.024-.018.024-.017.023-.015.024-.014.023-.013.023-.012.023-.01.023-.01.022-.008.022-.006.023-.006.021-.004.022-.004.021-.001.021-.001.021.001.021.001.021.004.021.004.022.006.021.006.023.008.022.01.022.01.023.012.023.013.023.014.023.015.024.017.023.018.024.019.024.02.025.021.024.023.024.023.025.051.05.056.05.06.05.065.051.07.052.074.051.079.052.083.052.088.052.092.052.096.052.101.052.106.052.11.052.114.052.118.051.123.051.126.051.131.05.136.05.139.049.143.048.148.048.152.048.155.046.16.046.163.045.168.043.172.043.175.042.179.041.183.04.187.038.191.038.194.036.198.034.202.033.205.032.21.031.212.028.216.027.22.026.224.023.226.022.231.021.233.018.237.016.241.014.244.012.247.011.25.008.254.005.257.004.26.001.26-.001.257-.004.254-.005.25-.008.247-.011.244-.012.241-.014.237-.016.233-.018.231-.021.226-.022.224-.023.22-.026.216-.027.212-.028.21-.031.205-.032.202-.033.198-.034.194-.036.191-.038.187-.038.183-.04.179-.041.175-.042.172-.043.168-.043.163-.045.16-.046.155-.046.152-.048.148-.048.143-.048.139-.049.136-.05.131-.05.126-.051.123-.051.118-.051.114-.052.11-.052.106-.052.101-.052.096-.052.092-.052.088-.052.083-.052.079-.052.074-.051.07-.052.065-.051.06-.05.056-.05.051-.05.023-.025.023-.024.021-.024.02-.025.019-.024.018-.024.017-.023.015-.024.014-.023.013-.023.012-.023.01-.023.01-.022.008-.022.006-.023.006-.021.004-.022.004-.021.001-.021.001-.021-.001-.021-.001-.021-.004-.021-.004-.022-.006-.021-.006-.023-.008-.022-.01-.022-.01-.023-.012-.023-.013-.023-.014-.023-.015-.024-.017-.023-.018-.024-.019-.024-.02-.025-.021-.024-.023-.024-.023-.025-.051-.05-.056-.05-.06-.05-.065-.051-.07-.052-.074-.051-.079-.052-.083-.052-.088-.052-.092-.052-.096-.052-.101-.052-.106-.052-.11-.052-.114-.052-.118-.051-.123-.051-.126-.051-.131-.05-.136-.05-.139-.049-.143-.048-.148-.048-.152-.048-.155-.046-.16-.046-.163-.045-.168-.043-.172-.043-.175-.042-.179-.041-.183-.04-.187-.038-.191-.038-.194-.036-.198-.034-.202-.033-.205-.032-.21-.031-.212-.028-.216-.027-.22-.026-.224-.023-.226-.022-.231-.021-.233-.018-.237-.016-.241-.014-.244-.012-.247-.011-.25-.008-.254-.005-.257-.004-.26-.001-.26.001z"/></symbol></defs><defs><symbol id="ltlifecycle-clock" width="24" height="24"><path transform="scale(.5)" d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.848 12.459c.202.038.202.333.001.372-1.907.361-6.045 1.111-6.547 1.111-.719 0-1.301-.582-1.301-1.301 0-.512.77-5.447 1.125-7.445.034-.192.312-.181.343.014l.985 6.238 5.394 1.011z"/></symbol></defs><defs><marker id="ltlifecycle-arrowhead" refX="7.9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M -1 0 L 10 5 L 0 10 z"/></marker></defs><defs><marker id="ltlifecycle-crosshead" markerWidth="15" markerHeight="8" orient="auto" refX="4" refY="4.5"><path fill="none" stroke="#000000" stroke-width="1pt" d="M 1,2 L 6,7 M 6,2 L 1,7" style="stroke-dasharray: 0, 0;"/></marker></defs><defs><marker id="ltlifecycle-filled-head" refX="15.5" refY="7" markerWidth="20" markerHeight="28" orient="auto"><path d="M 18,7 L9,13 L14,7 L9,1 Z"/></marker></defs><defs><marker id="ltlifecycle-sequencenumber" refX="15" refY="15" markerWidth="60" markerHeight="40" orient="auto"><circle cx="15" cy="15" r="6"/></marker></defs><defs><marker id="ltlifecycle-solidTopArrowHead" refX="7.9" refY="7.25" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 8 L 0 8 z"/></marker></defs><defs><marker id="ltlifecycle-solidBottomArrowHead" refX="7.9" refY="0.75" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 0 L 0 8 z"/></marker></defs><defs><marker id="ltlifecycle-stickTopArrowHead" refX="7.5" refY="7" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 7 7" stroke="black" stroke-width="1.5" fill="none"/></marker></defs><defs><marker id="ltlifecycle-stickBottomArrowHead" refX="7.5" refY="0" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 7 L 7 0" stroke="black" stroke-width="1.5" fill="none"/></marker></defs><text x="198" y="80" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Verify bundle and seed</text><line x1="76" y1="111" x2="320" y2="111" class="messageLine0" data-et="message" data-id="i0" data-from="U" data-to="C" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="fill: none;"/><text x="572" y="126" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Readiness and owned fixtures</text><line x1="325" y1="155" x2="818" y2="155" class="messageLine0" data-et="message" data-id="i1" data-from="C" data-to="A" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="fill: none;"/><text x="472" y="170" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Frozen execution plan</text><line x1="325" y1="201" x2="618" y2="201" class="messageLine0" data-et="message" data-id="i2" data-from="C" data-to="K" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="fill: none;"/><text x="721" y="216" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Stateful journeys</text><line x1="623" y1="247" x2="818" y2="247" class="messageLine0" data-et="message" data-id="i3" data-from="K" data-to="A" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="fill: none;"/><text x="475" y="262" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Events and metrics</text><line x1="621" y1="291" x2="328" y2="291" class="messageLine1" data-et="message" data-id="i4" data-from="K" data-to="C" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="stroke-dasharray: 3, 3; fill: none;"/><text x="472" y="306" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Stop admissions and bounded drain</text><line x1="325" y1="337" x2="618" y2="337" class="messageLine0" data-et="message" data-id="i5" data-from="C" data-to="K" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="fill: none;"/><text x="672" y="352" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Observe final owned effects</text><line x1="325" y1="381" x2="1018" y2="381" class="messageLine0" data-et="message" data-id="i6" data-from="C" data-to="O" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="fill: none;"/><text x="675" y="396" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Typed observations</text><line x1="1021" y1="427" x2="328" y2="427" class="messageLine1" data-et="message" data-id="i7" data-from="O" data-to="C" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="stroke-dasharray: 3, 3; fill: none;"/><text x="201" y="442" text-anchor="middle" dominant-baseline="middle" alignment-baseline="middle" class="messageText" dy="1em" style="font-size: 16px; font-weight: 400;">Durable result and evidence</text><line x1="323" y1="471" x2="79" y2="471" class="messageLine1" data-et="message" data-id="i8" data-from="C" data-to="U" stroke-width="2" stroke="none" marker-end="url(#ltlifecycle-arrowhead)" style="stroke-dasharray: 3, 3; fill: none;"/></svg></figure>
+
+<p>Readiness is an explicit safe endpoint; do not GET the first mutation path. Preparation, execution, drain and observation have separate deadlines within a total run ceiling. Cancellation stops new admissions, drains bounded in-flight work and finalizes partial evidence. A crashed finite run is not resumed as if uninterrupted: use a new run ID and fresh equivalent fixtures.</p>
+<p>Background activity uses bounded slices within a total duration/write/storage budget. It can survive application restarts with bounded backoff and reauthentication, recording the interruption. It cannot create endless fixtures or silently reset total budgets at every slice. Health means controller heartbeat and recent engine progress, not merely a live process or sandbox ID.</p>
+<p>Pause background activity before an isolated verification, unless the background workload is explicitly part of the frozen experiment. Application queues may continue after the generator stops; verify drain through the observer or report unresolved effects.</p>
+<p>Diff checks scenario/fixture hashes, seed, effective schedule, engine/helper versions, resource envelope, network placement and co-running workload. Application revision is expected to differ. Differences that change the experiment make performance results incomparable; show factual side-by-side output without a better/worse label.</p>
+<p>Compare correctness and progress first, then latency/error distributions within matching classes and phases. Empty responses, fewer successful operations or missing evidence cannot be labelled an improvement. Repeated baseline/candidate runs should alternate order when practical to reduce warm-cache/time bias; report sample counts and variation.</p>
+<h2 id="13-deployment-modes-and-e2b-integration">13. Deployment modes and E2B integration</h2>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Controller/engine location</th>
+<th>Target ownership</th>
+<th>Storage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local</td>
+<td>Developer machine</td>
+<td>User starts application</td>
+<td>Local run directory</td>
+</tr>
+<tr>
+<td>CI</td>
+<td>CI job or dedicated container</td>
+<td>Existing CI service/container</td>
+<td>Job artifacts</td>
+</tr>
+<tr>
+<td>Remote preview</td>
+<td>Local/CI controller reaches preview</td>
+<td>Existing deployment tooling</td>
+<td>Caller-controlled artifacts</td>
+</tr>
+<tr>
+<td>E2B</td>
+<td>Local controller or dedicated runner sandbox</td>
+<td>Existing or explicitly created sandbox</td>
+<td>Caller receives evidence outside sandbox</td>
+</tr>
+</tbody>
+</table>
+<p>A reachable E2B-hosted URL already works through the generic HTTP interface. That is the first integration; no special core logic is necessary. The <a href="https://github.com/e2b-dev/E2B">E2B SDK</a> can later automate runner provisioning and command/file operations.</p>
+<p>For a managed E2B recipe, the caller supplies template, resource class, timeout and credentials outside the target. The wrapper creates only the runner unless explicitly asked to create a target too; uploads the approved bundle; starts the supervisor; collects chunks; finalizes artifacts; and terminates only resources it owns. Attaching to a user-owned target must never imply permission to kill it. Cloud sandbox creation is an explicit cost-bearing option.</p>
+<p>A local URL inside a target sandbox is not automatically reachable from a separate runner sandbox. Resolve an allowed reachable hostname/port and preserve TLS/auth policy. Measure public proxy latency and record runner placement; use matching placement for comparisons. Do not assume private cross-sandbox networking exists without testing the chosen deployment.</p>
+<p>A combined runner/application container is convenient but creates resource contention and a weaker evidence boundary. Support it for development with those limitations recorded; prefer separate processes/containers or sandboxes for trustworthy comparisons. Never mount the Docker socket merely to let an untrusted generated scenario provision arbitrary infrastructure.</p>
+<p>No hosted LiteTraffic control API is needed for these modes. If later repeated users need durable remote jobs, add a separate authenticated job service implementing existing run contracts. Job queues, tenancy and billing belong to that later product, not the core package.</p>
+<h2 id="14-security-and-data-policy">14. Security and data policy</h2>
+<p>Declared test environments only in v0. Writes require an approved owned-fixture plan. Origin and port allowlists apply to every operation, redirect, probe and observer connection. Disable redirects initially; reject arbitrary captured URLs. Explicit localhost targets are valid, but that does not permit access to unrelated internal services or cloud metadata. DNS/address validation needs an environment-aware policy; a configured hostname alone is not a complete SSRF defence.</p>
+<p>Generated runtime uses a constrained representation and trusted templates. Expert handwritten scripts are trusted code and must be labelled as such: helper checks do not sandbox arbitrary JS. Running a generated script or observer with broader filesystem/network permissions is a separate explicit trust decision. Never run arbitrary model-generated shell code as a side effect of discovery.</p>
+<p>Secrets resolve from environment/files scoped to the process; redact headers and configured sensitive fields. Do not put tokens in command-line arguments, reports or scenario hashes. Do not transmit repository contents to any model provider until the operator chooses that provider and source scope. No telemetry upload by default; locally record errors and allow an explicit sanitized diagnostic export.</p>
+<p>Run directories contain potentially sensitive selected response data. Use owner-restricted permissions, configurable retention and explicit <code>prune</code> semantics later. Hashes support integrity relative to trusted manifests; they do not make untrusted evidence authentic.</p>
+<h2 id="15-validation-and-rollout-as-a-standalone-project">15. Validation and rollout as a standalone project</h2>
+<h3 id="engine-fit-spike">Engine-fit spike</h3>
+<p>Before building authoring, prove a single checkout journey locally: authenticate, create, capture ID, retry safely, observe one effect, emit complete events, cancel, and compare a deliberately wrong implementation. Repeat in a small optional E2B runner. Measure CPU, RSS, event loss, disk growth, dropped iterations and scheduling visibility. Pin versions only after this test.</p>
+<p>A 1 vCPU/1 GiB sandbox is an initial benchmark envelope, not a promised capacity. Increase resources only with recorded cost/measurement justification. If the evidence stream or timing contract cannot be implemented reliably with stock k6, revisit that narrow design before developing a bespoke scheduler or multi-engine layer.</p>
+<h3 id="five-reusable-capability-fixtures">Five reusable capability fixtures</h3>
+<p>Build or adopt small standalone sample applications, each with a known-good version and targeted wrong mutations:</p>
+<table>
+<thead>
+<tr>
+<th>Sample</th>
+<th>Capability</th>
+<th>Required negative control</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reporting service</td>
+<td>Data skew and known totals</td>
+<td>Empty/partial but fast reports</td>
+</tr>
+<tr>
+<td>Cached search</td>
+<td>Hot/cold distributions and updates</td>
+<td>Permanent stale cache</td>
+</tr>
+<tr>
+<td>Checkout/payments</td>
+<td>Response chaining, retries, eventual effects</td>
+<td>Duplicate or dropped accepted payments</td>
+</tr>
+<tr>
+<td>Inventory</td>
+<td>Concurrent finite-resource contention</td>
+<td>Overselling and reject-all shortcut</td>
+</tr>
+<tr>
+<td>Tenant API</td>
+<td>Multiple identities and overlapping local IDs</td>
+<td>Cross-tenant leaks and deny-all shortcut</td>
+</tr>
+</tbody>
+</table>
+<p>These are product conformance examples, not assessment sessions. Utkrusht can later consume the same CLI/bundles as one design partner; there is no prerequisite integration, schema migration or deployment into its platform.</p>
+<p>For each fixture, require correct reference pass, wrong implementation fail, five same-seed repeats with the same verdict, extra-seed checks, and a 60–120 minute background run surviving an app restart within budgets. Test the verifier with corrupt/missing evidence as well as healthy applications.</p>
+<h3 id="outside-app-gate">Outside-app gate</h3>
+<p>Freeze five unfamiliar open-source apps before tuning authoring. Include multiple implementation languages, relational data, at least one cache/async workflow and at least two auth styles within supported scope. Preserve failed cases in the denominator. At least three must yield a useful independently checkable scenario with under 30 minutes of human assistance each. Record hands-on and total elapsed time.</p>
+<p>Compare against two baselines: a developer using ordinary k6 tooling and a coding agent using current k6 authoring tools. Measure setup time, surviving assertions, missed planted defects, false positives and rerun usefulness. Merely generating valid JS is not success.</p>
+<p>For agent benefit, use matched model/version, task variants, time/token budgets and reset states, with and without LiteTraffic feedback. Keep hidden correctness checks outside the agent workspace. Predeclare the scoring rule and report uncertainty; a handful of handpicked demos cannot establish a general improvement claim.</p>
+<h3 id="implementation-milestones">Implementation milestones</h3>
+<table>
+<thead>
+<tr>
+<th>Milestone</th>
+<th>Deliverable</th>
+<th>Gate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M0</td>
+<td>Independent repository, one handwritten end-to-end run and engine-fit report</td>
+<td>Reliable effects, evidence and cancellation</td>
+</tr>
+<tr>
+<td>M1</td>
+<td>Five bundles, assertion library, local CLI and HTML/JSON reports</td>
+<td>Positive/negative conformance tests pass</td>
+</tr>
+<tr>
+<td>M2</td>
+<td>Extract common bounded format, Python API, fixture/auth/observer contracts</td>
+<td>Sixth bundle needs no core redesign</td>
+</tr>
+<tr>
+<td>M3</td>
+<td>Generic authoring, coverage report, approval and calibration workflow</td>
+<td>Outside-app gate passes</td>
+</tr>
+<tr>
+<td>M4</td>
+<td>CI recipe, optional E2B deployment, agent-facing diagnostics</td>
+<td>Same contracts work across environments</td>
+</tr>
+<tr>
+<td>M5</td>
+<td>Manual external pilots and release packaging</td>
+<td>Repeat use by an outside user; license/ownership resolved</td>
+</tr>
+</tbody>
+</table>
+<p>Run outside-app discovery experiments early enough to challenge assumptions, but do not polish general authoring before the execution/oracle contract works. No SaaS work is on this roadmap until repeated external use demonstrates the need.</p>
+<h2 id="16-release-acceptance-and-unresolved-decisions">16. Release acceptance and unresolved decisions</h2>
+<p>Release v0.1 only when installation works in a clean environment; runtime works without LLM/cloud credentials; unknown schema versions fail clearly; all requests use the policy/evidence path; budget bounds include setup and cleanup; crash recovery never yields false pass; diff rejects incompatible runs; reports show limitations; and the five conformance fixtures detect their intended wrong implementations.</p>
+<p>Still to settle through experiments or ownership decisions:</p>
+<ul>
+<li>Pinned k6 version, console/event framing and exact late-start measurement.</li>
+<li>First built-in authoring provider, supported model and measurable cost ceiling.</li>
+<li>Public package/domain availability and LiteTraffic's own license/ownership.</li>
+<li>Supported source-only frameworks after unfamiliar-app results.</li>
+<li>Whether users need a native TypeScript SDK, MCP server or remote job API beyond the CLI.</li>
+</ul>
+<p>Keep <strong>LiteTraffic</strong> as the working product name: “lite” communicates low setup effort. The more important naming promise is operational: one understandable workflow, explicit requirements, portable scenarios, and honest verdicts. No domain or trademark availability is asserted.</p>
+<p>The standalone architecture is complete enough to start the M0 vertical slice. Its remaining uncertainties are empirical—engine fit, authoring success and user value—and have explicit tests rather than dependencies on another product.</p><footer>LiteTraffic · Design proposal · 18 September 2026 · No implementation or benchmark is implied.</footer></main></body></html>

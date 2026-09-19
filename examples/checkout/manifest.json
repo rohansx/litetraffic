@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "name": "checkout",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "buyer",
+      "count": 50,
+      "auth_recipe": "test-login"
+    }
+  ],
+  "fixtures": {
+    "recipe": "owned-shop",
+    "parameters": {
+      "small_carts": 80,
+      "large_carts": 20
+    }
+  },
+  "journeys": [
+    {
+      "name": "purchase",
+      "max_requests": 7,
+      "max_writes": 3
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {
+        "name": "warmup",
+        "seconds": 10,
+        "rate": 1
+      },
+      {
+        "name": "measure",
+        "seconds": 120,
+        "rate": 2
+      },
+      {
+        "name": "recovery",
+        "seconds": 20,
+        "rate": 1
+      }
+    ]
+  },
+  "assertions": [
+    "one_effect_per_payment",
+    "accepted_orders_persist",
+    "order_totals_match"
+  ],
+  "observer": "owned-order-ledger",
+  "budgets": {
+    "max_seconds": 210,
+    "max_requests": 2400,
+    "max_write_attempts": 900,
+    "max_in_flight": 8,
+    "max_artifact_bytes": 67108864
+  }
+}
