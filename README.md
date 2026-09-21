@@ -50,6 +50,8 @@ Restart it with `--wrong-oversell` to verify that LiteTraffic detects negative i
 
 Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, and `result.json`.
 
+Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently from the business verdict. Timeout and Ctrl+C terminate the k6 process group on POSIX systems, preserve available evidence, and can never produce a passing verdict. Ctrl+C returns shell status 130 after finalization.
+
 ## Scenario safety contract
 
 - Manifests are JSON and reject unknown fields.

@@ -61,6 +61,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "verify":
             payload = verify(args.target, args.scenario, args.output_dir, args.k6_path, args.seed)
             _emit(payload, args.json)
+            if payload["lifecycle"] == "cancelled":
+                return 130
             return 0 if payload["verdict"] == "pass" else 1
 
         bundle = load_scenario(args.scenario)

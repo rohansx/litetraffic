@@ -96,3 +96,15 @@ def test_repository_inventory_example_is_valid(capsys):
     assert status == 0
     assert output["name"] == "inventory-contention"
     assert output["planned_journeys"] == 8
+
+
+def test_cancelled_verify_returns_shell_interrupt_status(monkeypatch, capsys):
+    monkeypatch.setattr(
+        "litetraffic.cli.verify",
+        lambda *args: {"verdict": "inconclusive", "lifecycle": "cancelled"},
+    )
+
+    status = main(["verify", ".", "--target", "http://example.test", "--json"])
+
+    assert status == 130
+    assert json.loads(capsys.readouterr().out)["lifecycle"] == "cancelled"

@@ -14,6 +14,7 @@ LiteTraffic ran the checkout and inventory scenarios through the official k6 bin
 | Broken duplicate-on-retry server | 12 / 12 | 36 | `one_effect_per_payment` failed | `fail` |
 | Correct atomic inventory server | 8 / 8 | 40 | Four inventory assertions passed 8/8 | `pass` |
 | Broken overselling inventory server | 8 / 8 | 40 | Negative inventory and excess acceptance detected | `fail` |
+| Real k6 timeout probe | 1 planned / incomplete | 0 | One pre-timeout event preserved | `inconclusive`, `timed_out` |
 
 The negative targets still returned valid HTTP responses. Their failures came from observed business state rather than an HTTP error shortcut.
 
@@ -23,6 +24,6 @@ Separate back-to-back `constant-arrival-rate` scenarios produced 14 iterations f
 
 ## Proven boundary
 
-This validates stock-k6 subprocess execution, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, seeded spiky-profile compilation, stateful idempotency, and finite-resource contention. It does not yet validate long-duration event loss, cancellation finalization, memory ceilings, E2B execution, fixture provisioning, or an observer plugin interface.
+This validates stock-k6 subprocess execution, process-group timeout termination, direct-SIGINT cancellation with shell status 130, partial-evidence finalization, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, seeded spiky-profile compilation, stateful idempotency, and finite-resource contention. Engine-crash behavior is covered by executable tests. It does not yet validate long-duration event loss, memory ceilings, E2B execution, fixture provisioning, or an observer plugin interface.
 
 The release archive came from the official [grafana/k6 v2.2.0 release](https://github.com/grafana/k6/releases/tag/v2.2.0). The binary remains an external prerequisite and is not redistributed by LiteTraffic.

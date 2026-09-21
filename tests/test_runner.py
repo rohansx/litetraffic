@@ -8,11 +8,17 @@ from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
 
 
-def fake_k6(tmp_path: Path, events: list[dict], returncode: int = 0, iterations: int = 20) -> Path:
+def fake_k6(
+    tmp_path: Path,
+    events: list[dict],
+    returncode: int = 0,
+    iterations: int = 20,
+    sleep_seconds: int = 0,
+) -> Path:
     path = tmp_path / "k6"
     path.write_text(
         "#!/usr/bin/env python3\n"
-        "import json, os, pathlib, sys\n"
+        "import json, os, pathlib, sys, time\n"
         "if sys.argv[1] == 'version':\n"
         "    print('k6 v2.2.0')\n"
         "    raise SystemExit(0)\n"
@@ -23,6 +29,7 @@ def fake_k6(tmp_path: Path, events: list[dict], returncode: int = 0, iterations:
         "console.write_text(''.join('LT_EVENT ' + json.dumps(e | {'run_id': run_id}) + '\\n' for e in events))\n"
         "metrics.write_text(json.dumps({'type':'Point','metric':'http_reqs','data':{'value':2}}) + '\\n' + "
         f"json.dumps({{'type':'Point','metric':'iterations','data':{{'value':{iterations}}}}}) + '\\n')\n"
+        f"time.sleep({sleep_seconds})\n"
         f"raise SystemExit({returncode})\n"
     )
     path.chmod(0o755)
@@ -47,11 +54,14 @@ def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
     )
 
     assert result["verdict"] == "pass"
+    assert result["lifecycle"] == "finished"
     assert result["completeness"] == "complete"
     assert result["metrics"]["http_reqs"] == 2
     run_dir = tmp_path / "runs" / result["run_id"]
     assert json.loads((run_dir / "result.json").read_text()) == result
-    assert json.loads((run_dir / "run.json").read_text())["seed"] == 42
+    run = json.loads((run_dir / "run.json").read_text())
+    assert run["seed"] == 42
+    assert run["lifecycle"] == "finished"
     first_event = (run_dir / "events" / "000001.jsonl").read_text().splitlines()[0]
     assert json.loads(first_event)["sequence"] == 1
 
@@ -149,3 +159,71 @@ def test_verify_freezes_the_seeded_resolved_schedule(tmp_path, monkeypatch):
         phase.model_dump(exclude={"admitted_journeys"})
         for phase in load_scenario(scenario).manifest.schedule.resolve(seed=42)
     ]
+
+
+def test_verify_finalizes_partial_evidence_on_timeout(tmp_path, monkeypatch):
+    data = manifest(
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        budgets=manifest()["budgets"] | {"max_seconds": 1, "max_requests": 3, "max_write_attempts": 1},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify(
+        "http://example.test",
+        scenario,
+        tmp_path / "runs",
+        str(fake_k6(tmp_path, events, iterations=1, sleep_seconds=60)),
+    )
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    assert result["lifecycle"] == "timed_out"
+    assert result["verdict"] == "inconclusive"
+    assert result["completeness"] == "incomplete"
+    assert json.loads((run_dir / "result.json").read_text()) == result
+    assert json.loads((run_dir / "run.json").read_text())["lifecycle"] == "timed_out"
+
+
+def test_verify_records_an_engine_crash(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify(
+        "http://example.test",
+        scenario,
+        tmp_path / "runs",
+        str(fake_k6(tmp_path, events, returncode=7)),
+    )
+
+    assert result["lifecycle"] == "crashed"
+    assert result["verdict"] == "error"
+    assert result["engine_exit_code"] == 7
+
+
+def test_verify_finalizes_when_the_user_cancels(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    calls = 0
+
+    def interrupt_once(process, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise KeyboardInterrupt
+        return process.communicate(timeout=timeout)
+
+    monkeypatch.setattr(runner, "_communicate", interrupt_once)
+    result = runner.verify(
+        "http://example.test",
+        scenario,
+        tmp_path / "runs",
+        str(fake_k6(tmp_path, events, sleep_seconds=60)),
+    )
+
+    assert result["lifecycle"] == "cancelled"
+    assert result["verdict"] == "inconclusive"

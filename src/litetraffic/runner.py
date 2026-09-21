@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import signal
 import shutil
 import subprocess
 import uuid
@@ -93,6 +94,36 @@ def _read_metrics(path: Path) -> tuple[dict[str, float], int]:
     return totals, malformed
 
 
+def _communicate(process: subprocess.Popen[str], timeout: float) -> tuple[str, str]:
+    return process.communicate(timeout=timeout)
+
+
+def _signal_process(process: subprocess.Popen[str], value: signal.Signals) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, value)
+        elif value == signal.SIGTERM:
+            process.terminate()
+        else:
+            process.kill()
+    except ProcessLookupError:
+        pass
+
+
+def _stop_process(process: subprocess.Popen[str]) -> tuple[str, str]:
+    _signal_process(process, signal.SIGTERM)
+    try:
+        return _communicate(process, timeout=2)
+    except subprocess.TimeoutExpired:
+        _signal_process(process, signal.SIGKILL)
+        try:
+            return _communicate(process, timeout=2)
+        except subprocess.TimeoutExpired:
+            return "", "process did not exit within 2 seconds of SIGKILL"
+
+
 def verify(
     target: str,
     scenario: Path,
@@ -119,6 +150,7 @@ def verify(
         "seed": seed,
         "scenario_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
         "engine": engine_version,
+        "lifecycle": "running",
         "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
         "started_at": datetime.now(UTC).isoformat(),
     }
@@ -152,21 +184,39 @@ def verify(
             ),
         }
     )
+    lifecycle = "running"
+    engine_error = ""
+    process: subprocess.Popen[str] | None = None
     try:
-        process = subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=bundle.root,
             env=environment,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=bundle.manifest.budgets.max_seconds + 10,
-            check=False,
+            start_new_session=os.name == "posix",
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RunnerError(f"k6 execution failed: {exc}") from exc
+        try:
+            stdout, stderr = _communicate(process, timeout=bundle.manifest.budgets.max_seconds)
+            lifecycle = "finished" if process.returncode == 0 else "crashed"
+        except subprocess.TimeoutExpired:
+            lifecycle = "timed_out"
+            stdout, stderr = _stop_process(process)
+        except KeyboardInterrupt:
+            lifecycle = "cancelled"
+            stdout, stderr = _stop_process(process)
+    except OSError as exc:
+        lifecycle = "crashed"
+        engine_error = str(exc)
+        stdout, stderr = "", str(exc)
 
-    (run_dir / "engine.stdout.log").write_text(process.stdout, encoding="utf-8")
-    (run_dir / "engine.stderr.log").write_text(process.stderr, encoding="utf-8")
+    engine_exit_code = process.returncode if process is not None else None
+    finished_at = datetime.now(UTC).isoformat()
+    run.update({"lifecycle": lifecycle, "finished_at": finished_at, "engine_exit_code": engine_exit_code})
+    _write_json(run_dir / "run.json", run)
+    (run_dir / "engine.stdout.log").write_text(stdout, encoding="utf-8")
+    (run_dir / "engine.stderr.log").write_text(stderr, encoding="utf-8")
     (run_dir / "engine.stdout.log").chmod(0o600)
     (run_dir / "engine.stderr.log").chmod(0o600)
 
@@ -209,13 +259,17 @@ def verify(
         limitations.append(
             f"delivered journeys {delivered!r} do not match planned journeys {bundle.manifest.planned_journeys}"
         )
+    if lifecycle == "timed_out":
+        limitations.append(f"run exceeded the {bundle.manifest.budgets.max_seconds}-second budget")
+    elif lifecycle == "cancelled":
+        limitations.append("run cancelled by user")
+    elif lifecycle == "crashed":
+        limitations.append(engine_error or f"k6 exited with status {engine_exit_code}")
     completeness = "complete" if not limitations else "incomplete"
-    if process.returncode:
-        verdict = "error"
-        limitations.append(f"k6 exited with status {process.returncode}")
-        completeness = "incomplete"
-    elif definite_failure:
+    if definite_failure:
         verdict = "fail"
+    elif lifecycle == "crashed":
+        verdict = "error"
     elif completeness == "incomplete":
         verdict = "inconclusive"
     else:
@@ -231,6 +285,9 @@ def verify(
     result = {
         "schema_version": 1,
         "run_id": run_id,
+        "lifecycle": lifecycle,
+        "engine_exit_code": engine_exit_code,
+        "finished_at": finished_at,
         "verdict": verdict,
         "completeness": completeness,
         "assertions": assertions,
