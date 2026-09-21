@@ -40,4 +40,23 @@ def test_repository_checkout_example_is_valid(capsys):
     output = json.loads(capsys.readouterr().out)
     assert status == 0
     assert output["name"] == "checkout"
-    assert output["planned_journeys"] == 270
+    assert output["planned_journeys"] == 12
+
+
+def test_verify_returns_one_for_a_failed_experiment(tmp_path, monkeypatch, capsys):
+    scenario = write_bundle(tmp_path / "scenario", manifest(assertions=["accepted_orders_persist"]))
+    k6 = tmp_path / "k6"
+    k6.write_text(
+        "#!/bin/sh\n"
+        "[ \"$1\" = version ] && { echo 'k6 v2.2.0'; exit 0; }\n"
+        "while [ $# -gt 0 ]; do [ \"$1\" = --console-output ] && console=$2; [ \"$1\" = --out ] && metrics=${2#json=}; shift; done\n"
+        "printf 'LT_EVENT {\"schema_version\":1,\"type\":\"assertion\",\"assertion\":\"accepted_orders_persist\",\"passed\":false,\"run_id\":\"%s\"}\\n' \"$LT_RUN_ID\" > \"$console\"\n"
+        ": > \"$metrics\"\n"
+    )
+    k6.chmod(0o755)
+
+    status = main(["verify", str(scenario), "--target", "http://example.test", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 1
+    assert output["verdict"] == "fail"

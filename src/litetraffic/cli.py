@@ -8,6 +8,7 @@ from typing import Sequence
 from pydantic import ValidationError
 
 from litetraffic.doctor import run_doctor
+from litetraffic.runner import RunnerError, verify
 from litetraffic.scenario import ScenarioError, load_scenario
 
 
@@ -23,6 +24,14 @@ def _parser() -> argparse.ArgumentParser:
     inspect = commands.add_parser("inspect", help="validate and explain a scenario bundle")
     inspect.add_argument("scenario", type=Path)
     inspect.add_argument("--json", action="store_true")
+
+    verify_command = commands.add_parser("verify", help="run a finite scenario and evaluate its evidence")
+    verify_command.add_argument("scenario", type=Path)
+    verify_command.add_argument("--target", required=True)
+    verify_command.add_argument("--output-dir", type=Path, default=Path(".litetraffic/runs"))
+    verify_command.add_argument("--k6-path")
+    verify_command.add_argument("--seed", type=int, default=0)
+    verify_command.add_argument("--json", action="store_true")
     return parser
 
 
@@ -48,6 +57,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, args.json)
             return 0 if report.ok else 3
 
+        if args.command == "verify":
+            payload = verify(args.target, args.scenario, args.output_dir, args.k6_path, args.seed)
+            _emit(payload, args.json)
+            return 0 if payload["verdict"] == "pass" else 1
+
         bundle = load_scenario(args.scenario)
         manifest = bundle.manifest
         payload = {
@@ -62,11 +76,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
         _emit(payload, args.json)
         return 0
-    except (ScenarioError, ValidationError, ValueError) as exc:
+    except (RunnerError, ScenarioError, ValidationError, ValueError) as exc:
         _emit({"ok": False, "error": str(exc)}, getattr(args, "json", False))
         return 3
 
 
 def entrypoint() -> None:
     raise SystemExit(main())
-

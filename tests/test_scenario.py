@@ -18,13 +18,14 @@ def manifest(**overrides):
         "schedule": {"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 10, "rate": 2}]},
         "assertions": ["accepted_orders_persist"],
         "observer": "owned-order-ledger",
-        "budgets": {"max_seconds": 20, "max_requests": 60, "max_write_attempts": 20, "max_in_flight": 4, "max_artifact_bytes": 1024},
+        "budgets": {"max_seconds": 20, "max_requests": 60, "max_write_attempts": 20, "max_in_flight": 4, "max_artifact_bytes": 65536},
     }
     data.update(overrides)
     return data
 
 
 def write_bundle(tmp_path: Path, data: dict | None = None) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "manifest.json").write_text(json.dumps(data or manifest()))
     (tmp_path / "journeys.js").write_text("export default function () {}\n")
     return tmp_path
@@ -69,6 +70,13 @@ def test_rejects_schedule_longer_than_duration_budget(tmp_path):
 
     with pytest.raises(ValidationError, match="scheduled duration"):
         load_scenario(write_bundle(tmp_path, manifest(budgets=budgets)))
+
+
+def test_rejects_fractional_journey_rates_until_the_engine_contract_supports_them(tmp_path):
+    schedule = manifest()["schedule"] | {"phases": [{"name": "measure", "seconds": 10, "rate": 1.5}]}
+
+    with pytest.raises(ValidationError, match="valid integer"):
+        load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
 
 
 @pytest.mark.parametrize(("field", "value", "message"), [("max_requests", 59, "request budget"), ("max_write_attempts", 19, "write budget")])

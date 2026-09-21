@@ -1,0 +1,115 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from litetraffic.runner import RunnerError, verify
+from test_scenario import manifest, write_bundle
+
+
+def fake_k6(tmp_path: Path, events: list[dict], returncode: int = 0, iterations: int = 20) -> Path:
+    path = tmp_path / "k6"
+    path.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, pathlib, sys\n"
+        "if sys.argv[1] == 'version':\n"
+        "    print('k6 v2.2.0')\n"
+        "    raise SystemExit(0)\n"
+        "console = pathlib.Path(sys.argv[sys.argv.index('--console-output') + 1])\n"
+        "metrics = pathlib.Path(sys.argv[sys.argv.index('--out') + 1].split('=', 1)[1])\n"
+        "events = json.loads(os.environ['FAKE_K6_EVENTS'])\n"
+        "run_id = os.environ['LT_RUN_ID']\n"
+        "console.write_text(''.join('LT_EVENT ' + json.dumps(e | {'run_id': run_id}) + '\\n' for e in events))\n"
+        "metrics.write_text(json.dumps({'type':'Point','metric':'http_reqs','data':{'value':2}}) + '\\n' + "
+        f"json.dumps({{'type':'Point','metric':'iterations','data':{{'value':{iterations}}}}}) + '\\n')\n"
+        f"raise SystemExit({returncode})\n"
+    )
+    path.chmod(0o755)
+    return path
+
+
+def assertion(name: str, passed: bool = True) -> dict:
+    return {"schema_version": 1, "type": "assertion", "assertion": name, "passed": passed}
+
+
+def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify(
+        target="http://127.0.0.1:8000",
+        scenario=scenario,
+        output_dir=tmp_path / "runs",
+        k6_path=str(fake_k6(tmp_path, events)),
+        seed=42,
+    )
+
+    assert result["verdict"] == "pass"
+    assert result["completeness"] == "complete"
+    assert result["metrics"]["http_reqs"] == 2
+    run_dir = tmp_path / "runs" / result["run_id"]
+    assert json.loads((run_dir / "result.json").read_text()) == result
+    assert json.loads((run_dir / "run.json").read_text())["seed"] == 42
+    first_event = (run_dir / "events" / "000001.jsonl").read_text().splitlines()[0]
+    assert json.loads(first_event)["sequence"] == 1
+
+
+def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
+    data = manifest(assertions=["accepted_orders_persist"])
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist", False)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert result["verdict"] == "fail"
+    assert result["assertions"] == [{"id": "accepted_orders_persist", "status": "fail", "samples": 1}]
+
+
+def test_verify_is_inconclusive_when_required_evidence_is_missing(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    monkeypatch.setenv("FAKE_K6_EVENTS", "[]")
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
+
+    assert result["verdict"] == "inconclusive"
+    assert result["completeness"] == "incomplete"
+    assert "missing assertion evidence" in result["limitations"][0]
+
+
+def test_verify_is_inconclusive_when_delivery_differs_from_plan(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify(
+        "http://example.test",
+        scenario,
+        tmp_path / "runs",
+        str(fake_k6(tmp_path, events, iterations=19)),
+    )
+
+    assert result["verdict"] == "inconclusive"
+    assert any("delivered journeys 19" in limitation for limitation in result["limitations"])
+
+
+def test_verify_is_inconclusive_when_some_journeys_lack_assertions(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(19)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert result["verdict"] == "inconclusive"
+    assert "accepted_orders_persist (19/20)" in result["limitations"][0]
+
+
+def test_verify_rejects_an_unpinned_engine(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    monkeypatch.setenv("FAKE_K6_EVENTS", "[]")
+    k6 = fake_k6(tmp_path, [])
+    k6.write_text(k6.read_text().replace("k6 v2.2.0", "k6 v1.8.0"))
+
+    with pytest.raises(RunnerError, match="expected v2.2.0"):
+        verify("http://example.test", scenario, tmp_path / "runs", str(k6))

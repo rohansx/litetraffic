@@ -29,7 +29,7 @@ class Journey(StrictModel):
 class Phase(StrictModel):
     name: str = Field(min_length=1)
     seconds: int = Field(gt=0)
-    rate: float = Field(gt=0)
+    rate: int = Field(gt=0)
 
     @computed_field
     @property

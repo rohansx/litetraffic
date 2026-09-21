@@ -5,8 +5,8 @@
   "actors": [
     {
       "class": "buyer",
-      "count": 50,
-      "auth_recipe": "test-login"
+      "count": 8,
+      "auth_recipe": "run-scoped-header"
     }
   ],
   "fixtures": {
@@ -19,8 +19,8 @@
   "journeys": [
     {
       "name": "purchase",
-      "max_requests": 7,
-      "max_writes": 3
+      "max_requests": 3,
+      "max_writes": 2
     }
   ],
   "schedule": {
@@ -28,17 +28,17 @@
     "phases": [
       {
         "name": "warmup",
-        "seconds": 10,
+        "seconds": 1,
         "rate": 1
       },
       {
         "name": "measure",
-        "seconds": 120,
+        "seconds": 5,
         "rate": 2
       },
       {
         "name": "recovery",
-        "seconds": 20,
+        "seconds": 1,
         "rate": 1
       }
     ]
@@ -50,9 +50,9 @@
   ],
   "observer": "owned-order-ledger",
   "budgets": {
-    "max_seconds": 210,
-    "max_requests": 2400,
-    "max_write_attempts": 900,
+    "max_seconds": 20,
+    "max_requests": 40,
+    "max_write_attempts": 25,
     "max_in_flight": 8,
     "max_artifact_bytes": 67108864
   }
