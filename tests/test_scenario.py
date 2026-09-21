@@ -79,6 +79,48 @@ def test_rejects_fractional_journey_rates_until_the_engine_contract_supports_the
         load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
 
 
+def test_compiles_a_seeded_spiky_profile_into_bounded_phases(tmp_path):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "spiky",
+            "duration_seconds": 12,
+            "baseline_rate": 1,
+            "spike_rate": 4,
+            "spike_seconds": 2,
+            "spikes": 2,
+        },
+    }
+    data = manifest(schedule=schedule, budgets=manifest()["budgets"] | {"max_requests": 72, "max_write_attempts": 24})
+
+    scenario = load_scenario(write_bundle(tmp_path, data)).manifest
+    first = scenario.schedule.resolve(seed=42)
+
+    assert first == scenario.schedule.resolve(seed=42)
+    assert first != scenario.schedule.resolve(seed=43)
+    assert sum(phase.seconds for phase in first) == 12
+    assert sum(phase.admitted_journeys for phase in first) == 24
+    assert scenario.planned_journeys == 24
+    assert any(phase.rate == 4 for phase in first)
+
+
+def test_rejects_spikes_that_cannot_fit_without_overlap(tmp_path):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "spiky",
+            "duration_seconds": 5,
+            "baseline_rate": 1,
+            "spike_rate": 4,
+            "spike_seconds": 2,
+            "spikes": 3,
+        },
+    }
+
+    with pytest.raises(ValidationError, match="spikes do not fit"):
+        load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
+
+
 @pytest.mark.parametrize(("field", "value", "message"), [("max_requests", 59, "request budget"), ("max_write_attempts", 19, "write budget")])
 def test_rejects_insufficient_budgets(tmp_path, field, value, message):
     budgets = manifest()["budgets"] | {field: value}

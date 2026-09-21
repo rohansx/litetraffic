@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import random
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
 
@@ -37,15 +39,60 @@ class Phase(StrictModel):
         return math.ceil(self.seconds * self.rate)
 
 
+class SpikyProfile(StrictModel):
+    kind: Literal["spiky"]
+    duration_seconds: int = Field(gt=0)
+    baseline_rate: int = Field(gt=0)
+    spike_rate: int = Field(gt=0)
+    spike_seconds: int = Field(gt=0)
+    spikes: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def require_bounded_spikes(self) -> "SpikyProfile":
+        if self.spike_rate <= self.baseline_rate:
+            raise ValueError("spike_rate must exceed baseline_rate")
+        if self.duration_seconds // self.spikes < self.spike_seconds:
+            raise ValueError("spikes do not fit without overlap")
+        return self
+
+    def compile(self, seed: int) -> list[Phase]:
+        rates = [self.baseline_rate] * self.duration_seconds
+        generator = random.Random(seed)
+        for index in range(self.spikes):
+            window_start = index * self.duration_seconds // self.spikes
+            window_end = (index + 1) * self.duration_seconds // self.spikes
+            start = generator.randint(window_start, window_end - self.spike_seconds)
+            rates[start : start + self.spike_seconds] = [self.spike_rate] * self.spike_seconds
+
+        phases: list[Phase] = []
+        start = 0
+        for second in range(1, len(rates) + 1):
+            if second == len(rates) or rates[second] != rates[start]:
+                kind = "spike" if rates[start] == self.spike_rate else "baseline"
+                phases.append(Phase(name=f"{kind}-{len(phases) + 1}", seconds=second - start, rate=rates[start]))
+                start = second
+        return phases
+
+
 class Schedule(StrictModel):
     unit: str
-    phases: list[Phase] = Field(min_length=1)
+    phases: list[Phase] | None = Field(default=None, min_length=1)
+    profile: SpikyProfile | None = None
 
     @model_validator(mode="after")
     def require_journey_rate_unit(self) -> "Schedule":
         if self.unit != "journeys_per_second":
             raise ValueError("schedule unit must be journeys_per_second")
+        if (self.phases is None) == (self.profile is None):
+            raise ValueError("schedule must define exactly one of phases or profile")
         return self
+
+    def resolve(self, seed: int) -> list[Phase]:
+        if self.phases is not None:
+            return self.phases
+        if self.profile is None:
+            raise ValueError("schedule has no phases or profile")
+        return self.profile.compile(seed)
 
 
 class Budgets(StrictModel):
@@ -72,7 +119,7 @@ class ScenarioManifest(StrictModel):
     def require_supported_version_and_duration(self) -> "ScenarioManifest":
         if self.schema_version != 1:
             raise ValueError("schema_version must be 1")
-        scheduled_seconds = sum(phase.seconds for phase in self.schedule.phases)
+        scheduled_seconds = sum(phase.seconds for phase in self.schedule.resolve(seed=0))
         if scheduled_seconds > self.budgets.max_seconds:
             raise ValueError("scheduled duration exceeds max_seconds budget")
         return self
@@ -80,7 +127,7 @@ class ScenarioManifest(StrictModel):
     @computed_field
     @property
     def planned_journeys(self) -> int:
-        return sum(phase.admitted_journeys for phase in self.schedule.phases)
+        return sum(phase.admitted_journeys for phase in self.schedule.resolve(seed=0))
 
     @computed_field
     @property

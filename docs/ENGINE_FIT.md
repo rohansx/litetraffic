@@ -4,7 +4,7 @@
 - Engine: k6 v2.2.0, Linux amd64
 - Archive SHA-256: `b5a8003c86f35f5cd5ceef1490312c48e587696c94d998cefc6d7b3b4cb1597d`
 
-LiteTraffic ran the checkout scenario through the official k6 binary using native [JSON metric output](https://grafana.com/docs/k6/latest/results-output/real-time/json/) and [`--console-output`](https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#console-output). The controller parsed only versioned `LT_EVENT` records, assigned collector-side sequence numbers, and independently reconciled delivered iterations with the manifest plan.
+LiteTraffic ran the checkout and inventory scenarios through the official k6 binary using native [JSON metric output](https://grafana.com/docs/k6/latest/results-output/real-time/json/) and [`--console-output`](https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#console-output). The controller parsed only versioned `LT_EVENT` records, assigned collector-side sequence numbers, and independently reconciled delivered iterations with the manifest plan.
 
 ## Measured conformance
 
@@ -12,8 +12,10 @@ LiteTraffic ran the checkout scenario through the official k6 binary using nativ
 |---|---:|---:|---|---|
 | Correct idempotent payment server | 12 / 12 | 36 | `one_effect_per_payment` passed 12/12 | `pass` |
 | Broken duplicate-on-retry server | 12 / 12 | 36 | `one_effect_per_payment` failed | `fail` |
+| Correct atomic inventory server | 8 / 8 | 40 | Four inventory assertions passed 8/8 | `pass` |
+| Broken overselling inventory server | 8 / 8 | 40 | Negative inventory and excess acceptance detected | `fail` |
 
-The negative target still returned successful HTTP responses and passed persistence and total checks. The failure therefore came from observed business state, not an HTTP error shortcut.
+The negative targets still returned valid HTTP responses. Their failures came from observed business state rather than an HTTP error shortcut.
 
 ## Scheduling finding
 
@@ -21,6 +23,6 @@ Separate back-to-back `constant-arrival-rate` scenarios produced 14 iterations f
 
 ## Proven boundary
 
-This validates stock-k6 subprocess execution, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, and a positive/negative stateful idempotency check. It does not yet validate long-duration event loss, cancellation finalization, memory ceilings, E2B execution, fixture provisioning, or an observer plugin interface.
+This validates stock-k6 subprocess execution, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, seeded spiky-profile compilation, stateful idempotency, and finite-resource contention. It does not yet validate long-duration event loss, cancellation finalization, memory ceilings, E2B execution, fixture provisioning, or an observer plugin interface.
 
 The release archive came from the official [grafana/k6 v2.2.0 release](https://github.com/grafana/k6/releases/tag/v2.2.0). The binary remains an external prerequisite and is not redistributed by LiteTraffic.

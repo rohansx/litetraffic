@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from litetraffic.runner import RunnerError, verify
+from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
 
 
@@ -113,3 +114,38 @@ def test_verify_rejects_an_unpinned_engine(tmp_path, monkeypatch):
 
     with pytest.raises(RunnerError, match="expected v2.2.0"):
         verify("http://example.test", scenario, tmp_path / "runs", str(k6))
+
+
+def test_verify_freezes_the_seeded_resolved_schedule(tmp_path, monkeypatch):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "spiky",
+            "duration_seconds": 10,
+            "baseline_rate": 1,
+            "spike_rate": 3,
+            "spike_seconds": 1,
+            "spikes": 1,
+        },
+    }
+    data = manifest(
+        schedule=schedule,
+        budgets=manifest()["budgets"] | {"max_requests": 36, "max_write_attempts": 12},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(12)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify(
+        "http://example.test",
+        scenario,
+        tmp_path / "runs",
+        str(fake_k6(tmp_path, events, iterations=12)),
+        seed=42,
+    )
+
+    run = json.loads((tmp_path / "runs" / result["run_id"] / "run.json").read_text())
+    assert run["resolved_schedule"] == [
+        phase.model_dump(exclude={"admitted_journeys"})
+        for phase in load_scenario(scenario).manifest.schedule.resolve(seed=42)
+    ]

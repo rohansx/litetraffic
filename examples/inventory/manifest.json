@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "name": "inventory-contention",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "buyer",
+      "count": 8,
+      "auth_recipe": "run-scoped-header"
+    }
+  ],
+  "fixtures": {
+    "recipe": "finite-inventory",
+    "parameters": {
+      "capacity": 3,
+      "parallel_attempts_per_journey": 4
+    }
+  },
+  "journeys": [
+    {
+      "name": "reserve-concurrently",
+      "max_requests": 5,
+      "max_writes": 4
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "profile": {
+      "kind": "spiky",
+      "duration_seconds": 5,
+      "baseline_rate": 1,
+      "spike_rate": 4,
+      "spike_seconds": 1,
+      "spikes": 1
+    }
+  },
+  "assertions": [
+    "inventory_never_negative",
+    "accepted_reservations_within_capacity",
+    "rejections_require_empty_inventory",
+    "reservation_responses_valid"
+  ],
+  "observer": "inventory-state-endpoint",
+  "budgets": {
+    "max_seconds": 15,
+    "max_requests": 40,
+    "max_write_attempts": 32,
+    "max_in_flight": 8,
+    "max_artifact_bytes": 67108864
+  }
+}

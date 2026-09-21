@@ -23,6 +23,7 @@ def _parser() -> argparse.ArgumentParser:
 
     inspect = commands.add_parser("inspect", help="validate and explain a scenario bundle")
     inspect.add_argument("scenario", type=Path)
+    inspect.add_argument("--seed", type=int, default=0)
     inspect.add_argument("--json", action="store_true")
 
     verify_command = commands.add_parser("verify", help="run a finite scenario and evaluate its evidence")
@@ -64,6 +65,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         bundle = load_scenario(args.scenario)
         manifest = bundle.manifest
+        resolved_schedule = manifest.schedule.resolve(args.seed)
         payload = {
             "ok": True,
             "name": manifest.name,
@@ -72,6 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "planned_journeys": manifest.planned_journeys,
             "maximum_journey_requests": manifest.maximum_journey_requests,
             "maximum_journey_writes": manifest.maximum_journey_writes,
+            "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,
         }
         _emit(payload, args.json)

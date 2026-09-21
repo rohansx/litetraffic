@@ -60,3 +60,39 @@ def test_verify_returns_one_for_a_failed_experiment(tmp_path, monkeypatch, capsy
 
     assert status == 1
     assert output["verdict"] == "fail"
+
+
+def test_inspect_resolves_a_seeded_profile(tmp_path, capsys):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "spiky",
+            "duration_seconds": 10,
+            "baseline_rate": 1,
+            "spike_rate": 3,
+            "spike_seconds": 1,
+            "spikes": 1,
+        },
+    }
+    data = manifest(
+        schedule=schedule,
+        budgets=manifest()["budgets"] | {"max_requests": 36, "max_write_attempts": 12},
+    )
+
+    status = main(["inspect", str(write_bundle(tmp_path, data)), "--seed", "42", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["planned_journeys"] == 12
+    assert sum(phase["seconds"] for phase in output["resolved_schedule"]) == 10
+
+
+def test_repository_inventory_example_is_valid(capsys):
+    scenario = Path(__file__).parents[1] / "examples" / "inventory"
+
+    status = main(["inspect", str(scenario), "--seed", "42", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["name"] == "inventory-contention"
+    assert output["planned_journeys"] == 8

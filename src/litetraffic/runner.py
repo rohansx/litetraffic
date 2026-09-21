@@ -103,6 +103,7 @@ def verify(
     bundle = load_scenario(Path(scenario))
     executable, engine_version = _engine(k6_path)
     target = _target(target)
+    resolved_schedule = bundle.manifest.schedule.resolve(seed)
     run_id = f"run_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
     run_dir = Path(output_dir).resolve() / run_id
     events_dir = run_dir / "events"
@@ -118,6 +119,7 @@ def verify(
         "seed": seed,
         "scenario_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
         "engine": engine_version,
+        "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
         "started_at": datetime.now(UTC).isoformat(),
     }
     _write_json(run_dir / "run.json", run)
@@ -146,7 +148,7 @@ def verify(
             "LT_SEED": str(seed),
             "LT_MAX_IN_FLIGHT": str(bundle.manifest.budgets.max_in_flight),
             "LT_SCHEDULE_JSON": json.dumps(
-                [phase.model_dump(exclude={"admitted_journeys"}) for phase in bundle.manifest.schedule.phases]
+                [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule]
             ),
         }
     )

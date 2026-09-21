@@ -20,6 +20,7 @@ Inspect the included scenario:
 ```bash
 litetraffic inspect examples/checkout
 litetraffic inspect examples/checkout --json
+litetraffic inspect examples/inventory --seed 42 --json
 ```
 
 Check local prerequisites and an optional running target:
@@ -38,6 +39,15 @@ litetraffic verify examples/checkout --target http://127.0.0.1:8765 --json
 
 Restart the server with `--wrong-duplicate` to confirm the same scenario detects a broken idempotency implementation. `doctor` only makes a GET request and does not install software.
 
+Run the seeded spiky inventory contention example:
+
+```bash
+python examples/inventory/server.py --port 8766
+litetraffic verify examples/inventory --target http://127.0.0.1:8766 --seed 42 --json
+```
+
+Restart it with `--wrong-oversell` to verify that LiteTraffic detects negative inventory and accepted reservations above capacity.
+
 Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, and `result.json`.
 
 ## Scenario safety contract
@@ -45,6 +55,7 @@ Each verification writes an owner-restricted directory under `.litetraffic/runs/
 - Manifests are JSON and reject unknown fields.
 - Scenario scripts must remain inside the bundle directory.
 - Schedule rates are journey admissions per second, not HTTP requests per second.
+- Schedules may contain explicit phases or a deterministic `spiky` profile resolved from `--seed`.
 - Maximum requests and writes are derived conservatively from every admitted journey.
 - A bundle that exceeds its declared duration, request, or write budget is rejected.
 - Runtime secrets and target URLs do not belong in portable manifests.
