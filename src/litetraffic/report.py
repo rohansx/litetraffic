@@ -11,6 +11,10 @@ def render_report(result: dict, run: dict) -> str:
     )
     limitations = "".join(f"<li>{escape(str(item))}</li>" for item in result["limitations"]) or "<li>None</li>"
     metrics = result["metrics"]
+    p95 = metrics.get("http_req_duration_ms", {}).get("p95")
+    failure_rate = metrics.get("http_req_failed_rate", {}).get("rate")
+    p95_label = f"{p95} ms" if p95 is not None else "Unavailable"
+    failure_label = f"{failure_rate * 100:.1f}%" if failure_rate is not None else "Unavailable"
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LiteTraffic — {escape(str(run['scenario']))}</title>
@@ -24,7 +28,9 @@ dl{{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}} dt{{font-w
 <section class="card"><div class="verdict">{escape(str(result['verdict']).upper())}</div>
 <dl><dt>Lifecycle</dt><dd>{escape(str(result['lifecycle']))}</dd><dt>Run</dt><dd>{escape(str(result['run_id']))}</dd>
 <dt>Journeys</dt><dd>{escape(str(metrics.get('iterations', 0)))} / {escape(str(result['planned_journeys']))}</dd>
-<dt>HTTP requests</dt><dd>{escape(str(metrics.get('http_reqs', 0)))}</dd></dl></section>
+<dt>HTTP requests</dt><dd>{escape(str(metrics.get('http_reqs', 0)))}</dd>
+<dt>HTTP p95</dt><dd>{escape(p95_label)}</dd><dt>HTTP failure rate</dt><dd>{escape(failure_label)}</dd>
+<dt>HTTP throughput</dt><dd>{escape(str(metrics.get('http_reqs_per_second', 'Unavailable')))} req/s</dd></dl></section>
 <section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody>{assertions}</tbody></table></section>
 <section class="card"><h2>Limitations</h2><ul>{limitations}</ul></section>
 </body></html>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import signal
 import shutil
@@ -76,22 +77,52 @@ def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
     return events, malformed
 
 
-def _read_metrics(path: Path) -> tuple[dict[str, float], int]:
+def _percentile(values: list[float], quantile: float) -> float:
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * quantile
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return ordered[lower]
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
+
+
+def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
     count_metrics = {"dropped_iterations", "http_reqs", "iterations"}
-    totals: dict[str, float] = {}
+    totals: dict[str, object] = {}
+    durations: list[float] = []
+    failed: list[float] = []
     malformed = 0
     for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
         try:
             item = json.loads(line)
-            if (
-                item.get("type") == "Point"
-                and item.get("metric") in count_metrics
-                and isinstance(item.get("data", {}).get("value"), (int, float))
-            ):
-                metric = item["metric"]
-                totals[metric] = totals.get(metric, 0) + item["data"]["value"]
+            metric = item.get("metric")
+            value = item.get("data", {}).get("value")
+            if item.get("type") != "Point" or not isinstance(value, (int, float)):
+                continue
+            if metric in count_metrics:
+                totals[metric] = float(totals.get(metric, 0)) + value
+            elif metric == "http_req_duration":
+                durations.append(float(value))
+            elif metric == "http_req_failed" and 0 <= value <= 1:
+                failed.append(float(value))
         except (KeyError, json.JSONDecodeError, TypeError):
             malformed += 1
+    if durations:
+        totals["http_req_duration_ms"] = {
+            "samples": len(durations),
+            "average": round(sum(durations) / len(durations), 3),
+            "p50": round(_percentile(durations, 0.5), 3),
+            "p95": round(_percentile(durations, 0.95), 3),
+            "max": round(max(durations), 3),
+        }
+    if failed:
+        failures = sum(failed)
+        totals["http_req_failed_rate"] = {
+            "samples": len(failed),
+            "failed": int(failures),
+            "rate": round(failures / len(failed), 6),
+        }
     return totals, malformed
 
 
@@ -143,6 +174,7 @@ def verify(
     run_dir.chmod(0o700)
 
     manifest_bytes = bundle.manifest_path.read_bytes()
+    started_at = datetime.now(UTC)
     run = {
         "schema_version": 1,
         "run_id": run_id,
@@ -154,7 +186,7 @@ def verify(
         "engine": engine_version,
         "lifecycle": "running",
         "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
-        "started_at": datetime.now(UTC).isoformat(),
+        "started_at": started_at.isoformat(),
     }
     _write_json(run_dir / "run.json", run)
     (run_dir / "scenario.lock.json").write_bytes(manifest_bytes)
@@ -214,7 +246,8 @@ def verify(
         stdout, stderr = "", str(exc)
 
     engine_exit_code = process.returncode if process is not None else None
-    finished_at = datetime.now(UTC).isoformat()
+    finished = datetime.now(UTC)
+    finished_at = finished.isoformat()
     run.update({"lifecycle": lifecycle, "finished_at": finished_at, "engine_exit_code": engine_exit_code})
     _write_json(run_dir / "run.json", run)
     (run_dir / "engine.stdout.log").write_text(stdout, encoding="utf-8")
@@ -224,6 +257,10 @@ def verify(
 
     events, malformed_events = _read_events(console_path, run_id)
     metrics, malformed_metrics = _read_metrics(metrics_path)
+    elapsed_seconds = max((finished - started_at).total_seconds(), 0.000001)
+    metrics["elapsed_seconds"] = round(elapsed_seconds, 6)
+    metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / elapsed_seconds, 3)
+    metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / elapsed_seconds, 3)
     events_path = events_dir / "000001.jsonl"
     events_path.write_text("".join(json.dumps(event, sort_keys=True) + "\n" for event in events), encoding="utf-8")
     events_path.chmod(0o600)

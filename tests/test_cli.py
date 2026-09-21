@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from litetraffic.cli import main
+from test_compare import write_run
 from test_scenario import manifest, write_bundle
 
 
@@ -160,3 +161,32 @@ def test_verify_rejects_zero_repetitions(capsys):
 
     assert status == 3
     assert "repeat must be at least 1" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_diff_returns_failure_for_a_latency_regression(tmp_path, capsys):
+    baseline = write_run(tmp_path / "baseline", "baseline", p95=100)
+    candidate = write_run(tmp_path / "candidate", "candidate", p95=130)
+
+    status = main([
+        "diff",
+        str(baseline),
+        str(candidate),
+        "--max-p95-regression-percent",
+        "20",
+        "--json",
+    ])
+
+    output = json.loads(capsys.readouterr().out)
+    assert status == 1
+    assert output["verdict"] == "fail"
+    assert output["performance"]["p95"]["status"] == "regression"
+
+
+def test_diff_returns_inconclusive_for_incompatible_runs(tmp_path, capsys):
+    baseline = write_run(tmp_path / "baseline", "baseline", scenario_sha256="scenario-a")
+    candidate = write_run(tmp_path / "candidate", "candidate", scenario_sha256="scenario-b")
+
+    status = main(["diff", str(baseline), str(candidate), "--json"])
+
+    assert status == 2
+    assert json.loads(capsys.readouterr().out)["comparable"] is False

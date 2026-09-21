@@ -29,6 +29,11 @@ def fake_k6(
         "console.write_text(''.join('LT_EVENT ' + json.dumps(e | {'run_id': run_id}) + '\\n' for e in events))\n"
         "metrics.write_text(json.dumps({'type':'Point','metric':'http_reqs','data':{'value':2}}) + '\\n' + "
         f"json.dumps({{'type':'Point','metric':'iterations','data':{{'value':{iterations}}}}}) + '\\n')\n"
+        "with metrics.open('a') as stream:\n"
+        "    stream.write(json.dumps({'type':'Point','metric':'http_req_duration','data':{'value':10}}) + '\\n')\n"
+        "    stream.write(json.dumps({'type':'Point','metric':'http_req_duration','data':{'value':30}}) + '\\n')\n"
+        "    stream.write(json.dumps({'type':'Point','metric':'http_req_failed','data':{'value':0}}) + '\\n')\n"
+        "    stream.write(json.dumps({'type':'Point','metric':'http_req_failed','data':{'value':1}}) + '\\n')\n"
         f"time.sleep({sleep_seconds})\n"
         f"raise SystemExit({returncode})\n"
     )
@@ -57,6 +62,10 @@ def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
     assert result["lifecycle"] == "finished"
     assert result["completeness"] == "complete"
     assert result["metrics"]["http_reqs"] == 2
+    assert result["metrics"]["http_req_duration_ms"]["p95"] == 29.0
+    assert result["metrics"]["http_req_failed_rate"] == {"failed": 1, "rate": 0.5, "samples": 2}
+    assert result["metrics"]["elapsed_seconds"] > 0
+    assert result["metrics"]["http_reqs_per_second"] > 0
     run_dir = tmp_path / "runs" / result["run_id"]
     assert json.loads((run_dir / "result.json").read_text()) == result
     run = json.loads((run_dir / "run.json").read_text())
@@ -66,6 +75,8 @@ def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
     assert "checkout" in report
     assert "PASS" in report
     assert "accepted_orders_persist" in report
+    assert "29.0 ms" in report
+    assert "50.0%" in report
     first_event = (run_dir / "events" / "000001.jsonl").read_text().splitlines()[0]
     assert json.loads(first_event)["sequence"] == 1
 

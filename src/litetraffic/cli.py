@@ -7,6 +7,7 @@ from typing import Sequence
 
 from pydantic import ValidationError
 
+from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.doctor import run_doctor
 from litetraffic.runner import RunnerError, repeat_verify, verify
 from litetraffic.scenario import ScenarioError, load_scenario
@@ -34,6 +35,12 @@ def _parser() -> argparse.ArgumentParser:
     verify_command.add_argument("--seed", type=int, default=0)
     verify_command.add_argument("--repeat", type=int, default=1)
     verify_command.add_argument("--json", action="store_true")
+
+    diff_command = commands.add_parser("diff", help="compare compatible run artifacts")
+    diff_command.add_argument("baseline", type=Path)
+    diff_command.add_argument("candidate", type=Path)
+    diff_command.add_argument("--max-p95-regression-percent", type=float)
+    diff_command.add_argument("--json", action="store_true")
     return parser
 
 
@@ -78,6 +85,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 130
             return 0 if payload["verdict"] == "pass" else 1
 
+        if args.command == "diff":
+            payload = compare_runs(args.baseline, args.candidate, args.max_p95_regression_percent)
+            _emit(payload, args.json)
+            return {"pass": 0, "fail": 1}.get(payload["verdict"], 2)
+
         bundle = load_scenario(args.scenario)
         manifest = bundle.manifest
         resolved_schedule = manifest.schedule.resolve(args.seed)
@@ -94,7 +106,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
         _emit(payload, args.json)
         return 0
-    except (RunnerError, ScenarioError, ValidationError, ValueError) as exc:
+    except (ComparisonError, RunnerError, ScenarioError, ValidationError, ValueError) as exc:
         _emit({"ok": False, "error": str(exc)}, getattr(args, "json", False))
         return 3
 

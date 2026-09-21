@@ -65,6 +65,16 @@ litetraffic verify examples/reporting --target http://127.0.0.1:8767 --seed 42 -
 
 Repeat mode preserves every normal run directory and writes a `series_*.json` summary with the aggregate verdict and whether outcomes were consistent.
 
+Compare compatible baseline and candidate runs without contacting the target:
+
+```bash
+litetraffic diff .litetraffic/runs/<baseline> .litetraffic/runs/<candidate> --json
+litetraffic diff .litetraffic/runs/<baseline> .litetraffic/runs/<candidate> \
+  --max-p95-regression-percent 20 --json
+```
+
+The optional p95 gate requires at least 200 request samples in both runs. Without a gate, LiteTraffic reports latency, HTTP error rate, throughput, and progress without manufacturing a performance verdict. Scenario hash, seed, engine, and resolved schedule must match before performance is graded.
+
 Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, `result.json`, and a self-contained `report.html`.
 
 Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently from the business verdict. Timeout and Ctrl+C terminate the k6 process group on POSIX systems, preserve available evidence, and can never produce a passing verdict. Ctrl+C returns shell status 130 after finalization.
