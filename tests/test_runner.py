@@ -62,6 +62,10 @@ def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
     run = json.loads((run_dir / "run.json").read_text())
     assert run["seed"] == 42
     assert run["lifecycle"] == "finished"
+    report = (run_dir / "report.html").read_text()
+    assert "checkout" in report
+    assert "PASS" in report
+    assert "accepted_orders_persist" in report
     first_event = (run_dir / "events" / "000001.jsonl").read_text().splitlines()[0]
     assert json.loads(first_event)["sequence"] == 1
 
@@ -76,6 +80,32 @@ def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
 
     assert result["verdict"] == "fail"
     assert result["assertions"] == [{"id": "accepted_orders_persist", "status": "fail", "samples": 1}]
+
+
+def test_verify_escapes_scenario_names_in_the_html_report(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario", manifest(name="<script>alert(1)</script>"))
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    report = (tmp_path / "runs" / result["run_id"] / "report.html").read_text()
+    assert "<script>" not in report
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in report
+
+
+def test_verify_counts_the_html_report_toward_the_artifact_budget(tmp_path, monkeypatch):
+    budgets = manifest()["budgets"] | {"max_artifact_bytes": 1}
+    scenario = write_bundle(tmp_path / "scenario", manifest(budgets=budgets))
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    report = (tmp_path / "runs" / result["run_id"] / "report.html").read_text()
+    assert result["verdict"] == "error"
+    assert "artifact budget exceeded" in result["limitations"][0]
+    assert "ERROR" in report
 
 
 def test_verify_is_inconclusive_when_required_evidence_is_missing(tmp_path, monkeypatch):

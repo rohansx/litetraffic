@@ -98,6 +98,17 @@ def test_repository_inventory_example_is_valid(capsys):
     assert output["planned_journeys"] == 8
 
 
+def test_repository_reporting_example_is_valid(capsys):
+    scenario = Path(__file__).parents[1] / "examples" / "reporting"
+
+    status = main(["inspect", str(scenario), "--seed", "42", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["name"] == "report-completeness"
+    assert output["planned_journeys"] == 6
+
+
 def test_cancelled_verify_returns_shell_interrupt_status(monkeypatch, capsys):
     monkeypatch.setattr(
         "litetraffic.cli.verify",

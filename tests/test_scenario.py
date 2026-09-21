@@ -79,6 +79,16 @@ def test_rejects_fractional_journey_rates_until_the_engine_contract_supports_the
         load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
 
 
+def test_rejects_a_schedule_that_never_admits_a_journey(tmp_path):
+    schedule = {
+        "unit": "journeys_per_second",
+        "phases": [{"name": "idle", "seconds": 10, "rate": 0}],
+    }
+
+    with pytest.raises(ValidationError, match="at least one journey"):
+        load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
+
+
 def test_compiles_a_seeded_spiky_profile_into_bounded_phases(tmp_path):
     schedule = {
         "unit": "journeys_per_second",
@@ -118,6 +128,51 @@ def test_rejects_spikes_that_cannot_fit_without_overlap(tmp_path):
     }
 
     with pytest.raises(ValidationError, match="spikes do not fit"):
+        load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
+
+
+def test_compiles_seeded_random_bursts_with_idle_periods(tmp_path):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "random_bursts",
+            "duration_seconds": 8,
+            "quiet_rate": 0,
+            "burst_rate": 3,
+            "burst_seconds": 1,
+            "bursts": 2,
+        },
+    }
+    data = manifest(
+        schedule=schedule,
+        budgets=manifest()["budgets"] | {"max_requests": 18, "max_write_attempts": 6},
+    )
+
+    scenario = load_scenario(write_bundle(tmp_path, data)).manifest
+    first = scenario.schedule.resolve(seed=42)
+
+    assert first == scenario.schedule.resolve(seed=42)
+    assert first != scenario.schedule.resolve(seed=43)
+    assert sum(phase.seconds for phase in first) == 8
+    assert sum(phase.admitted_journeys for phase in first) == 6
+    assert scenario.planned_journeys == 6
+    assert any(phase.rate == 0 for phase in first)
+
+
+def test_rejects_random_bursts_that_cannot_fit_without_overlap(tmp_path):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "random_bursts",
+            "duration_seconds": 5,
+            "quiet_rate": 0,
+            "burst_rate": 3,
+            "burst_seconds": 2,
+            "bursts": 3,
+        },
+    }
+
+    with pytest.raises(ValidationError, match="bursts do not fit"):
         load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
 
 

@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from litetraffic.report import render_report
 from litetraffic.scenario import load_scenario
 
 SUPPORTED_K6_VERSION = "v2.2.0"
@@ -145,6 +146,7 @@ def verify(
     run = {
         "schema_version": 1,
         "run_id": run_id,
+        "scenario": bundle.manifest.name,
         "mode": "verify",
         "target": target,
         "seed": seed,
@@ -275,16 +277,11 @@ def verify(
     else:
         verdict = "pass"
 
-    artifact_bytes = sum(path.stat().st_size for path in run_dir.rglob("*") if path.is_file())
-    if artifact_bytes > bundle.manifest.budgets.max_artifact_bytes:
-        verdict = "error"
-        completeness = "incomplete"
-        limitations.append(
-            f"artifact budget exceeded: {artifact_bytes} > {bundle.manifest.budgets.max_artifact_bytes} bytes"
-        )
     result = {
         "schema_version": 1,
         "run_id": run_id,
+        "planned_journeys": bundle.manifest.planned_journeys,
+        "report": "report.html",
         "lifecycle": lifecycle,
         "engine_exit_code": engine_exit_code,
         "finished_at": finished_at,
@@ -295,4 +292,16 @@ def verify(
         "limitations": limitations,
     }
     _write_json(run_dir / "result.json", result)
+    report_path = run_dir / result["report"]
+    report_path.write_text(render_report(result, run), encoding="utf-8")
+    report_path.chmod(0o600)
+    artifact_bytes = sum(path.stat().st_size for path in run_dir.rglob("*") if path.is_file())
+    if artifact_bytes > bundle.manifest.budgets.max_artifact_bytes:
+        result["verdict"] = "error"
+        result["completeness"] = "incomplete"
+        result["limitations"].append(
+            f"artifact budget exceeded: {artifact_bytes} > {bundle.manifest.budgets.max_artifact_bytes} bytes"
+        )
+        _write_json(run_dir / "result.json", result)
+        report_path.write_text(render_report(result, run), encoding="utf-8")
     return result

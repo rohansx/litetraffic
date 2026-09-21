@@ -31,12 +31,40 @@ class Journey(StrictModel):
 class Phase(StrictModel):
     name: str = Field(min_length=1)
     seconds: int = Field(gt=0)
-    rate: int = Field(gt=0)
+    rate: int = Field(ge=0)
 
     @computed_field
     @property
     def admitted_journeys(self) -> int:
         return math.ceil(self.seconds * self.rate)
+
+
+def _compile_profile(
+    duration_seconds: int,
+    quiet_rate: int,
+    burst_rate: int,
+    burst_seconds: int,
+    bursts: int,
+    seed: int,
+    quiet_name: str,
+    burst_name: str,
+) -> list[Phase]:
+    rates = [quiet_rate] * duration_seconds
+    generator = random.Random(seed)
+    for index in range(bursts):
+        window_start = index * duration_seconds // bursts
+        window_end = (index + 1) * duration_seconds // bursts
+        start = generator.randint(window_start, window_end - burst_seconds)
+        rates[start : start + burst_seconds] = [burst_rate] * burst_seconds
+
+    phases: list[Phase] = []
+    start = 0
+    for second in range(1, len(rates) + 1):
+        if second == len(rates) or rates[second] != rates[start]:
+            name = burst_name if rates[start] == burst_rate else quiet_name
+            phases.append(Phase(name=f"{name}-{len(phases) + 1}", seconds=second - start, rate=rates[start]))
+            start = second
+    return phases
 
 
 class SpikyProfile(StrictModel):
@@ -56,28 +84,51 @@ class SpikyProfile(StrictModel):
         return self
 
     def compile(self, seed: int) -> list[Phase]:
-        rates = [self.baseline_rate] * self.duration_seconds
-        generator = random.Random(seed)
-        for index in range(self.spikes):
-            window_start = index * self.duration_seconds // self.spikes
-            window_end = (index + 1) * self.duration_seconds // self.spikes
-            start = generator.randint(window_start, window_end - self.spike_seconds)
-            rates[start : start + self.spike_seconds] = [self.spike_rate] * self.spike_seconds
+        return _compile_profile(
+            self.duration_seconds,
+            self.baseline_rate,
+            self.spike_rate,
+            self.spike_seconds,
+            self.spikes,
+            seed,
+            "baseline",
+            "spike",
+        )
 
-        phases: list[Phase] = []
-        start = 0
-        for second in range(1, len(rates) + 1):
-            if second == len(rates) or rates[second] != rates[start]:
-                kind = "spike" if rates[start] == self.spike_rate else "baseline"
-                phases.append(Phase(name=f"{kind}-{len(phases) + 1}", seconds=second - start, rate=rates[start]))
-                start = second
-        return phases
+
+class RandomBurstProfile(StrictModel):
+    kind: Literal["random_bursts"]
+    duration_seconds: int = Field(gt=0)
+    quiet_rate: int = Field(ge=0)
+    burst_rate: int = Field(gt=0)
+    burst_seconds: int = Field(gt=0)
+    bursts: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def require_bounded_bursts(self) -> "RandomBurstProfile":
+        if self.burst_rate <= self.quiet_rate:
+            raise ValueError("burst_rate must exceed quiet_rate")
+        if self.duration_seconds // self.bursts < self.burst_seconds:
+            raise ValueError("bursts do not fit without overlap")
+        return self
+
+    def compile(self, seed: int) -> list[Phase]:
+        return _compile_profile(
+            self.duration_seconds,
+            self.quiet_rate,
+            self.burst_rate,
+            self.burst_seconds,
+            self.bursts,
+            seed,
+            "quiet",
+            "burst",
+        )
 
 
 class Schedule(StrictModel):
     unit: str
     phases: list[Phase] | None = Field(default=None, min_length=1)
-    profile: SpikyProfile | None = None
+    profile: SpikyProfile | RandomBurstProfile | None = None
 
     @model_validator(mode="after")
     def require_journey_rate_unit(self) -> "Schedule":
@@ -85,6 +136,8 @@ class Schedule(StrictModel):
             raise ValueError("schedule unit must be journeys_per_second")
         if (self.phases is None) == (self.profile is None):
             raise ValueError("schedule must define exactly one of phases or profile")
+        if not any(phase.admitted_journeys for phase in self.resolve(seed=0)):
+            raise ValueError("schedule must admit at least one journey")
         return self
 
     def resolve(self, seed: int) -> list[Phase]:

@@ -48,7 +48,16 @@ litetraffic verify examples/inventory --target http://127.0.0.1:8766 --seed 42 -
 
 Restart it with `--wrong-oversell` to verify that LiteTraffic detects negative inventory and accepted reservations above capacity.
 
-Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, and `result.json`.
+Run the seeded random-burst reporting example:
+
+```bash
+python examples/reporting/server.py --port 8767
+litetraffic verify examples/reporting --target http://127.0.0.1:8767 --seed 42 --json
+```
+
+Restart it with `--wrong-partial` to verify that a fast HTTP 200 response still fails when report totals, rows, or regional data are incomplete.
+
+Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, `result.json`, and a self-contained `report.html`.
 
 Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently from the business verdict. Timeout and Ctrl+C terminate the k6 process group on POSIX systems, preserve available evidence, and can never produce a passing verdict. Ctrl+C returns shell status 130 after finalization.
 
@@ -57,7 +66,7 @@ Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently fro
 - Manifests are JSON and reject unknown fields.
 - Scenario scripts must remain inside the bundle directory.
 - Schedule rates are journey admissions per second, not HTTP requests per second.
-- Schedules may contain explicit phases or a deterministic `spiky` profile resolved from `--seed`.
+- Schedules may contain explicit phases or deterministic `spiky` and `random_bursts` profiles resolved from `--seed`.
 - Maximum requests and writes are derived conservatively from every admitted journey.
 - A bundle that exceeds its declared duration, request, or write budget is rejected.
 - Runtime secrets and target URLs do not belong in portable manifests.

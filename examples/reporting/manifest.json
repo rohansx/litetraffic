@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "name": "report-completeness",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "report-reader",
+      "count": 6,
+      "auth_recipe": "run-scoped-header"
+    }
+  ],
+  "fixtures": {
+    "recipe": "settled-sales-ledger",
+    "parameters": {
+      "expected_total": 1000,
+      "expected_rows": 5
+    }
+  },
+  "journeys": [
+    {
+      "name": "read-sales-report",
+      "max_requests": 1,
+      "max_writes": 0
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "profile": {
+      "kind": "random_bursts",
+      "duration_seconds": 8,
+      "quiet_rate": 0,
+      "burst_rate": 3,
+      "burst_seconds": 1,
+      "bursts": 2
+    }
+  },
+  "assertions": [
+    "report_total_matches_fixture",
+    "report_row_count_complete",
+    "report_region_breakdown_complete",
+    "report_response_valid"
+  ],
+  "observer": "sales-report-endpoint",
+  "budgets": {
+    "max_seconds": 15,
+    "max_requests": 6,
+    "max_write_attempts": 0,
+    "max_in_flight": 6,
+    "max_artifact_bytes": 67108864
+  }
+}
