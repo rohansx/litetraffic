@@ -125,10 +125,39 @@ class RandomBurstProfile(StrictModel):
         )
 
 
+class SustainedBurstProfile(StrictModel):
+    kind: Literal["sustained_burst"]
+    baseline_rate: int = Field(ge=0)
+    plateau_rate: int = Field(gt=0)
+    ramp_seconds: int = Field(gt=0)
+    plateau_seconds: int = Field(gt=0)
+    recovery_seconds: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def require_higher_plateau(self) -> "SustainedBurstProfile":
+        if self.plateau_rate <= self.baseline_rate:
+            raise ValueError("plateau_rate must exceed baseline_rate")
+        return self
+
+    def compile(self, seed: int) -> list[Phase]:
+        increase = self.plateau_rate - self.baseline_rate
+        phases = [
+            Phase(
+                name=f"ramp-{second}",
+                seconds=1,
+                rate=self.baseline_rate + math.ceil(increase * second / self.ramp_seconds),
+            )
+            for second in range(1, self.ramp_seconds + 1)
+        ]
+        phases.append(Phase(name="plateau", seconds=self.plateau_seconds, rate=self.plateau_rate))
+        phases.append(Phase(name="recovery", seconds=self.recovery_seconds, rate=self.baseline_rate))
+        return phases
+
+
 class Schedule(StrictModel):
     unit: str
     phases: list[Phase] | None = Field(default=None, min_length=1)
-    profile: SpikyProfile | RandomBurstProfile | None = None
+    profile: SpikyProfile | RandomBurstProfile | SustainedBurstProfile | None = None
 
     @model_validator(mode="after")
     def require_journey_rate_unit(self) -> "Schedule":

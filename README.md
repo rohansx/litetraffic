@@ -57,6 +57,14 @@ litetraffic verify examples/reporting --target http://127.0.0.1:8767 --seed 42 -
 
 Restart it with `--wrong-partial` to verify that a fast HTTP 200 response still fails when report totals, rows, or regional data are incomplete.
 
+Use consecutive seeds to expose seed-sensitive or intermittent behavior:
+
+```bash
+litetraffic verify examples/reporting --target http://127.0.0.1:8767 --seed 42 --repeat 3 --json
+```
+
+Repeat mode preserves every normal run directory and writes a `series_*.json` summary with the aggregate verdict and whether outcomes were consistent.
+
 Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, `result.json`, and a self-contained `report.html`.
 
 Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently from the business verdict. Timeout and Ctrl+C terminate the k6 process group on POSIX systems, preserve available evidence, and can never produce a passing verdict. Ctrl+C returns shell status 130 after finalization.
@@ -66,7 +74,7 @@ Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently fro
 - Manifests are JSON and reject unknown fields.
 - Scenario scripts must remain inside the bundle directory.
 - Schedule rates are journey admissions per second, not HTTP requests per second.
-- Schedules may contain explicit phases or deterministic `spiky` and `random_bursts` profiles resolved from `--seed`.
+- Schedules may contain explicit phases or `spiky`, `random_bursts`, and `sustained_burst` profiles. Sustained bursts ramp to a plateau and drop immediately to a recovery rate.
 - Maximum requests and writes are derived conservatively from every admitted journey.
 - A bundle that exceeds its declared duration, request, or write budget is rejected.
 - Runtime secrets and target URLs do not belong in portable manifests.

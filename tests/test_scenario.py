@@ -176,6 +176,53 @@ def test_rejects_random_bursts_that_cannot_fit_without_overlap(tmp_path):
         load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
 
 
+def test_compiles_a_sustained_burst_with_ramp_plateau_and_drop(tmp_path):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "sustained_burst",
+            "baseline_rate": 1,
+            "plateau_rate": 4,
+            "ramp_seconds": 3,
+            "plateau_seconds": 2,
+            "recovery_seconds": 2,
+        },
+    }
+    data = manifest(
+        schedule=schedule,
+        budgets=manifest()["budgets"] | {"max_requests": 57, "max_write_attempts": 19},
+    )
+
+    scenario = load_scenario(write_bundle(tmp_path, data)).manifest
+    phases = scenario.schedule.resolve(seed=42)
+
+    assert [(phase.name, phase.seconds, phase.rate) for phase in phases] == [
+        ("ramp-1", 1, 2),
+        ("ramp-2", 1, 3),
+        ("ramp-3", 1, 4),
+        ("plateau", 2, 4),
+        ("recovery", 2, 1),
+    ]
+    assert scenario.planned_journeys == 19
+
+
+def test_rejects_a_sustained_burst_without_a_higher_plateau(tmp_path):
+    schedule = {
+        "unit": "journeys_per_second",
+        "profile": {
+            "kind": "sustained_burst",
+            "baseline_rate": 4,
+            "plateau_rate": 4,
+            "ramp_seconds": 3,
+            "plateau_seconds": 2,
+            "recovery_seconds": 2,
+        },
+    }
+
+    with pytest.raises(ValidationError, match="plateau_rate must exceed baseline_rate"):
+        load_scenario(write_bundle(tmp_path, manifest(schedule=schedule)))
+
+
 @pytest.mark.parametrize(("field", "value", "message"), [("max_requests", 59, "request budget"), ("max_write_attempts", 19, "write budget")])
 def test_rejects_insufficient_budgets(tmp_path, field, value, message):
     budgets = manifest()["budgets"] | {field: value}

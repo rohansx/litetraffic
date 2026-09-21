@@ -280,6 +280,7 @@ def verify(
     result = {
         "schema_version": 1,
         "run_id": run_id,
+        "seed": seed,
         "planned_journeys": bundle.manifest.planned_journeys,
         "report": "report.html",
         "lifecycle": lifecycle,
@@ -305,3 +306,52 @@ def verify(
         _write_json(run_dir / "result.json", result)
         report_path.write_text(render_report(result, run), encoding="utf-8")
     return result
+
+
+def repeat_verify(
+    target: str,
+    scenario: Path,
+    output_dir: Path,
+    k6_path: str | None = None,
+    seed: int = 0,
+    repeats: int = 3,
+) -> dict:
+    if repeats < 2:
+        raise RunnerError("repeats must be at least 2")
+
+    runs = []
+    for current_seed in range(seed, seed + repeats):
+        result = verify(target, scenario, output_dir, k6_path, current_seed)
+        runs.append(result)
+        if result["lifecycle"] == "cancelled":
+            break
+
+    verdicts = {run["verdict"] for run in runs}
+    if "error" in verdicts:
+        verdict = "error"
+    elif "fail" in verdicts:
+        verdict = "fail"
+    elif "inconclusive" in verdicts:
+        verdict = "inconclusive"
+    else:
+        verdict = "pass"
+
+    series_id = f"series_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
+    result_path = f"{series_id}.json"
+    summary = {
+        "schema_version": 1,
+        "series_id": series_id,
+        "mode": "repeat",
+        "starting_seed": seed,
+        "requested_runs": repeats,
+        "completed_runs": len(runs),
+        "lifecycle": "cancelled" if runs[-1]["lifecycle"] == "cancelled" else "finished",
+        "verdict": verdict,
+        "consistent": len({(run["verdict"], run["lifecycle"]) for run in runs}) == 1,
+        "runs": runs,
+        "result": result_path,
+    }
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    _write_json(output_path / result_path, summary)
+    return summary

@@ -119,3 +119,44 @@ def test_cancelled_verify_returns_shell_interrupt_status(monkeypatch, capsys):
 
     assert status == 130
     assert json.loads(capsys.readouterr().out)["lifecycle"] == "cancelled"
+
+
+def test_verify_repeat_emits_a_series_result(monkeypatch, capsys):
+    calls = []
+
+    def run_series(target, scenario, output_dir, k6_path, seed, repeats):
+        calls.append((seed, repeats))
+        return {"mode": "repeat", "lifecycle": "finished", "verdict": "fail", "runs": []}
+
+    monkeypatch.setattr("litetraffic.cli.repeat_verify", run_series)
+
+    status = main([
+        "verify",
+        "scenario",
+        "--target",
+        "http://example.test",
+        "--seed",
+        "42",
+        "--repeat",
+        "3",
+        "--json",
+    ])
+
+    assert status == 1
+    assert calls == [(42, 3)]
+    assert json.loads(capsys.readouterr().out)["mode"] == "repeat"
+
+
+def test_verify_rejects_zero_repetitions(capsys):
+    status = main([
+        "verify",
+        "scenario",
+        "--target",
+        "http://example.test",
+        "--repeat",
+        "0",
+        "--json",
+    ])
+
+    assert status == 3
+    assert "repeat must be at least 1" in json.loads(capsys.readouterr().out)["error"]

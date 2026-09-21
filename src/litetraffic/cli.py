@@ -8,7 +8,7 @@ from typing import Sequence
 from pydantic import ValidationError
 
 from litetraffic.doctor import run_doctor
-from litetraffic.runner import RunnerError, verify
+from litetraffic.runner import RunnerError, repeat_verify, verify
 from litetraffic.scenario import ScenarioError, load_scenario
 
 
@@ -32,6 +32,7 @@ def _parser() -> argparse.ArgumentParser:
     verify_command.add_argument("--output-dir", type=Path, default=Path(".litetraffic/runs"))
     verify_command.add_argument("--k6-path")
     verify_command.add_argument("--seed", type=int, default=0)
+    verify_command.add_argument("--repeat", type=int, default=1)
     verify_command.add_argument("--json", action="store_true")
     return parser
 
@@ -59,7 +60,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0 if report.ok else 3
 
         if args.command == "verify":
-            payload = verify(args.target, args.scenario, args.output_dir, args.k6_path, args.seed)
+            if args.repeat < 1:
+                raise ValueError("repeat must be at least 1")
+            if args.repeat == 1:
+                payload = verify(args.target, args.scenario, args.output_dir, args.k6_path, args.seed)
+            else:
+                payload = repeat_verify(
+                    args.target,
+                    args.scenario,
+                    args.output_dir,
+                    args.k6_path,
+                    args.seed,
+                    args.repeat,
+                )
             _emit(payload, args.json)
             if payload["lifecycle"] == "cancelled":
                 return 130

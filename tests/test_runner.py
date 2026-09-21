@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from litetraffic.runner import RunnerError, verify
+from litetraffic.runner import RunnerError, repeat_verify, verify
 from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
 
@@ -257,3 +257,48 @@ def test_verify_finalizes_when_the_user_cancels(tmp_path, monkeypatch):
 
     assert result["lifecycle"] == "cancelled"
     assert result["verdict"] == "inconclusive"
+
+
+def test_repeat_verify_runs_consecutive_seeds_and_exposes_mixed_results(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    calls = []
+
+    def run_once(target, scenario, output_dir, k6_path, seed):
+        calls.append(seed)
+        verdict = "fail" if seed == 43 else "pass"
+        return {
+            "run_id": f"run-{seed}",
+            "seed": seed,
+            "verdict": verdict,
+            "lifecycle": "finished",
+            "report": "report.html",
+        }
+
+    monkeypatch.setattr(runner, "verify", run_once)
+
+    result = repeat_verify("http://example.test", Path("scenario"), tmp_path, repeats=3, seed=42)
+
+    assert calls == [42, 43, 44]
+    assert result["verdict"] == "fail"
+    assert result["consistent"] is False
+    assert [run["verdict"] for run in result["runs"]] == ["pass", "fail", "pass"]
+    assert json.loads((tmp_path / result["result"]).read_text()) == result
+
+
+def test_repeat_verify_stops_after_user_cancellation(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    calls = []
+
+    def cancel(target, scenario, output_dir, k6_path, seed):
+        calls.append(seed)
+        return {"run_id": "cancelled", "seed": seed, "verdict": "inconclusive", "lifecycle": "cancelled"}
+
+    monkeypatch.setattr(runner, "verify", cancel)
+
+    result = repeat_verify("http://example.test", Path("scenario"), tmp_path, repeats=3, seed=42)
+
+    assert calls == [42]
+    assert result["lifecycle"] == "cancelled"
+    assert result["completed_runs"] == 1
