@@ -10,16 +10,16 @@ For example, a checkout scenario retries a payment and verifies that the ledger 
 
 Use it while changing an API, from a coding-agent harness, or in CI. Your application must already be running, and its endpoints must match the scenario you provide.
 
-> **Developer preview — `0.1.0.dev0`.** The current CLI provides `doctor`, `inspect`, `verify`, `up` (repeated bounded slices until Ctrl-C, no verdict), `diff`, and a local read-only `dashboard` for browsing run artifacts on `127.0.0.1`. Scenarios are handwritten and reviewed. Automatic repository discovery, AI authoring, persistent-user population mode, and sandbox provisioning are planned, not implemented.
+> **Developer preview — `0.1.0.dev0`.** The current CLI provides `doctor`, `inspect`, `verify`, `up` (repeated bounded slices until Ctrl-C, no verdict), `approve` (local scenario-digest approvals), `diff`, `prune` (run retention), and a local read-only `dashboard` for browsing run artifacts on `127.0.0.1`. Scenarios are handwritten and reviewed. Automatic repository discovery, AI authoring, persistent-user population mode, and sandbox provisioning are planned, not implemented.
 
 ## What it does
 
 - Runs stateful k6 journeys with identities, response chaining, retries, and declared business assertions.
 - Resolves explicit phases or seeded **spiky**, **random-burst**, and **sustained-burst** traffic profiles.
-- Validates declared request, write, duration, and concurrency budgets before running; reconciles delivered journeys and collected evidence afterward.
+- Checks declared request, write, and duration budgets before running; after the run, checks requests, writes, k6 `vus_max` against the concurrency budget, and artifact size, and reconciles delivered journeys and collected evidence.
 - Supports optional run-owned fixture creation/cleanup and a final same-origin HTTP observer.
 - Preserves run metadata, the manifest, metrics, assertion events, diagnostics, and a readable report.
-- Repeats across consecutive seeds and compares compatible baseline/candidate runs, with an optional p95 regression gate.
+- Repeats across consecutive (or the same) seeds and compares compatible baseline/candidate runs, with an optional p95 regression gate.
 - Targets localhost, reachable HTTP/HTTPS previews, or an existing E2B sandbox's application port.
 
 The vision is **users as an API**: give an application a believable population and return evidence about the system they exercised. [Current scope and next steps](docs/roadmap.md) explain how the preview fits that goal.
@@ -85,7 +85,7 @@ The [quickstart](docs/quickstart.md) covers reports, repeated seeds, comparisons
 
 The bundled scenarios exercise specific demonstration APIs. Changing `--target` alone does not adapt them to a different app. Review the [scenario authoring guide](docs/scenarios.md) and implement the journeys, test authentication, data setup, and business expectations your application requires.
 
-Scenarios are executable, trusted code. Manifest budgets are not a sandbox for arbitrary JavaScript; target-side ownership and isolation still matter. The current scenario digest covers the manifest only, so preserve the reviewed scripts and dependencies separately when comparing runs. [Safety and current limitations](docs/safety.md).
+Scenarios are executable, trusted code. Manifest budgets are not a sandbox for arbitrary JavaScript; target-side ownership and isolation still matter. The scenario digest covers the manifest, the script, and its relative imports, but the files are recorded by hash, not copied, so preserve the reviewed scripts separately. [Safety and current limitations](docs/safety.md).
 
 ## Documentation
 

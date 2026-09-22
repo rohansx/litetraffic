@@ -7,13 +7,16 @@ The long-term goal is **users as an API**: give an application a believable, sta
 ## Available now (`0.1.0.dev0`)
 
 - `doctor`, `inspect`, `verify`, `diff`
+- `approve` and `verify --require-approval`/`--approved-digest`: local approvals bound to the scenario digest and target origin
+- `dashboard`: a read-only local page for runs, series, activities and diffs
+- `prune`: run retention by count or age
 - Explicit phases and seeded spiky, random-burst, and sustained-burst profiles
 - Declared budgets with static and post-run checks, including counted write attempts and k6 `vus_max`
 - Assertion evidence, verdicts, lifecycle, HTML report
 - Run-owned HTTP fixtures and final observations
-- Repeated seeds and baseline/candidate comparison with an optional p95 gate
+- Repeated seeds (consecutive or `--same-seed`) with dispersion stats, and baseline/candidate comparison with an optional p95 gate and per-operation p95
 - Local, reachable HTTP(S), and existing E2B sandbox targets
-- Five conformance examples, each with a correct and a faulty server
+- Five conformance examples, each with a correct and a faulty server, built on a bundled k6 runtime helper
 - `up`: a foreground background activity of repeated bounded `verify` slices, reported with `mode=background` and no verdict
 
 ## Next
