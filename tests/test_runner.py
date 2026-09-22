@@ -1,4 +1,5 @@
 import json
+import stat
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,8 @@ def fake_k6(
         f"    stream.write(json.dumps({{'type':'Point','metric':'http_req_failed','data':{{'value':{int(bool(failed_tags[0]))},'tags':{failed_tags[0]!r}}}}}) + '\\n')\n"
         f"    stream.write(json.dumps({{'type':'Point','metric':'http_req_failed','data':{{'value':1,'tags':{failed_tags[1]!r}}}}}) + '\\n')\n"
         f"    stream.write({''.join(line + chr(10) for line in extra_metric_lines)!r})\n"
+        "console.chmod(0o644)\n"
+        "metrics.chmod(0o644)\n"
         f"time.sleep({sleep_seconds})\n"
         f"raise SystemExit({returncode})\n"
     )
@@ -86,6 +89,20 @@ def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
     assert ".0 /" not in report and ".0</dd>" not in report and ".0</td>" not in report
     first_event = (run_dir / "events" / "000001.jsonl").read_text().splitlines()[0]
     assert json.loads(first_event)["sequence"] == 1
+
+
+def test_verify_leaves_every_run_file_owner_only(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    paths = [run_dir, *run_dir.rglob("*")]
+    assert {"console.log", "metrics.jsonl"} <= {path.name for path in paths}
+    for path in paths:
+        assert stat.S_IMODE(path.stat().st_mode) == (0o700 if path.is_dir() else 0o600), path
 
 
 def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
@@ -444,6 +461,22 @@ def test_repeat_verify_runs_consecutive_seeds_and_exposes_mixed_results(tmp_path
     assert result["consistent"] is False
     assert [run["verdict"] for run in result["runs"]] == ["pass", "fail", "pass"]
     assert json.loads((tmp_path / result["result"]).read_text()) == result
+
+
+def test_repeat_verify_restricts_the_series_output_dir(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    output = tmp_path / "runs"
+    output.mkdir(mode=0o755)
+    output.chmod(0o755)
+    monkeypatch.setattr(
+        runner, "verify", lambda *args: {"run_id": "r", "verdict": "pass", "lifecycle": "finished"}
+    )
+
+    result = repeat_verify("http://example.test", Path("scenario"), output, repeats=2)
+
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
+    assert stat.S_IMODE((output / result["result"]).stat().st_mode) == 0o600
 
 
 def test_repeat_verify_stops_after_user_cancellation(tmp_path, monkeypatch):

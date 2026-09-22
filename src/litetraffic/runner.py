@@ -29,6 +29,12 @@ def _write_json(path: Path, value: object) -> None:
     path.chmod(0o600)
 
 
+def _restrict(run_dir: Path) -> None:
+    # k6 creates console.log and metrics.jsonl with its own (umask) mode.
+    for path in [run_dir, *run_dir.rglob("*")]:
+        path.chmod(0o700 if path.is_dir() else 0o600)
+
+
 def _engine(k6_path: str | None) -> tuple[str, str]:
     executable = k6_path or shutil.which("k6")
     if not executable:
@@ -334,6 +340,7 @@ def verify(
         )
         _write_json(run_dir / "result.json", result)
         report_path.write_text(render_report(result, run), encoding="utf-8")
+    _restrict(run_dir)
     return result
 
 
@@ -382,5 +389,6 @@ def repeat_verify(
     }
     output_path = Path(output_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    output_path.chmod(0o700)
     _write_json(output_path / result_path, summary)
     return summary

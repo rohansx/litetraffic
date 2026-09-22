@@ -28,7 +28,7 @@ Only `owned_http` fixtures are cleaned up by the controller, and a failed cleanu
 
 ## Artifacts
 
-Run directories are created with owner-only permissions (`0700`/`0600`). They contain raw k6 output and whatever the script logs, so review them before sharing.
+When a run finishes, every directory in the run directory is set to `0700` and every file to `0600`, including the `console.log` and `metrics.jsonl` that k6 creates. While k6 is still running, those two files keep the mode k6 gave them. `verify --repeat` also sets the output directory that holds the series summary to `0700`. They contain raw k6 output and whatever the script logs, so review them before sharing.
 
 ## Known limitations of this preview
 
