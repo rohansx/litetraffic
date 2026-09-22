@@ -388,6 +388,20 @@ def test_diff_human_output_is_readable(tmp_path, capsys):
     assert "{" not in out and "[" not in out
 
 
+def test_diff_human_output_lists_per_operation_p95(tmp_path, capsys):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    candidate = write_run(tmp_path / "candidate", "candidate")
+    for run_dir, p95 in ((baseline, 40), (candidate, 50)):
+        result = json.loads((run_dir / "result.json").read_text())
+        result["metrics"]["by_operation"] = {"create_payment": {"samples": 3, "p95": p95, "failed_rate": 0}}
+        (run_dir / "result.json").write_text(json.dumps(result))
+
+    main(["diff", str(baseline), str(candidate)])
+    out = capsys.readouterr().out
+
+    assert "p95 create_payment: 40.0ms -> 50.0ms (+25.0%)" in out
+
+
 def test_diff_human_output_names_incompatibilities(tmp_path, capsys):
     baseline = write_run(tmp_path / "baseline", "baseline", scenario_sha256="a")
     candidate = write_run(tmp_path / "candidate", "candidate", scenario_sha256="b")

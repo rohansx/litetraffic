@@ -114,7 +114,7 @@ With `--repeat`, `verify` applies the same mapping to the aggregate series verdi
 Without `--json`, `verify`, `diff`, and `inspect` print a short text summary meant for people, not parsers:
 
 - `verify`: `verdict: PASS  lifecycle: finished  journeys: 20/20`, then one `ID  STATUS  SAMPLES` line per assertion, each limitation as a `- ...` line, and `report: PATH` to the run's `report.html`. With `--repeat`, a series line (`runs: COMPLETED/REQUESTED  consistent: yes|no`), one `seed N  VERDICT  LIFECYCLE  journeys: D/P` line per run, and `summary: PATH` to the series JSON.
-- `diff`: `verdict: ...`, each reason as `- ...`, `compatibility: comparable` or `compatibility: incompatible (FIELDS)`, one `regression: ID` line per assertion that passed in the baseline but not the candidate, and `p95: BASELINEms -> CANDIDATEms (+X%)  status: STATUS` (`n/a` when a value is missing).
+- `diff`: `verdict: ...`, each reason as `- ...`, `compatibility: comparable` or `compatibility: incompatible (FIELDS)`, one `regression: ID` line per assertion that passed in the baseline but not the candidate, and `p95: BASELINEms -> CANDIDATEms (+X%)  status: STATUS` (`n/a` when a value is missing), then one `p95 OPERATION: BASELINEms -> CANDIDATEms (+X%)` line per operation present in both runs.
 - `inspect`: name, script, planned journeys, request/write maxima, one `phase:` line per resolved phase, and one `assertion:` line per assertion ID.
 
 `doctor` and error results print `key: value` lines. The text layout may change; integrations should use `--json`.

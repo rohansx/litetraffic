@@ -244,3 +244,42 @@ def test_compare_runs_less_work_is_inconclusive_even_within_p95_gate(tmp_path):
     assert comparison["performance"]["p95"]["status"] == "within_limit"
     assert comparison["verdict"] == "inconclusive"
     assert comparison["reasons"] == ["candidate delivered less work"]
+
+
+def test_compare_runs_reports_p95_change_for_each_shared_operation(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    candidate = write_run(tmp_path / "candidate", "candidate")
+    _edit_metrics(baseline, by_operation={
+        "create": {"samples": 10, "p95": 100, "failed_rate": 0},
+        "read": {"samples": 10, "p95": 50, "failed_rate": 0},
+        "gone": {"samples": 10, "p95": 5, "failed_rate": 0},
+        "zero": {"samples": 10, "p95": 0, "failed_rate": 0},
+    })
+    _edit_metrics(candidate, by_operation={
+        "create": {"samples": 10, "p95": 150, "failed_rate": 0.1},
+        "read": {"samples": 10, "p95": 40, "failed_rate": 0},
+        "new": {"samples": 10, "p95": 5, "failed_rate": 0},
+        "zero": {"samples": 10, "p95": 3, "failed_rate": 0},
+    })
+
+    by_operation = compare_runs(baseline, candidate)["performance"]["by_operation"]
+
+    assert by_operation == {
+        "create": {"baseline_p95_ms": 100.0, "candidate_p95_ms": 150.0, "change_percent": 50.0},
+        "read": {"baseline_p95_ms": 50.0, "candidate_p95_ms": 40.0, "change_percent": -20.0},
+        "zero": {"baseline_p95_ms": 0.0, "candidate_p95_ms": 3.0, "change_percent": None},
+    }
+
+
+def test_compare_runs_reports_no_operations_for_runs_without_breakdown(tmp_path):
+    comparison = compare_runs(write_run(tmp_path / "a", "a"), write_run(tmp_path / "b", "b"))
+
+    assert comparison["performance"]["by_operation"] == {}
+
+
+def test_compare_runs_rejects_a_non_object_operation_breakdown(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    _edit_metrics(baseline, by_operation=[1])
+
+    with pytest.raises(ComparisonError):
+        compare_runs(baseline, write_run(tmp_path / "candidate", "candidate"))

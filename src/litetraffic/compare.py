@@ -43,11 +43,27 @@ def _load_run(path: Path) -> tuple[dict, dict]:
         or not all(isinstance(item, dict) for item in assertions)
         or any(
             key in metrics and not isinstance(metrics[key], dict)
-            for key in ("http_req_duration_ms", "http_req_failed_rate")
+            for key in ("http_req_duration_ms", "http_req_failed_rate", "by_operation")
         )
     ):
         raise ComparisonError(f"invalid result artifact in {root}")
     return run, result
+
+
+def _operation_p95_changes(baseline: dict, candidate: dict) -> dict:
+    """p95 change for every operation both runs measured; latency is only comparable within an operation."""
+    changes = {}
+    for name in sorted(baseline.keys() & candidate.keys()):
+        before = baseline[name].get("p95") if isinstance(baseline[name], dict) else None
+        after = candidate[name].get("p95") if isinstance(candidate[name], dict) else None
+        if not _finite_number(before) or not _finite_number(after):
+            continue
+        changes[name] = {
+            "baseline_p95_ms": float(before),
+            "candidate_p95_ms": float(after),
+            "change_percent": round((after - before) / before * 100, 3) if before > 0 else None,
+        }
+    return changes
 
 
 def _delivered_less_work(progress: dict) -> bool:
@@ -183,6 +199,9 @@ def compare_runs(
             "candidate": float(candidate_throughput) if _finite_number(candidate_throughput) else None,
             "change_percent": throughput_change,
         },
+        "by_operation": _operation_p95_changes(
+            baseline_metrics.get("by_operation", {}), candidate_metrics.get("by_operation", {})
+        ),
     }
     progress = {
         "iterations": {

@@ -96,6 +96,7 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
     totals: dict[str, object] = {}
     durations: list[float] = []
     failed: list[float] = []
+    operations: dict[str, dict[str, list[float]]] = {}
     transport_failures = 0
     malformed = 0
     for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
@@ -113,8 +114,10 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
                 totals["vus_max"] = max(int(value), int(totals.get("vus_max", 0)))
             elif metric == "http_req_duration":
                 durations.append(float(value))
+                _operation(operations, item)["durations"].append(float(value))
             elif metric == "http_req_failed" and 0 <= value <= 1:
                 tags = item["data"].get("tags") or {}
+                _operation(operations, item)["failed"].append(float(value))
                 # k6 tags requests that never got an HTTP response with status "0" and an error_code.
                 transport_failures += value == 1 and (tags.get("status") == "0" or "error_code" in tags)
                 failed.append(float(value))
@@ -137,7 +140,23 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
         }
         if transport_failures:
             totals["http_req_failed_rate"]["transport"] = transport_failures
+    if operations:
+        totals["by_operation"] = {
+            name: {
+                "samples": len(values["durations"]),
+                "p95": round(_percentile(values["durations"], 0.95), 3) if values["durations"] else None,
+                "failed_rate": round(sum(values["failed"]) / len(values["failed"]), 6) if values["failed"] else None,
+            }
+            for name, values in operations.items()
+        }
     return totals, malformed
+
+
+def _operation(operations: dict[str, dict[str, list[float]]], item: dict) -> dict[str, list[float]]:
+    """Bucket for the point's k6 `operation` tag; untagged requests share `_untagged`."""
+    name = (item["data"].get("tags") or {}).get("operation")
+    key = name if isinstance(name, str) and name else "_untagged"
+    return operations.setdefault(key, {"durations": [], "failed": []})
 
 
 def budget_overruns(metrics: dict, budgets) -> list[str]:

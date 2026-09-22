@@ -1118,3 +1118,29 @@ def test_verify_enforces_the_in_flight_budget_from_vus_max(tmp_path, monkeypatch
 
     assert result["verdict"] == "error"
     assert "in-flight budget exceeded: 5 > 4" in result["limitations"]
+
+
+def test_read_metrics_breaks_down_latency_and_failures_by_operation(tmp_path):
+    path = tmp_path / "metrics.jsonl"
+    lines = [point("http_req_duration", value, operation="create_payment") for value in (10, 20, 30)]
+    lines += [point("http_req_failed", value, operation="create_payment") for value in (0, 0, 1, 1)]
+    lines += [point("http_req_duration", 5, operation="observe_payment"), point("http_req_duration", 7)]
+    lines += [point("http_req_failed", 0), point("http_req_failed", 1)]
+    path.write_text("\n".join(lines) + "\n")
+
+    metrics, _ = _read_metrics(path)
+
+    assert metrics["by_operation"] == {
+        "create_payment": {"samples": 3, "p95": 29.0, "failed_rate": 0.5},
+        "observe_payment": {"samples": 1, "p95": 5.0, "failed_rate": None},
+        "_untagged": {"samples": 1, "p95": 7.0, "failed_rate": 0.5},
+    }
+
+
+def test_read_metrics_omits_operation_breakdown_without_http_points(tmp_path):
+    path = tmp_path / "metrics.jsonl"
+    path.write_text(point("vus_max", 3) + "\n")
+
+    metrics, _ = _read_metrics(path)
+
+    assert "by_operation" not in metrics
