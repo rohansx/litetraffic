@@ -462,3 +462,27 @@ def test_verify_cancelled_during_fixture_create_exits_130(tmp_path, monkeypatch,
     assert status == 130
     assert output["lifecycle"] == "cancelled"
     assert json.loads((tmp_path / "runs" / output["run_id"] / "result.json").read_text())["lifecycle"] == "cancelled"
+
+
+def test_inspect_accepts_scenario_flag(tmp_path, capsys):
+    status = main(["inspect", "--scenario", str(write_bundle(tmp_path)), "--json"])
+    assert status == 0
+    assert json.loads(capsys.readouterr().out)["name"] == "checkout"
+
+
+def test_verify_scenario_flag_matches_positional_form(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr("litetraffic.cli.verify", lambda *args: calls.append(args) or {"lifecycle": "finished", "verdict": "pass"})
+    for spelling in (["scenario"], ["--scenario", "scenario"]):
+        assert main(["verify", *spelling, "--target", "http://example.test", "--json"]) == 0
+    assert calls[0] == calls[1]
+    assert calls[0][1] == Path("scenario")
+
+
+@pytest.mark.parametrize("command", ["inspect", "verify"])
+@pytest.mark.parametrize("spelling", [[], ["a", "--scenario", "b"]])
+def test_scenario_must_be_given_exactly_once(command, spelling, capsys):
+    status = main([command, *spelling, "--json"])
+    output = json.loads(capsys.readouterr().out)
+    assert status == 3
+    assert output["error"] == "give the scenario directory once, either positionally or with --scenario"

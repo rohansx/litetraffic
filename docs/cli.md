@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-All scenario arguments are **directory paths** containing `manifest.json` and the named script. Run `litetraffic COMMAND --help` for the installed version's syntax. The following describes `0.1.0.dev0`.
+All scenario arguments are **directory paths** containing `manifest.json` and the named script. `inspect` and `verify` take the scenario either positionally or as `--scenario DIR`; the two spellings are equivalent, and giving both or neither exits `3`. Run `litetraffic COMMAND --help` for the installed version's syntax. The following describes `0.1.0.dev0`.
 
 ## `doctor`
 
@@ -25,7 +25,7 @@ With a target, it first applies the same URL checks as `verify` (link-local and 
 ## `inspect`
 
 ```text
-litetraffic inspect SCENARIO [--seed INTEGER] [--json]
+litetraffic inspect (SCENARIO | --scenario SCENARIO) [--seed INTEGER] [--json]
 ```
 
 Validates the manifest and script path and resolves the schedule. `--seed` defaults to `0`. Returns scenario name, schema version, script path, planned journeys, request/write maxima, resolved phases, and assertion IDs. The JSON form also includes `actors` (class, count, auth recipe), all five `budgets`, `fixture` (`recipe` and, for an owned HTTP fixture, its `create_path`/`delete_path`, otherwise `null`), `secret_env` (the sorted `bearer_token_env` names referenced by the fixture and observation; values are never read or printed), `observer`, and `observation_path` (`null` without an observation). Does not execute the scenario or infer routes.
@@ -33,7 +33,7 @@ Validates the manifest and script path and resolves the schedule. `--seed` defau
 ## `verify`
 
 ```text
-litetraffic verify SCENARIO
+litetraffic verify (SCENARIO | --scenario SCENARIO)
   [--target URL | --e2b-sandbox-id ID --e2b-port PORT]
   [--output-dir PATH] [--k6-path PATH]
   [--seed INTEGER] [--repeat COUNT] [--json]

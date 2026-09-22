@@ -15,6 +15,17 @@ from litetraffic.runner import RunnerError, repeat_verify, verify
 from litetraffic.scenario import ScenarioError, load_scenario
 
 
+def _add_scenario(command: argparse.ArgumentParser) -> None:
+    command.add_argument("scenario", type=Path, nargs="?")
+    command.add_argument("--scenario", dest="scenario_flag", type=Path, metavar="SCENARIO")
+
+
+def _scenario(args: argparse.Namespace) -> Path:
+    if (args.scenario is None) == (args.scenario_flag is None):
+        raise ValueError("give the scenario directory once, either positionally or with --scenario")
+    return args.scenario or args.scenario_flag
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="litetraffic")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -26,12 +37,12 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--json", action="store_true")
 
     inspect = commands.add_parser("inspect", help="validate and explain a scenario bundle")
-    inspect.add_argument("scenario", type=Path)
+    _add_scenario(inspect)
     inspect.add_argument("--seed", type=int, default=0)
     inspect.add_argument("--json", action="store_true")
 
     verify_command = commands.add_parser("verify", help="run a finite scenario and evaluate its evidence")
-    verify_command.add_argument("scenario", type=Path)
+    _add_scenario(verify_command)
     verify_command.add_argument("--target")
     verify_command.add_argument("--e2b-sandbox-id")
     verify_command.add_argument("--e2b-port", type=int)
@@ -73,6 +84,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = {"ok": report.ok, "checks": [check.model_dump() for check in report.checks]}
             _emit(payload, args.json)
             return 0 if report.ok else 3
+
+        if args.command in {"inspect", "verify"}:
+            args.scenario = _scenario(args)
 
         if args.command == "verify":
             if args.repeat < 1:
