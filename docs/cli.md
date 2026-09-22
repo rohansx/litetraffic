@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-All scenario arguments are **directory paths** containing `manifest.json` and the named script. `inspect` and `verify` take the scenario either positionally or as `--scenario DIR`; the two spellings are equivalent, and giving both or neither exits `3`. Run `litetraffic COMMAND --help` for the installed version's syntax. The following describes `0.1.0.dev0`.
+All scenario arguments are **directory paths** containing `manifest.json` and the named script. `inspect`, `verify`, and `approve` take the scenario either positionally or as `--scenario DIR`; the two spellings are equivalent, and giving both or neither exits `3`. Run `litetraffic COMMAND --help` for the installed version's syntax. The following describes `0.1.0.dev0`.
 
 ## `doctor`
 
@@ -36,7 +36,8 @@ Validates the manifest and script path and resolves the schedule. `--seed` defau
 litetraffic verify (SCENARIO | --scenario SCENARIO)
   [--target URL | --e2b-sandbox-id ID --e2b-port PORT]
   [--output-dir PATH] [--k6-path PATH]
-  [--seed INTEGER] [--repeat COUNT [--same-seed]] [--json]
+  [--seed INTEGER] [--repeat COUNT [--same-seed]]
+  [--require-approval] [--approved-digest SHA] [--json]
 ```
 
 Exactly one target form is required. URL targets must use HTTP/HTTPS, must not contain URL credentials, and must not be a link-local or cloud-metadata address (for example `169.254.169.254`, `fe80::/10`, or `metadata.google.internal`); such targets exit `3`. Loopback targets such as `localhost` and `127.0.0.1` are allowed. Hostnames are not resolved, so this check covers literal addresses and known metadata names only. k6 runs with `--max-redirects 0`. E2B coordinates must include both sandbox ID and a port from 1 through 65535. Prefer an origin URL; the controller appends declared fixture/observation paths to it.
@@ -48,9 +49,19 @@ Exactly one target form is required. URL targets must use HTTP/HTTPS, must not c
 | `--seed` | `0` | Seed used to resolve timing and supplied to the script |
 | `--repeat` | `1` | Positive count; values above 1 run consecutive seeds |
 | `--same-seed` | Off | With `--repeat` of 2 or more, run `--seed` every time instead of consecutive seeds |
+| `--require-approval` | Off | Exit `3` before running unless `.litetraffic/approvals.json` (in the working directory) has a record with the scenario's current digest and the target's origin |
+| `--approved-digest` | None | Exit `3` before running unless SHA equals the scenario's current digest; when it matches, the approvals file is not consulted (for CI) |
 | `--json` | Off | Emit one JSON object to stdout |
 
 One run validates inputs, optionally creates a fixture, runs k6, collects evidence, optionally observes final state, attempts configured cleanup, and writes artifacts. Lifecycle and business verdict are separate fields. Ctrl+C during engine execution finalizes available evidence and exits 130. [Results](results.md) and [safety](safety.md).
+
+## `approve`
+
+```text
+litetraffic approve (SCENARIO | --scenario SCENARIO) --target-profile NAME --target URL [--json]
+```
+
+Validates the scenario like `inspect` and records `{digest, profile, target_origin, approved_at}` in `.litetraffic/approvals.json` under the working directory (as `{"approvals": [...]}`), then prints the record. `digest` is the bundle digest over the canonical manifest and every file in the script's relative import closure, so editing `journeys.js` (or anything it imports, or the manifest) after approval invalidates it. `target_origin` is `scheme://host[:port]` in lower case, with the path and a default port dropped; the target must be an HTTP/HTTPS URL without credentials. Re-approving the same digest, profile and origin replaces that record; other records are kept. `verify --require-approval` matches on digest and origin only. An approvals file that is not JSON, lacks an `approvals` list, or holds a record without string `digest`, `profile` and `target_origin` is invalid and exits `3` for both `approve` and `verify --require-approval`. Nothing is sent to the target and no key signs the file.
 
 ## `diff`
 
@@ -104,7 +115,8 @@ The current commands have different exit mappings. Integrations should inspect t
 |---|---|---|---|---|---|
 | `doctor` | Checks succeeded | — | CLI usage error | Failed check/configuration error | — |
 | `inspect` | Valid manifest | — | CLI usage error | Invalid scenario | — |
-| `verify` | `pass` | `fail` | `inconclusive`; also CLI usage error | `error`; also configuration/engine preflight error | Cancelled run |
+| `verify` | `pass` | `fail` | `inconclusive`; also CLI usage error | `error`; also configuration/engine preflight error, missing/mismatched approval or invalid approvals file | Cancelled run |
+| `approve` | Approval recorded | — | CLI usage error | Invalid scenario, target or approvals file | — |
 | `diff` | Comparison `pass` | Comparison `fail` | Inconclusive comparison or CLI usage error | Invalid arguments/artifacts | — |
 | `dashboard` | — | — | CLI usage error | Port cannot be bound | Stopped with Ctrl+C |
 | `prune` | Pruned (or listed with `--dry-run`) | — | CLI usage error | Invalid retention options or deletion failed (runs deleted before the failure stay deleted) | — |

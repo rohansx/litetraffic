@@ -7,6 +7,7 @@ from typing import Callable, Sequence
 
 from pydantic import ValidationError
 
+from litetraffic.approval import approve, require_approval
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard import serve
 from litetraffic.doctor import run_doctor
@@ -60,7 +61,15 @@ def _parser() -> argparse.ArgumentParser:
     verify_command.add_argument("--seed", type=int, default=0)
     verify_command.add_argument("--repeat", type=int, default=1)
     verify_command.add_argument("--same-seed", action="store_true", help="repeat --seed instead of consecutive seeds")
+    verify_command.add_argument("--require-approval", action="store_true", help="refuse to run an unapproved digest/origin")
+    verify_command.add_argument("--approved-digest", metavar="SHA", help="CI approval: must equal the scenario digest")
     verify_command.add_argument("--json", action="store_true")
+
+    approve_command = commands.add_parser("approve", help="bind a scenario digest to a target profile and origin")
+    _add_scenario(approve_command)
+    approve_command.add_argument("--target-profile", required=True, metavar="NAME")
+    approve_command.add_argument("--target", required=True, metavar="URL")
+    approve_command.add_argument("--json", action="store_true")
 
     diff_command = commands.add_parser("diff", help="compare compatible run artifacts")
     diff_command.add_argument("baseline", help="run directory or run ID")
@@ -117,8 +126,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, args.json, lambda result: [f"{verb}: {path}" for path in result["pruned"]] or ["nothing to prune"])
             return 0
 
-        if args.command in {"inspect", "verify"}:
+        if args.command in {"inspect", "verify", "approve"}:
             args.scenario = _scenario(args)
+
+        if args.command == "approve":
+            record = approve(load_scenario(args.scenario).digest, args.target_profile, args.target)
+            _emit({"ok": True, **record}, args.json)
+            return 0
 
         if args.command == "verify":
             if args.repeat < 1:
@@ -126,6 +140,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.same_seed and args.repeat < 2:
                 raise ValueError("--same-seed requires --repeat of at least 2")
             target = resolve_target(args.target, args.e2b_sandbox_id, args.e2b_port)
+            if args.require_approval or args.approved_digest is not None:
+                require_approval(load_scenario(args.scenario).digest, target, args.approved_digest)
             if args.repeat == 1:
                 payload = verify(target, args.scenario, args.output_dir, args.k6_path, args.seed)
             else:
