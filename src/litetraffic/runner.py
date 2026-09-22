@@ -9,6 +9,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from litetraffic.artifacts import MANIFEST, artifact_files
 from litetraffic.evidence import _read_events, _read_metrics, evaluate_assertions, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
@@ -335,7 +336,7 @@ def verify(
     _record_stage(run_dir, run, lifecycle)
     report_path = run_dir / result["report"]
     _write_text(report_path, render_report(result, run))
-    artifact_bytes = sum(path.stat().st_size for path in run_dir.rglob("*") if path.is_file())
+    artifact_bytes = sum(entry["bytes"] for entry in artifact_files(run_dir))
     if artifact_bytes > bundle.manifest.budgets.max_artifact_bytes:
         result["verdict"] = "error"
         result["completeness"] = "incomplete"
@@ -344,6 +345,8 @@ def verify(
         )
         _write_json(run_dir / "result.json", result)
         _write_text(report_path, render_report(result, run))
+    files = artifact_files(run_dir)  # written last, so it covers every final file
+    _write_json(run_dir / MANIFEST, {"schema_version": 1, "run_id": run_id, "files": files, "total_bytes": sum(entry["bytes"] for entry in files)})
     _restrict(run_dir)
     return result
 

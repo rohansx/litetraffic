@@ -945,3 +945,44 @@ def test_run_json_records_each_lifecycle_stage_as_it_happens(tmp_path, monkeypat
 
     assert result["lifecycle"] == "finished"
     assert stages == ["preparing", "running", "observing", "finalizing", "finished"]
+
+
+def test_verify_writes_artifacts_json_last_with_every_file_hashed(tmp_path, monkeypatch):
+    import hashlib
+
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    manifest_path = run_dir / "artifacts.json"
+    artifacts = json.loads(manifest_path.read_text())
+    files = {path.relative_to(run_dir).as_posix(): path for path in run_dir.rglob("*") if path.is_file()}
+    del files["artifacts.json"]
+    assert artifacts["schema_version"] == 1
+    assert artifacts["run_id"] == result["run_id"]
+    assert {entry["path"] for entry in artifacts["files"]} == set(files)
+    assert "events/000001.jsonl" in files
+    for entry in artifacts["files"]:
+        data = files[entry["path"]].read_bytes()
+        assert entry["bytes"] == len(data)
+        assert entry["sha256"] == hashlib.sha256(data).hexdigest()
+    assert artifacts["total_bytes"] == sum(path.stat().st_size for path in files.values())
+    assert all(path.stat().st_mtime_ns <= manifest_path.stat().st_mtime_ns for path in files.values())
+    assert stat.S_IMODE(manifest_path.stat().st_mode) == 0o600
+
+
+def test_artifact_budget_excludes_the_artifacts_manifest(tmp_path):
+    from litetraffic.artifacts import artifact_files
+
+    (tmp_path / "events").mkdir()
+    (tmp_path / "events" / "000001.jsonl").write_bytes(b"abc")
+    (tmp_path / "result.json").write_bytes(b"{}")
+    (tmp_path / "artifacts.json").write_bytes(b"ignored")
+
+    files = artifact_files(tmp_path)
+
+    assert [entry["path"] for entry in files] == ["events/000001.jsonl", "result.json"]
+    assert sum(entry["bytes"] for entry in files) == 5
