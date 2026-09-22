@@ -3,13 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from pydantic import ValidationError
 
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
+from litetraffic.human import format_diff, format_inspect, format_verify
 from litetraffic.runner import RunnerError, repeat_verify, verify
 from litetraffic.scenario import ScenarioError, load_scenario
 
@@ -48,9 +49,12 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit(value: dict, as_json: bool) -> None:
+def _emit(value: dict, as_json: bool, formatter: Callable[[dict], list[str]] | None = None) -> None:
     if as_json:
         print(json.dumps(value, sort_keys=True))
+        return
+    if formatter is not None:
+        print("\n".join(formatter(value)))
         return
     for key, item in value.items():
         if key == "checks":
@@ -85,14 +89,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.seed,
                     args.repeat,
                 )
-            _emit(payload, args.json)
+            _emit(payload, args.json, lambda result: format_verify(result, args.output_dir))
             if payload["lifecycle"] == "cancelled":
                 return 130
             return {"pass": 0, "fail": 1, "inconclusive": 2}.get(payload["verdict"], 3)
 
         if args.command == "diff":
             payload = compare_runs(args.baseline, args.candidate, args.max_p95_regression_percent)
-            _emit(payload, args.json)
+            _emit(payload, args.json, format_diff)
             return {"pass": 0, "fail": 1}.get(payload["verdict"], 2)
 
         bundle = load_scenario(args.scenario)
@@ -110,7 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,
         }
-        _emit(payload, args.json)
+        _emit(payload, args.json, format_inspect)
         return 0
     except (ComparisonError, RunnerError, ScenarioError, ValidationError, ValueError) as exc:
         _emit({"ok": False, "error": str(exc)}, getattr(args, "json", False))

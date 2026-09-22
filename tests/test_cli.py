@@ -301,3 +301,76 @@ def test_verify_repeat_maps_aggregate_verdict_to_exit_status(monkeypatch, capsys
 
     capsys.readouterr()
     assert status == expected_status
+
+
+def test_verify_human_output_is_readable(tmp_path, monkeypatch, capsys):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist", True) for _ in range(19)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    k6 = fake_k6(tmp_path, events, iterations=19)
+    runs = tmp_path / "runs"
+
+    status = main(["verify", str(scenario), "--target", "http://example.test", "--output-dir", str(runs), "--k6-path", str(k6)])
+    out = capsys.readouterr().out
+
+    assert status == 2
+    assert "verdict: INCONCLUSIVE  lifecycle: finished  journeys: 19/20" in out
+    assert "accepted_orders_persist  unknown  19" in out
+    assert "\n- delivered journeys 19" in out
+    report = next(runs.glob("run_*")) / "report.html"
+    assert f"report: {report}" in out
+    assert "{" not in out and "[" not in out
+
+
+def test_verify_repeat_human_output_is_readable(monkeypatch, capsys):
+    run = {"run_id": "run_1", "seed": 4, "verdict": "pass", "lifecycle": "finished", "planned_journeys": 2,
+           "metrics": {"iterations": 2}, "assertions": [], "limitations": [], "report": "report.html"}
+    monkeypatch.setattr(
+        "litetraffic.cli.repeat_verify",
+        lambda *args: {"mode": "repeat", "lifecycle": "finished", "verdict": "pass", "consistent": True,
+                       "requested_runs": 2, "completed_runs": 1, "runs": [run], "result": "series_x.json"},
+    )
+
+    main(["verify", "scenario", "--target", "http://example.test", "--repeat", "2", "--output-dir", "out"])
+    out = capsys.readouterr().out
+
+    assert "verdict: PASS  lifecycle: finished  runs: 1/2  consistent: yes" in out
+    assert "seed 4  PASS  finished  journeys: 2/2" in out
+    assert "{" not in out and "[" not in out
+
+
+def test_diff_human_output_is_readable(tmp_path, capsys):
+    baseline = write_run(tmp_path / "baseline", "baseline", p95=100)
+    candidate = write_run(tmp_path / "candidate", "candidate", p95=130, verdict="fail")
+
+    status = main(["diff", str(baseline), str(candidate)])
+    out = capsys.readouterr().out
+
+    assert status == 1
+    assert "verdict: FAIL" in out
+    assert "compatibility: comparable" in out
+    assert "regression: report_complete" in out
+    assert "p95: 100.0ms -> 130.0ms (+30.0%)" in out
+    assert "{" not in out and "[" not in out
+
+
+def test_diff_human_output_names_incompatibilities(tmp_path, capsys):
+    baseline = write_run(tmp_path / "baseline", "baseline", scenario_sha256="a")
+    candidate = write_run(tmp_path / "candidate", "candidate", scenario_sha256="b")
+
+    main(["diff", str(baseline), str(candidate)])
+    out = capsys.readouterr().out
+
+    assert "compatibility: incompatible (scenario_sha256)" in out
+    assert "{" not in out and "[" not in out
+
+
+def test_inspect_human_output_is_readable(tmp_path, capsys):
+    status = main(["inspect", str(write_bundle(tmp_path))])
+    out = capsys.readouterr().out
+
+    assert status == 0
+    assert "name: checkout" in out
+    assert "planned journeys: 20" in out
+    assert "assertion: accepted_orders_persist" in out
+    assert "{" not in out and "[" not in out
