@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 from pydantic import ValidationError
 
 from litetraffic.compare import ComparisonError, compare_runs
+from litetraffic.dashboard import serve
 from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
 from litetraffic.human import format_diff, format_inspect, format_verify
@@ -19,6 +20,13 @@ from litetraffic.scenario import ScenarioError, load_scenario
 def _add_scenario(command: argparse.ArgumentParser) -> None:
     command.add_argument("scenario", type=Path, nargs="?")
     command.add_argument("--scenario", dest="scenario_flag", type=Path, metavar="SCENARIO")
+
+
+def _port(value: str) -> int:
+    port = int(value)
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"port must be 0-65535, got {port}")
+    return port
 
 
 def _scenario(args: argparse.Namespace) -> Path:
@@ -59,6 +67,10 @@ def _parser() -> argparse.ArgumentParser:
     diff_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
     diff_command.add_argument("--max-p95-regression-percent", type=float)
     diff_command.add_argument("--json", action="store_true")
+
+    dashboard = commands.add_parser("dashboard", help="browse run artifacts on a local web page")
+    dashboard.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
+    dashboard.add_argument("--port", type=_port, default=8765)
     return parser
 
 
@@ -86,6 +98,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = {"ok": report.ok, "checks": [check.model_dump() for check in report.checks]}
             _emit(payload, args.json)
             return 0 if report.ok else 3
+
+        if args.command == "dashboard":
+            return serve(args.runs_dir, args.port)
 
         if args.command in {"inspect", "verify"}:
             args.scenario = _scenario(args)
@@ -144,7 +159,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
         _emit(payload, args.json, format_inspect)
         return 0
-    except (ComparisonError, RunnerError, ScenarioError, ValidationError, ValueError) as exc:
+    except (ComparisonError, RunnerError, ScenarioError, ValidationError, ValueError, OSError) as exc:
         _emit({"ok": False, "error": str(exc)}, getattr(args, "json", False))
         return 3
 

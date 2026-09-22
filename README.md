@@ -10,7 +10,7 @@ For example, a checkout scenario retries a payment and verifies that the ledger 
 
 Use it while changing an API, from a coding-agent harness, or in CI. Your application must already be running, and its endpoints must match the scenario you provide.
 
-> **Developer preview — `0.1.0.dev0`.** The current CLI provides `doctor`, `inspect`, `verify`, and `diff`. Scenarios are handwritten and reviewed. Automatic repository discovery, AI authoring, background population mode, and sandbox provisioning are planned, not implemented.
+> **Developer preview — `0.1.0.dev0`.** The current CLI provides `doctor`, `inspect`, `verify`, `diff`, and a local read-only `dashboard` for browsing run artifacts on `127.0.0.1`. Scenarios are handwritten and reviewed. Automatic repository discovery, AI authoring, background population mode, and sandbox provisioning are planned, not implemented.
 
 ## What it does
 

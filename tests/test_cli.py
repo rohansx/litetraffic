@@ -27,6 +27,18 @@ def test_inspect_invalid_scenario_returns_configuration_error(tmp_path, capsys):
     assert "stay inside" in output["error"]
 
 
+def test_os_error_in_a_command_is_a_json_configuration_error(tmp_path, monkeypatch, capsys):
+    def unreadable(path):
+        raise PermissionError("permission denied: manifest.json")
+
+    monkeypatch.setattr("litetraffic.cli.load_scenario", unreadable)
+
+    status = main(["inspect", str(tmp_path), "--json"])
+    output = json.loads(capsys.readouterr().out)
+    assert status == 3
+    assert output == {"ok": False, "error": "permission denied: manifest.json"}
+
+
 def test_doctor_json_returns_nonzero_when_k6_is_missing(monkeypatch, capsys):
     monkeypatch.setenv("PATH", os.devnull)
     status = main(["doctor", "--json"])

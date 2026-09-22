@@ -60,6 +60,24 @@ litetraffic diff BASELINE CANDIDATE [--runs-dir DIR]
 
 `BASELINE` and `CANDIDATE` are each a run directory or a bare run ID such as `run_20260101T000000Z_ab12cd34`. An argument naming an existing directory is used as-is; otherwise it is looked up as a subdirectory of `--runs-dir` (default `.litetraffic/runs`). An unknown run ID exits 3. Reads `run.json` and `result.json` from both directories. Does not contact a target. Compatibility requires equal manifest digest, seed, full engine version string, and resolved schedule. A supplied p95 gate must be finite and non-negative and needs at least 200 duration samples in each run. Without the gate, timing differences are descriptive. See [results](results.md) for correctness and comparison limitations.
 
+## `dashboard`
+
+```text
+litetraffic dashboard [--runs-dir DIR] [--port PORT]
+```
+
+Serves a read-only web page over `--runs-dir` (default `.litetraffic/runs`) on `http://127.0.0.1:PORT/` (default port `8765`; `0` picks a free port; a port outside 0-65535 is a usage error and exits 2). It always binds to `127.0.0.1`; there is no `--host` option. It prints the URL, uses only the Python standard library, and does not contact a target.
+
+| Route | Shows |
+|---|---|
+| `/` | Runs and series, newest first: run ID, kind, scenario, lifecycle, seed, finished time, verdict; plus a form for `/diff` |
+| `/runs/RUN_ID` | Verdict, lifecycle, seed, assertion table, failing samples with expected/actual values, metrics, limitations, and a link to `report.html` when present |
+| `/runs/RUN_ID/report.html` | The run's own `report.html` |
+| `/diff?a=BASELINE&b=CANDIDATE` | The `diff` text summary for two run IDs; incompatible runs are `INCONCLUSIVE` |
+| `/api/runs` | The run index as JSON |
+
+Run IDs must be plain subdirectory names of `--runs-dir`; an ID containing `/`, `\`, or `..`, an unknown ID, and any other path return 404. No other files are served. All values are HTML-escaped. A `result.json` field with the wrong type (for example `"metrics": null`), including an assertion's `failures` list and any non-object sample in it, is shown as empty rather than failing the page. Ctrl+C stops the server and exits 130. A port that cannot be bound exits 3.
+
 ## Exit codes
 
 The current commands have different exit mappings. Integrations should inspect the JSON verdict as well as the shell status.
@@ -70,6 +88,7 @@ The current commands have different exit mappings. Integrations should inspect t
 | `inspect` | Valid manifest | — | CLI usage error | Invalid scenario | — |
 | `verify` | `pass` | `fail` | `inconclusive`; also CLI usage error | `error`; also configuration/engine preflight error | Cancelled run |
 | `diff` | Comparison `pass` | Comparison `fail` | Inconclusive comparison or CLI usage error | Invalid arguments/artifacts | — |
+| `dashboard` | — | — | CLI usage error | Port cannot be bound | Stopped with Ctrl+C |
 
 With `--repeat`, `verify` applies the same mapping to the aggregate series verdict.
 
@@ -81,7 +100,7 @@ Without `--json`, `verify`, `diff`, and `inspect` print a short text summary mea
 
 `doctor` and error results print `key: value` lines. The text layout may change; integrations should use `--json`.
 
-`--json` formats handled command results and errors. `argparse` usage errors can still print text to stderr and exit 2 before JSON handling. Do not assume every possible process failure produces JSON.
+An `OSError` raised while a command runs (for example an unreadable file) is reported as an error result and exits `3`. `--json` formats handled command results and errors. `argparse` usage errors can still print text to stderr and exit 2 before JSON handling. Do not assume every possible process failure produces JSON.
 
 ## Runtime environment passed to k6
 
