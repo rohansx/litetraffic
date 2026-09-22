@@ -163,6 +163,20 @@ def test_verify_rejects_zero_repetitions(capsys):
     assert "repeat must be at least 1" in json.loads(capsys.readouterr().out)["error"]
 
 
+def test_verify_resolves_an_existing_e2b_sandbox(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(
+        "litetraffic.cli.verify",
+        lambda target, *args: calls.append(target) or {"verdict": "pass", "lifecycle": "finished"},
+    )
+
+    status = main(["verify", "scenario", "--e2b-sandbox-id", "sandbox-42", "--e2b-port", "8767", "--json"])
+
+    assert status == 0
+    assert calls == ["https://8767-sandbox-42.e2b.app"]
+    assert json.loads(capsys.readouterr().out)["verdict"] == "pass"
+
+
 def test_diff_returns_failure_for_a_latency_regression(tmp_path, capsys):
     baseline = write_run(tmp_path / "baseline", "baseline", p95=100)
     candidate = write_run(tmp_path / "candidate", "candidate", p95=130)

@@ -55,6 +55,15 @@ python examples/reporting/server.py --port 8767
 litetraffic verify examples/reporting --target http://127.0.0.1:8767 --seed 42 --json
 ```
 
+For an application already running on an E2B sandbox, pass its sandbox ID and exposed application port instead of constructing a URL:
+
+```bash
+litetraffic verify examples/reporting \
+  --e2b-sandbox-id <sandbox-id> --e2b-port 8767 --seed 42 --json
+```
+
+LiteTraffic resolves this to E2B's external HTTPS host and leaves sandbox creation, application startup, and sandbox destruction with the caller. It does not require the E2B SDK or API key at runtime.
+
 Restart it with `--wrong-partial` to verify that a fast HTTP 200 response still fails when report totals, rows, or regional data are incomplete.
 Restart it with `--wrong-ledger` to verify the final read-only observer catches incorrect persisted totals. A bundle may declare one same-origin `observation` with JSON Pointer expectations and an optional `bearer_token_env`; its extra request and five-second deadline must fit the manifest budgets. The token value stays in the environment and is never written to the manifest or run artifacts.
 
@@ -88,6 +97,7 @@ Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently fro
 - Scenario scripts must remain inside the bundle directory.
 - Schedule rates are journey admissions per second, not HTTP requests per second.
 - Schedules may contain explicit phases or `spiky`, `random_bursts`, and `sustained_burst` profiles. Sustained bursts ramp to a plateau and drop immediately to a recovery rate.
+- Profile resolution is deterministic for a seed and the exact phase sequence is frozen in `run.json`.
 - Maximum requests and writes are derived conservatively from every admitted journey.
 - A bundle that exceeds its declared duration, request, or write budget is rejected.
 - Runtime secrets and target URLs do not belong in portable manifests.

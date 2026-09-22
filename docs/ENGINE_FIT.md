@@ -23,6 +23,7 @@ LiteTraffic ran the checkout, inventory, and reporting scenarios through the off
 | Wrong final ledger observation | 6 / 6 | 6 + 1 observer | Journey assertions passed; final fixture assertion detected wrong persisted total | `fail` |
 | Run-owned reporting fixture | 6 / 6 | 6 + 1 observer + 2 lifecycle | Fixture created, scoped through journey/observer, then deleted | `pass` |
 | Run-owned fixture with wrong ledger | 6 / 6 | 6 + 1 observer + 2 lifecycle | Final assertion failed; fixture still deleted | `fail` |
+| E2B external target | 4 / 4 | 4 | Seeded spiky profile reached a short-lived sandbox through its exposed HTTPS port | `pass` |
 | Real k6 timeout probe | 1 planned / incomplete | 0 | One pre-timeout event preserved | `inconclusive`, `timed_out` |
 
 The negative targets still returned valid HTTP responses. Their failures came from observed business state rather than an HTTP error shortcut.
@@ -33,6 +34,6 @@ Separate back-to-back `constant-arrival-rate` scenarios produced 14 iterations f
 
 ## Proven boundary
 
-This validates stock-k6 subprocess execution, process-group timeout termination, direct-SIGINT cancellation with shell status 130, partial-evidence finalization, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, seeded spiky and random-burst profiles, ramp/plateau/recovery sustained bursts, repeated-seed summaries, compatible-run checks, latency regression gates, stateful idempotency, finite-resource contention, report completeness, read-only final observation, run-owned HTTP fixture creation and cleanup, and self-contained HTML reports. Engine-crash, timeout, and cancellation cleanup behavior is covered by executable tests. It does not yet validate long-duration event loss, memory ceilings, E2B execution, host-crash cleanup, or an observer plugin interface.
+This validates stock-k6 subprocess execution, process-group timeout termination, direct-SIGINT cancellation with shell status 130, partial-evidence finalization, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, seeded spiky and random-burst profiles, ramp/plateau/recovery sustained bursts, repeated-seed summaries, compatible-run checks, latency regression gates, stateful idempotency, finite-resource contention, report completeness, read-only final observation, run-owned HTTP fixture creation and cleanup, E2B external-target execution, and self-contained HTML reports. Engine-crash, timeout, and cancellation cleanup behavior is covered by executable tests. It does not yet validate long-duration event loss, memory ceilings, E2B sandbox provisioning, host-crash cleanup, or an observer plugin interface.
 
 The release archive came from the official [grafana/k6 v2.2.0 release](https://github.com/grafana/k6/releases/tag/v2.2.0). The binary remains an external prerequisite and is not redistributed by LiteTraffic.

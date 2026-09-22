@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.doctor import run_doctor
+from litetraffic.e2b import resolve_target
 from litetraffic.runner import RunnerError, repeat_verify, verify
 from litetraffic.scenario import ScenarioError, load_scenario
 
@@ -29,7 +30,9 @@ def _parser() -> argparse.ArgumentParser:
 
     verify_command = commands.add_parser("verify", help="run a finite scenario and evaluate its evidence")
     verify_command.add_argument("scenario", type=Path)
-    verify_command.add_argument("--target", required=True)
+    verify_command.add_argument("--target")
+    verify_command.add_argument("--e2b-sandbox-id")
+    verify_command.add_argument("--e2b-port", type=int)
     verify_command.add_argument("--output-dir", type=Path, default=Path(".litetraffic/runs"))
     verify_command.add_argument("--k6-path")
     verify_command.add_argument("--seed", type=int, default=0)
@@ -69,11 +72,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "verify":
             if args.repeat < 1:
                 raise ValueError("repeat must be at least 1")
+            target = resolve_target(args.target, args.e2b_sandbox_id, args.e2b_port)
             if args.repeat == 1:
-                payload = verify(args.target, args.scenario, args.output_dir, args.k6_path, args.seed)
+                payload = verify(target, args.scenario, args.output_dir, args.k6_path, args.seed)
             else:
                 payload = repeat_verify(
-                    args.target,
+                    target,
                     args.scenario,
                     args.output_dir,
                     args.k6_path,
