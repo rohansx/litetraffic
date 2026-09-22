@@ -781,6 +781,21 @@ def test_verify_still_fails_when_the_target_answers_with_http_500(tmp_path, monk
     assert not any("unreachable" in item for item in result["limitations"])
 
 
+def test_verify_fails_when_every_request_gets_an_http_4xx(tmp_path, monkeypatch):
+    # Real k6 also tags HTTP 4xx/5xx responses with an error_code (e.g. 1403); only status "0" means no response.
+    data = manifest(assertions=["accepted_orders_persist"])
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist", False) for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    denied = {"status": "403", "error_code": "1403"}
+    k6 = fake_k6(tmp_path, events, failed_tags=(denied, denied))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(k6))
+
+    assert result["verdict"] == "fail"
+    assert not any("unreachable" in item for item in result["limitations"])
+
+
 def test_read_events_accepts_optional_evidence_fields_and_rejects_wrong_types(tmp_path):
     base = assertion("a", False) | {"run_id": "r"}
     records = [

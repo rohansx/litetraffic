@@ -118,8 +118,8 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
             elif metric == "http_req_failed" and 0 <= value <= 1:
                 tags = item["data"].get("tags") or {}
                 _operation(operations, item)["failed"].append(float(value))
-                # k6 tags requests that never got an HTTP response with status "0" and an error_code.
-                transport_failures += value == 1 and (tags.get("status") == "0" or "error_code" in tags)
+                # k6 tags requests that never got an HTTP response with status "0"; 4xx/5xx also carry an error_code.
+                transport_failures += value == 1 and tags.get("status") == "0"
                 failed.append(float(value))
         except (AttributeError, KeyError, json.JSONDecodeError, TypeError):
             malformed += 1

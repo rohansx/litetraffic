@@ -98,7 +98,7 @@ python -m pip install -e '.[dev]'
 python -m pytest -q
 ```
 
-The test suite uses controlled engine doubles and does not require a live target or real k6. The quickstart exercises the real engine. See [CONTRIBUTING.md](CONTRIBUTING.md) for development and packaging checks.
+The test suite uses controlled engine doubles and does not require a live target or real k6. The `real_k6`-marked conformance test (`tests/test_conformance.py`) starts every example server, reference and each wrong flag, and expects `pass` and `fail` respectively; it is skipped unless k6 v2.2.0 is on `PATH`, and default CI runs `pytest -m "not real_k6"`. Run it alone with `python -m pytest -q -m real_k6`. See [CONTRIBUTING.md](CONTRIBUTING.md) for development and packaging checks.
 
 ## License
 

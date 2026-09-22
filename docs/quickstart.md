@@ -68,7 +68,7 @@ Start one server in terminal A, then run its corresponding verification in termi
 
 | Bundle | Server command | Fault flag |
 |---|---|---|
-| `examples/inventory` | `python examples/inventory/server.py --port 8766` | `--wrong-oversell` |
+| `examples/inventory` | `python examples/inventory/server.py --port 8766` | `--wrong-oversell` or `--reject-all` |
 | `examples/reporting` | `python examples/reporting/server.py --port 8767` | `--wrong-partial` or `--wrong-ledger` |
 | `examples/cached_search` | `python examples/cached_search/server.py --port 8768` | `--wrong-stale` |
 | `examples/tenant_api` | `python examples/tenant_api/server.py --port 8769` | `--wrong-leak` or `--deny-all` |

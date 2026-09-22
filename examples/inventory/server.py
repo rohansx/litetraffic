@@ -14,6 +14,7 @@ class InventoryHandler(BaseHTTPRequestHandler):
     accepted_keys: set[str] = set()
     lock = threading.Lock()
     oversell = False
+    reject_all = False
 
     def do_POST(self) -> None:
         if self.path != "/inventory/reservations" or not self.headers.get("X-LiteTraffic-Run"):
@@ -25,7 +26,10 @@ class InventoryHandler(BaseHTTPRequestHandler):
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             self._send(400, {})
             return
-        accepted = self._reserve_wrong(key) if self.oversell else self._reserve(key)
+        if self.reject_all:
+            accepted = False
+        else:
+            accepted = self._reserve_wrong(key) if self.oversell else self._reserve(key)
         self._send(201 if accepted else 200, self._state() | {"accepted": accepted})
 
     def do_GET(self) -> None:
@@ -78,8 +82,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--wrong-oversell", action="store_true")
+    parser.add_argument("--reject-all", action="store_true")
     args = parser.parse_args()
     InventoryHandler.oversell = args.wrong_oversell
+    InventoryHandler.reject_all = args.reject_all
     ThreadingHTTPServer(("127.0.0.1", args.port), InventoryHandler).serve_forever()
 
 

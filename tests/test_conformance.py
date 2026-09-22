@@ -1,0 +1,103 @@
+"""Real-engine conformance: each example's reference server passes, each wrong mutation fails.
+
+Needs the pinned k6 binary; run with ``pytest -m real_k6``. Default CI deselects it.
+"""
+
+import json
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+from litetraffic.runner import SUPPORTED_K6_VERSION
+
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+
+
+def _k6_version() -> str | None:
+    k6 = shutil.which("k6")
+    if k6 is None:
+        return None
+    try:
+        return subprocess.run([k6, "version"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+pytestmark = [
+    pytest.mark.real_k6,
+    pytest.mark.skipif(
+        f"k6 {SUPPORTED_K6_VERSION} " not in (_k6_version() or ""),
+        reason=f"real k6 {SUPPORTED_K6_VERSION} not installed",
+    ),
+]
+
+CASES = [
+    ("checkout", [], "pass"),
+    ("checkout", ["--wrong-duplicate"], "fail"),
+    ("inventory", [], "pass"),
+    ("inventory", ["--wrong-oversell"], "fail"),
+    ("inventory", ["--reject-all"], "fail"),
+    ("reporting", [], "pass"),
+    ("reporting", ["--wrong-partial"], "fail"),
+    ("reporting", ["--wrong-ledger"], "fail"),
+    ("cached_search", [], "pass"),
+    ("cached_search", ["--wrong-stale"], "fail"),
+    ("tenant_api", [], "pass"),
+    ("tenant_api", ["--wrong-leak"], "fail"),
+    ("tenant_api", ["--deny-all"], "fail"),
+]
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _wait_listening(server: subprocess.Popen, port: int) -> None:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if server.poll() is not None:
+            raise AssertionError(f"server exited early: {server.stderr.read()}")
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+            return
+        except OSError:
+            time.sleep(0.05)
+    raise AssertionError(f"server did not listen on {port}")
+
+
+@pytest.mark.parametrize(
+    ("example", "flags", "expected"),
+    CASES,
+    ids=[f"{example}{''.join(flags) or '-reference'}" for example, flags, _ in CASES],
+)
+def test_example_conformance(tmp_path, example, flags, expected):
+    port = _free_port()
+    server = subprocess.Popen(
+        [sys.executable, str(EXAMPLES / example / "server.py"), "--port", str(port), *flags],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        _wait_listening(server, port)
+        completed = subprocess.run(
+            [sys.executable, "-m", "litetraffic", "verify", str(EXAMPLES / example),
+             "--target", f"http://127.0.0.1:{port}", "--seed", "42",
+             "--output-dir", str(tmp_path / "runs"), "--json"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    finally:
+        server.terminate()
+        server.wait(timeout=10)
+    assert completed.stdout, f"verify produced no output: {completed.stderr}"
+    result = json.loads(completed.stdout)
+    assert result["verdict"] == expected, completed.stdout

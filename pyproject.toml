@@ -43,6 +43,7 @@ litetraffic = "litetraffic.cli:entrypoint"
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+markers = ["real_k6: runs the pinned real k6 binary against the example servers (deselected in default CI)"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
