@@ -33,6 +33,28 @@ LiteTraffic is a Python controller around a stock k6 child process. There is no 
 
 `compare.py` implements `diff` over two finished run directories. `doctor.py` implements prerequisite checks. `cli.py` maps all of it to commands and exit codes.
 
+## Python API
+
+The package exports the functions the CLI calls, listed in `litetraffic.__all__`:
+
+```python
+from litetraffic import verify, repeat_verify, compare_runs, load_scenario, run_doctor, list_runs
+
+result = verify("http://127.0.0.1:8080", "examples/checkout", ".litetraffic/runs")
+print(result["verdict"])  # same dict `litetraffic verify --json` prints
+```
+
+| Function | CLI equivalent | Returns |
+|---|---|---|
+| `verify(target, scenario, output_dir, k6_path=None, seed=0)` | `verify` | result dict |
+| `repeat_verify(target, scenario, output_dir, k6_path=None, seed=0, repeats=3)` | `verify --repeat N` | series dict |
+| `compare_runs(baseline_path, candidate_path, max_p95_regression_percent=None)` | `diff` (run directories, not IDs) | comparison dict |
+| `load_scenario(path)` | `inspect` (validation step) | `ScenarioBundle` |
+| `run_doctor(target=None, k6_path=None, output_dir=Path(".litetraffic/runs"))` | `doctor` | `DoctorReport` |
+| `list_runs(runs_dir)` | run index behind `dashboard` | list of run dicts |
+
+Functions raise exceptions (`RunnerError`, `ScenarioError`, `ComparisonError`, `ValueError`, `OSError`) where the CLI prints `{"ok": false, "error": ...}` and exits 3; they do not map verdicts to exit codes.
+
 ## Source layout
 
 | Path | Purpose |
