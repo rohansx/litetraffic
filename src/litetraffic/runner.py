@@ -20,6 +20,10 @@ from litetraffic.target import validate_target
 SUPPORTED_K6_VERSION = "v2.2.0"
 
 
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
 class RunnerError(ValueError):
     """The experiment could not be started safely."""
 
@@ -106,7 +110,7 @@ def verify(
     run_dir.chmod(0o700)
 
     manifest_bytes = bundle.manifest_path.read_bytes()
-    started_at = datetime.now(UTC)
+    started_at = _now()
     run = {
         "schema_version": 1,
         "run_id": run_id,
@@ -156,6 +160,7 @@ def verify(
     lifecycle = "running"
     engine_error = ""
     process: subprocess.Popen[str] | None = None
+    engine_started = engine_finished = None
     fixture = None
     if bundle.manifest.fixtures.owned_http:
         fixture = {"create": create_fixture(target, bundle.manifest.fixtures.owned_http, run_id)}
@@ -169,6 +174,7 @@ def verify(
     else:
         try:
             engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - (10 if fixture else 0)
+            engine_started = _now()
             process = subprocess.Popen(
                 command,
                 cwd=bundle.root,
@@ -191,6 +197,7 @@ def verify(
             lifecycle = "crashed"
             engine_error = str(exc)
             stdout, stderr = "", str(exc)
+        engine_finished = _now()
 
     engine_exit_code = process.returncode if process is not None else None
     (run_dir / "engine.stdout.log").write_text(stdout, encoding="utf-8")
@@ -223,14 +230,17 @@ def verify(
         metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
     if fixture or observation:
         metrics["total_http_reqs"] = float(metrics.get("http_reqs", 0)) + metrics.get("observer_requests", 0) + metrics.get("fixture_requests", 0)
-    finished = datetime.now(UTC)
+    finished = _now()
     finished_at = finished.isoformat()
     run.update({"lifecycle": lifecycle, "finished_at": finished_at, "engine_exit_code": engine_exit_code})
+    if engine_started:
+        run.update({"engine_started_at": engine_started.isoformat(), "engine_finished_at": engine_finished.isoformat()})
     _write_json(run_dir / "run.json", run)
-    elapsed_seconds = max((finished - started_at).total_seconds(), 0.000001)
-    metrics["elapsed_seconds"] = round(elapsed_seconds, 6)
-    metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / elapsed_seconds, 3)
-    metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / elapsed_seconds, 3)
+    metrics["elapsed_seconds"] = round(max((finished - started_at).total_seconds(), 0.000001), 6)
+    # Rates cover only the engine window: fixture setup, observation and cleanup are not load.
+    engine_window = max((engine_finished - engine_started).total_seconds(), 0.000001) if engine_started else 0.000001
+    metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / engine_window, 3)
+    metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / engine_window, 3)
 
     assertions, missing, partial, duplicates, definite_failure = evaluate_assertions(
         bundle.manifest.assertions, events, observation, bundle.manifest.planned_journeys

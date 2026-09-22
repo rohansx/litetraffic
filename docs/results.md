@@ -8,7 +8,7 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 
 | File | Contents |
 |---|---|
-| `run.json` | Target, seed, manifest digest, engine, resolved schedule, timestamps, lifecycle |
+| `run.json` | Target, seed, manifest digest, engine, resolved schedule, run and engine-window timestamps (`engine_started_at`, `engine_finished_at` when k6 was launched), lifecycle |
 | `scenario.lock.json` | Copy of the original manifest bytes |
 | `result.json` | Mode (`verify`), seed, verdict, completeness, assertion summaries, metrics, planned vs observed rate, limitations, notes |
 | `report.html` | Standalone readable report (seed, target, engine, latency, assertions, limitations, notes); open in a browser |
@@ -42,7 +42,7 @@ Engine event or metric lines that cannot be parsed (invalid JSON, a non-object v
 
 `result.json` `metrics.http_req_duration_ms` holds `samples`, `average`, `p50`, `p95`, and `max` when k6 supplies durations. `report.html` shows the seed, target, engine version, HTTP avg/p50/p95/max (or `Unavailable`), the latency sample count, HTTP error rate, journeys, and throughput.
 
-`planned_journeys_per_second` is the resolved schedule's admitted journeys divided by its total seconds; compare it with the observed `metrics.iterations_per_second` (iterations divided by the whole run's wall-clock time, including engine start-up and any fixture or observer work). When k6 reports a nonzero `dropped_iterations` metric, `limitations` contains `k6 dropped N iterations (under-delivered load)` and the run cannot pass.
+`planned_journeys_per_second` is the resolved schedule's admitted journeys divided by its total seconds; compare it with the observed `metrics.iterations_per_second` (iterations divided by the engine window only, from `engine_started_at` to `engine_finished_at` in `run.json`; fixture setup, observation and cleanup are excluded, as they are from `metrics.http_reqs_per_second`, while `metrics.elapsed_seconds` stays the whole run's wall-clock time). When k6 reports a nonzero `dropped_iterations` metric, `limitations` contains `k6 dropped N iterations (under-delivered load)` and the run cannot pass.
 
 Every result also has `notes`, which list what this preview never measures: `per-arrival lateness not measured` and `workload is synthetic (no traces supplied)`. Notes are separate from `limitations` and do not affect completeness or the verdict. Those are observations, not automatic performance promises. Expected application rejections may contribute to k6's HTTP failure rate even when the business assertion passes.
 

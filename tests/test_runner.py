@@ -725,3 +725,41 @@ def test_verify_passes_distinct_logical_keys_and_counts_unkeyed_samples(tmp_path
         result = verify("http://example.test", scenario, runs, str(fake_k6(tmp_path, events, iterations=2)))
         assert result["assertions"][0]["status"] == "pass", result["limitations"]
         assert result["verdict"] == "pass"
+
+
+
+@pytest.mark.parametrize("fixture_setup_seconds", [0, 10])
+def test_throughput_is_measured_over_the_engine_window_only(tmp_path, monkeypatch, fixture_setup_seconds):
+    from datetime import UTC, datetime, timedelta
+
+    import litetraffic.runner as runner
+
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 5, "max_write_attempts": 3},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    clock = [datetime(2026, 1, 1, tzinfo=UTC)]
+
+    def tick():
+        clock[0] += timedelta(seconds=1)
+        return clock[0]
+
+    def slow_create(*args):
+        clock[0] += timedelta(seconds=fixture_setup_seconds)
+        return {"status": "created", "fixture_id": "owned-1", "requests": 1}
+
+    monkeypatch.setattr(runner, "_now", tick, raising=False)
+    monkeypatch.setattr(runner, "create_fixture", slow_create)
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: {"status": "deleted", "requests": 1})
+
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=1)))
+
+    run = json.loads((tmp_path / "runs" / result["run_id"] / "run.json").read_text())
+    engine_seconds = (datetime.fromisoformat(run["engine_finished_at"]) - datetime.fromisoformat(run["engine_started_at"])).total_seconds()
+    assert engine_seconds == 1
+    assert result["metrics"]["iterations_per_second"] == 1.0
+    assert result["metrics"]["http_reqs_per_second"] == 2.0
