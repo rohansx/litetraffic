@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="LiteTraffic creates believable, bounded application traffic and verifies the business effects it leaves behind.">
+    <meta name="theme-color" content="#f3f6f4">
+    <title>LiteTraffic — Traffic with memory</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="#main" aria-label="LiteTraffic home">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M4 22V10h5v12zm9 5V5h6v22zm10-8v-6h5v6z"/>
+        </svg>
+        <span>LiteTraffic</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#profiles">Profiles</a>
+        <a href="#proof">Proof</a>
+        <a href="#vision">Vision</a>
+        <a class="nav-cta" href="#install">Try locally</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="release-note"><span></span> Local-first developer preview</p>
+          <h1 id="hero-title">Traffic<br>with memory.</h1>
+          <p class="hero-deck">LiteTraffic gives a running application believable users, bounded pressure, and an independent verdict on what their actions actually changed.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#install">Run the first scenario</a>
+            <a class="text-link" href="../docs/TECH_SPEC.html">Read the technical design</a>
+          </div>
+          <dl class="hero-facts" aria-label="Product facts">
+            <div><dt>Engine</dt><dd>Stock k6</dd></div>
+            <div><dt>Runtime AI</dt><dd>None</dd></div>
+            <div><dt>Target</dt><dd>Any HTTP app</dd></div>
+          </dl>
+        </div>
+
+        <div class="run-console" aria-label="Example LiteTraffic verification run">
+          <div class="console-topbar">
+            <div class="console-title"><span class="run-dot"></span>checkout / seed 42</div>
+            <div class="console-status">running</div>
+          </div>
+          <div class="phase-track" aria-hidden="true">
+            <span class="phase phase-warm"><i></i></span>
+            <span class="phase phase-load"><i></i></span>
+            <span class="phase phase-spike"><i></i></span>
+            <span class="phase phase-recover"><i></i></span>
+            <b class="playhead"></b>
+          </div>
+          <div class="phase-labels" aria-hidden="true"><span>warm</span><span>measure</span><span>spike</span><span>recover</span></div>
+          <div class="console-grid">
+            <div class="metric"><span>journeys</span><strong>12 / 12</strong></div>
+            <div class="metric"><span>requests</span><strong>36</strong></div>
+            <div class="metric"><span>p95</span><strong>31.8 ms</strong></div>
+          </div>
+          <ol class="event-stream">
+            <li><span class="event-time">00.00</span><span class="event-name">fixture.create</span><span class="event-result neutral">owned</span></li>
+            <li><span class="event-time">01.08</span><span class="event-name">cart → order → payment</span><span class="event-result">12 passed</span></li>
+            <li><span class="event-time">06.42</span><span class="event-name">payment ledger</span><span class="event-result">one effect</span></li>
+            <li><span class="event-time">07.01</span><span class="event-name">fixture.cleanup</span><span class="event-result neutral">deleted</span></li>
+          </ol>
+          <div class="verdict-row">
+            <span>Business verdict</span>
+            <strong><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9"/></svg> Pass</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="proof-strip" aria-label="Verified capabilities">
+        <p>Built for behavior, not benchmarks</p>
+        <ul>
+          <li>Owned fixtures</li>
+          <li>Stateful journeys</li>
+          <li>Frozen schedules</li>
+          <li>Independent observations</li>
+          <li>E2B targets</li>
+        </ul>
+      </section>
+
+      <section class="thesis section-shell" id="proof">
+        <div class="section-intro">
+          <p class="kicker">The missing layer</p>
+          <h2>A fast 200 can still be the wrong answer.</h2>
+        </div>
+        <div class="thesis-copy">
+          <p>Most load tools tell you that requests completed. LiteTraffic asks whether accepted payments appeared once, inventory stayed above zero, reports remained complete, caches refreshed, and tenants stayed isolated.</p>
+          <p>Every run freezes its inputs, drives complete user journeys, observes final state, and leaves an artifact another engineer can inspect.</p>
+        </div>
+        <div class="comparison" aria-label="Comparison of ordinary load testing and LiteTraffic">
+          <div class="comparison-row comparison-head"><span></span><span>Ordinary load test</span><span>LiteTraffic</span></div>
+          <div class="comparison-row"><strong>Pressure</strong><span>Requests per second</span><span>Journeys per second</span></div>
+          <div class="comparison-row"><strong>State</strong><span>Shared setup data</span><span>Run-owned entities</span></div>
+          <div class="comparison-row"><strong>Success</strong><span>Status and latency</span><span>Persisted business effect</span></div>
+          <div class="comparison-row"><strong>Failure</strong><span>Threshold crossed</span><span>Evidence names what broke</span></div>
+        </div>
+      </section>
+
+      <section class="profile-section" id="profiles">
+        <div class="section-shell profile-layout">
+          <div class="section-intro profile-copy">
+            <p class="kicker">Traffic profiles</p>
+            <h2>Pressure has a shape.</h2>
+            <p>Model a quiet baseline, short mountains, or a sustained plateau. The seed fixes the plan before the first request leaves your machine.</p>
+            <div class="profile-tabs" role="tablist" aria-label="Traffic profile">
+              <button type="button" role="tab" aria-selected="true" data-profile="spiky">Spiky</button>
+              <button type="button" role="tab" aria-selected="false" data-profile="random">Random bursts</button>
+              <button type="button" role="tab" aria-selected="false" data-profile="sustained">Sustained</button>
+            </div>
+            <p class="profile-description" aria-live="polite">A steady baseline interrupted by brief, high-volume spikes.</p>
+          </div>
+          <div class="profile-plot">
+            <div class="plot-meta"><span>journeys / second</span><strong>seed 42</strong></div>
+            <svg id="profile-chart" viewBox="0 0 720 300" role="img" aria-label="Spiky traffic profile chart">
+              <g class="grid-lines" aria-hidden="true"><path d="M0 60H720M0 120H720M0 180H720M0 240H720"/></g>
+              <path id="profile-area" class="profile-area" d=""/>
+              <path id="profile-line" class="profile-line" d=""/>
+              <g id="profile-points" class="profile-points"></g>
+            </svg>
+            <div class="plot-axis"><span>0s</span><span>30s</span><span>60s</span><span>90s</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="journey section-shell">
+        <div class="section-intro">
+          <p class="kicker">Stateful journeys</p>
+          <h2>The unit of traffic is an intention.</h2>
+        </div>
+        <div class="journey-flow" aria-label="Example checkout journey">
+          <article><span>1</span><h3>Create cart</h3><p>Capture the server-issued cart ID.</p></article>
+          <i aria-hidden="true"></i>
+          <article><span>2</span><h3>Place order</h3><p>Carry identity and fixture ownership forward.</p></article>
+          <i aria-hidden="true"></i>
+          <article><span>3</span><h3>Retry payment</h3><p>Reuse the same business key and payload.</p></article>
+          <i aria-hidden="true"></i>
+          <article class="journey-observe"><span>4</span><h3>Observe effect</h3><p>Prove the ledger contains one charge.</p></article>
+        </div>
+      </section>
+
+      <section class="cases">
+        <div class="section-shell">
+          <div class="section-intro cases-heading">
+            <p class="kicker">Five hard controls</p>
+            <h2>Known-good passes.<br>Known-wrong fails.</h2>
+          </div>
+          <div class="case-list">
+            <article><span>Checkout</span><h3>One payment effect</h3><p>Catches duplicate processing after retry.</p><b>Idempotency</b></article>
+            <article><span>Inventory</span><h3>No overselling</h3><p>Catches negative stock under contention.</p><b>Concurrency</b></article>
+            <article><span>Reporting</span><h3>Complete totals</h3><p>Catches partial data behind a fast response.</p><b>Persistence</b></article>
+            <article><span>Cached search</span><h3>Fresh after update</h3><p>Catches a permanently stale hot key.</p><b>Sequences</b></article>
+            <article><span>Tenant API</span><h3>Allow own, deny other</h3><p>Catches leaks and the deny-all shortcut.</p><b>Identity</b></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="run-anywhere section-shell">
+        <div class="run-anywhere-copy">
+          <p class="kicker">One behavioral contract</p>
+          <h2>Local app. CI preview. E2B sandbox.</h2>
+          <p>The scenario stays portable. Target URLs and secrets stay outside it. Runtime verification needs no model key and no hosted LiteTraffic account.</p>
+        </div>
+        <div class="target-stack" aria-label="Supported execution targets">
+          <div><span class="target-icon local-icon"></span><p><strong>Localhost</strong><small>Fast feedback while editing</small></p><b>http://127.0.0.1</b></div>
+          <div><span class="target-icon ci-icon"></span><p><strong>CI preview</strong><small>Repeatable regression evidence</small></p><b>https://preview…</b></div>
+          <div><span class="target-icon cloud-icon"></span><p><strong>E2B</strong><small>Disposable application environment</small></p><b>sandbox + port</b></div>
+        </div>
+      </section>
+
+      <section class="install" id="install">
+        <div class="section-shell install-inner">
+          <div>
+            <p class="kicker">Developer preview</p>
+            <h2>Start with a scenario you can read.</h2>
+            <p>Install from source, inspect the checkout bundle, then point it at a running application.</p>
+          </div>
+          <div class="terminal" aria-label="Installation commands">
+            <div class="terminal-bar"><span>Terminal</span><button type="button" id="copy-command" aria-label="Copy installation command">Copy</button></div>
+            <pre><code><span class="prompt">$</span> python -m pip install -e '.[dev]'
+<span class="prompt">$</span> litetraffic inspect examples/checkout
+<span class="prompt">$</span> litetraffic verify examples/checkout \
+    --target http://127.0.0.1:8765 --seed 42 --json</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="vision section-shell" id="vision">
+        <div class="vision-statement">
+          <p class="kicker">The vision</p>
+          <blockquote>Give every application a believable world to live in before real users arrive.</blockquote>
+        </div>
+        <div class="vision-copy">
+          <p>LiteTraffic is becoming the behavioral layer between an isolated application and the engineer changing it: discover the important workflows, create owned state, apply realistic pressure, and explain what survived.</p>
+          <p>The runtime stays deterministic and offline. Authoring may use AI later, but the model never grades its own work.</p>
+        </div>
+      </section>
+
+      <section class="closing">
+        <p>Traffic is easy to generate.</p>
+        <h2>Evidence is the product.</h2>
+        <a class="button button-light" href="#install">Run LiteTraffic locally</a>
+      </section>
+    </main>
+
+    <footer>
+      <a class="wordmark footer-mark" href="#main"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22V10h5v12zm9 5V5h6v22zm10-8v-6h5v6z"/></svg><span>LiteTraffic</span></a>
+      <p>Believable activity. Independent proof.</p>
+      <div><a href="../docs/TECH_SPEC.html">Technical design</a><a href="../README.md">Documentation</a></div>
+    </footer>
+  </body>
+</html>
