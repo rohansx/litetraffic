@@ -1,9 +1,11 @@
-"""Index of run artifacts in an output directory; shared by `diff` and the dashboard."""
+"""Index of run artifacts in an output directory; shared by `diff`, the dashboard and `prune`."""
 
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+import math
+import shutil
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
@@ -86,3 +88,55 @@ def resolve(ref: str, runs_dir: Path) -> Path:
     if ref and Path(ref).name == ref and ref not in {".", ".."} and candidate.is_dir():
         return candidate.resolve()
     raise RunNotFoundError(f"no run directory or run ID {ref!r} in {Path(runs_dir).resolve()}")
+
+
+def _finished(entry: dict) -> datetime:
+    try:
+        stamp = datetime.fromisoformat(_sort_key(entry))
+    except ValueError:
+        stamp = datetime.fromtimestamp(Path(entry["path"]).stat().st_mtime, UTC)
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)
+
+
+def prune(
+    runs_dir: Path,
+    keep: int | None = None,
+    older_than_days: float | None = None,
+    dry_run: bool = False,
+    now: datetime | None = None,
+) -> list[Path]:
+    """Delete run directories beyond the newest `keep` or finished more than `older_than_days` ago.
+
+    Only real (non-symlink) directories directly under `runs_dir` that contain run.json are candidates.
+    Returns the selected paths, newest first; with `dry_run` nothing is deleted.
+    """
+    if keep is None and older_than_days is None:
+        raise ValueError("prune needs --keep, --older-than, or both")
+    if keep is not None and keep < 0:
+        raise ValueError("--keep must be at least 0")
+    if older_than_days is not None and not (math.isfinite(older_than_days) and older_than_days >= 0):
+        raise ValueError("--older-than must be a finite number of days, at least 0")
+    root = Path(runs_dir)
+    if not root.is_dir():
+        return []
+    candidates = [
+        _run(child)
+        for child in root.iterdir()
+        if child.is_dir() and not child.is_symlink() and (child / "run.json").is_file()
+    ]
+    candidates.sort(key=_finished, reverse=True)
+    cutoff = None
+    if older_than_days is not None:
+        try:
+            cutoff = (now or datetime.now(UTC)) - timedelta(days=older_than_days)
+        except OverflowError:  # cutoff predates datetime.min: no run is old enough
+            cutoff = datetime.min.replace(tzinfo=UTC)
+    selected = [
+        Path(entry["path"])
+        for index, entry in enumerate(candidates)
+        if (keep is not None and index >= keep) or (cutoff is not None and _finished(entry) < cutoff)
+    ]
+    if not dry_run:
+        for path in selected:
+            shutil.rmtree(path)
+    return selected

@@ -13,7 +13,7 @@ from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
 from litetraffic.human import format_diff, format_inspect, format_verify
 from litetraffic.runner import RunnerError, repeat_verify, verify
-from litetraffic.runs import resolve
+from litetraffic.runs import prune, resolve
 from litetraffic.scenario import ScenarioError, load_scenario
 
 
@@ -72,6 +72,13 @@ def _parser() -> argparse.ArgumentParser:
     dashboard = commands.add_parser("dashboard", help="browse run artifacts on a local web page")
     dashboard.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
     dashboard.add_argument("--port", type=_port, default=8765)
+
+    prune_command = commands.add_parser("prune", help="delete old run directories")
+    prune_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
+    prune_command.add_argument("--keep", type=int, help="keep the newest N runs")
+    prune_command.add_argument("--older-than", type=float, metavar="DAYS", help="delete runs finished more than DAYS ago")
+    prune_command.add_argument("--dry-run", action="store_true", help="list what would be deleted")
+    prune_command.add_argument("--json", action="store_true")
     return parser
 
 
@@ -102,6 +109,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.command == "dashboard":
             return serve(args.runs_dir, args.port)
+
+        if args.command == "prune":
+            paths = prune(args.runs_dir, args.keep, args.older_than, args.dry_run)
+            payload = {"ok": True, "dry_run": args.dry_run, "pruned": [str(path) for path in paths]}
+            verb = "would delete" if args.dry_run else "deleted"
+            _emit(payload, args.json, lambda result: [f"{verb}: {path}" for path in result["pruned"]] or ["nothing to prune"])
+            return 0
 
         if args.command in {"inspect", "verify"}:
             args.scenario = _scenario(args)

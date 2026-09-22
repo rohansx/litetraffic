@@ -79,6 +79,23 @@ Serves a read-only web page over `--runs-dir` (default `.litetraffic/runs`) on `
 
 Run IDs must be plain subdirectory names of `--runs-dir`; an ID containing `/`, `\`, or `..`, an unknown ID, and any other path return 404. No other files are served. All values are HTML-escaped. A `result.json` field with the wrong type (for example `"metrics": null`), including an assertion's `failures` list and any non-object sample in it, is shown as empty rather than failing the page. Ctrl+C stops the server and exits 130. A port that cannot be bound exits 3.
 
+## `prune`
+
+```bash
+litetraffic prune [--runs-dir DIR] [--keep N] [--older-than DAYS] [--dry-run] [--json]
+```
+
+Deletes old run directories under `--runs-dir` (default `.litetraffic/runs`). At least one of `--keep` and `--older-than` is required; giving neither, a negative `--keep`, or a negative or non-finite `--older-than` exits `3`. An `--older-than` too large to represent as a date deletes nothing. When both are given, a run is deleted if either rule selects it.
+
+| Option | Meaning |
+|---|---|
+| `--keep N` | Keep the newest `N` runs; delete the rest |
+| `--older-than DAYS` | Delete runs that finished more than `DAYS` ago (fractions allowed) |
+| `--dry-run` | List what would be deleted; delete nothing |
+| `--json` | Emit `{"ok": true, "dry_run": ..., "pruned": [PATH, ...]}` |
+
+Only real directories directly under `--runs-dir` that contain `run.json` are candidates. Nested directories, symlinks, other directories, and `series_*.json` summaries are never deleted. Runs are ordered by `finished_at` in `result.json`; a run without a readable `finished_at` uses its directory modification time. Text output prints one `deleted: PATH` (or `would delete: PATH`) line per run, newest first, or `nothing to prune`. A missing `--runs-dir` prunes nothing. It does not check whether a run is still in progress.
+
 ## Exit codes
 
 The current commands have different exit mappings. Integrations should inspect the JSON verdict as well as the shell status.
@@ -90,6 +107,7 @@ The current commands have different exit mappings. Integrations should inspect t
 | `verify` | `pass` | `fail` | `inconclusive`; also CLI usage error | `error`; also configuration/engine preflight error | Cancelled run |
 | `diff` | Comparison `pass` | Comparison `fail` | Inconclusive comparison or CLI usage error | Invalid arguments/artifacts | — |
 | `dashboard` | — | — | CLI usage error | Port cannot be bound | Stopped with Ctrl+C |
+| `prune` | Pruned (or listed with `--dry-run`) | — | CLI usage error | Invalid retention options or deletion failed (runs deleted before the failure stay deleted) | — |
 
 With `--repeat`, `verify` applies the same mapping to the aggregate series verdict.
 

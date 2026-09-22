@@ -1,8 +1,10 @@
 import json
+from datetime import UTC, datetime
 
 import pytest
 
-from litetraffic.runs import RunNotFoundError, list_runs, resolve
+from litetraffic.cli import main
+from litetraffic.runs import RunNotFoundError, list_runs, prune, resolve
 from test_compare import write_run
 
 
@@ -98,3 +100,99 @@ def test_resolve_rejects_unknown_ids(tmp_path, ref):
     (tmp_path / "runs" / "nested" / "run_a").mkdir(parents=True)
     with pytest.raises(RunNotFoundError):
         resolve(ref, tmp_path / "runs")
+
+
+NOW = datetime(2026, 1, 10, tzinfo=UTC)
+
+
+def _runs(root, *days):
+    root.mkdir(exist_ok=True)
+    return [
+        _finish(write_run(root / f"run_{day:02d}", f"run_{day:02d}"), scenario="s", finished_at=f"2026-01-{day:02d}T00:00:00+00:00")
+        for day in days
+    ]
+
+
+def _names(root):
+    return sorted(child.name for child in root.iterdir())
+
+
+def test_prune_keep_deletes_oldest_runs_beyond_n(tmp_path):
+    _runs(tmp_path, 1, 2, 3, 4)
+
+    deleted = prune(tmp_path, keep=2)
+
+    assert [path.name for path in deleted] == ["run_02", "run_01"]
+    assert _names(tmp_path) == ["run_03", "run_04"]
+
+
+def test_prune_older_than_deletes_runs_finished_before_cutoff(tmp_path):
+    _runs(tmp_path, 1, 5, 9)
+
+    deleted = prune(tmp_path, older_than_days=4, now=NOW)
+
+    assert [path.name for path in deleted] == ["run_05", "run_01"]
+    assert _names(tmp_path) == ["run_09"]
+
+
+@pytest.mark.parametrize("days", [1_000_000, 1e9, 1e300])
+def test_prune_older_than_beyond_datetime_range_deletes_nothing(tmp_path, days):
+    _runs(tmp_path, 1, 2)
+
+    assert prune(tmp_path, older_than_days=days, now=NOW) == []
+    assert _names(tmp_path) == ["run_01", "run_02"]
+
+
+def test_prune_command_with_huge_older_than_exits_zero(tmp_path, capsys):
+    _runs(tmp_path, 1)
+
+    assert main(["prune", "--runs-dir", str(tmp_path), "--older-than", "1000000", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["pruned"] == []
+    assert _names(tmp_path) == ["run_01"]
+
+
+def test_prune_dry_run_deletes_nothing(tmp_path):
+    _runs(tmp_path, 1, 2, 3)
+
+    assert [path.name for path in prune(tmp_path, keep=1, dry_run=True)] == ["run_02", "run_01"]
+    assert _names(tmp_path) == ["run_01", "run_02", "run_03"]
+
+
+def test_prune_only_touches_run_dirs_directly_under_runs_dir(tmp_path):
+    _runs(tmp_path, 1)
+    (tmp_path / "notes").mkdir()
+    (tmp_path / "series_x.json").write_text("{}")
+    _runs(tmp_path / "nested", 2)
+    outside = _runs(tmp_path.parent / f"{tmp_path.name}_outside", 3)[0]
+    (tmp_path / "run_link").symlink_to(outside, target_is_directory=True)
+
+    assert [path.name for path in prune(tmp_path, keep=0)] == ["run_01"]
+    assert _names(tmp_path) == ["nested", "notes", "run_link", "series_x.json"]
+    assert (tmp_path / "nested" / "run_02" / "run.json").exists()
+    assert (outside / "run.json").exists()
+
+
+@pytest.mark.parametrize("options", [{}, {"keep": -1}, {"older_than_days": -1}, {"older_than_days": float("nan")}])
+def test_prune_rejects_missing_or_invalid_retention(tmp_path, options):
+    with pytest.raises(ValueError):
+        prune(tmp_path, **options)
+
+
+def test_prune_command_reports_and_deletes(tmp_path, capsys):
+    _runs(tmp_path, 1, 2, 3)
+
+    assert main(["prune", "--runs-dir", str(tmp_path), "--keep", "2", "--dry-run", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"ok": True, "dry_run": True, "pruned": [str((tmp_path / "run_01").resolve())]}
+    assert _names(tmp_path) == ["run_01", "run_02", "run_03"]
+
+    assert main(["prune", "--runs-dir", str(tmp_path), "--older-than", "0"]) == 0
+    assert capsys.readouterr().out == "".join(
+        f"deleted: {(tmp_path / name).resolve()}\n" for name in ("run_03", "run_02", "run_01")
+    )
+    assert _names(tmp_path) == []
+
+
+def test_prune_command_without_retention_is_an_error(tmp_path, capsys):
+    assert main(["prune", "--runs-dir", str(tmp_path), "--json"]) == 3
+    assert json.loads(capsys.readouterr().out)["ok"] is False
