@@ -100,6 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "script": str(bundle.script_path),
             "planned_journeys": manifest.planned_journeys,
             "maximum_journey_requests": manifest.maximum_journey_requests,
+            "maximum_observation_requests": int(manifest.observation is not None),
             "maximum_journey_writes": manifest.maximum_journey_writes,
             "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,

@@ -37,10 +37,10 @@ def load_scenario(path: Path) -> ScenarioBundle:
     if not script_path.is_file():
         raise ScenarioError(f"scenario script does not exist: {script_path}")
 
-    if manifest.maximum_journey_requests > manifest.budgets.max_requests:
+    if manifest.maximum_journey_requests + int(manifest.observation is not None) > manifest.budgets.max_requests:
         raise ScenarioError(
             f"request budget {manifest.budgets.max_requests} is below the "
-            f"journey maximum {manifest.maximum_journey_requests}"
+            f"journey and observation maximum {manifest.maximum_journey_requests + int(manifest.observation is not None)}"
         )
     if manifest.maximum_journey_writes > manifest.budgets.max_write_attempts:
         raise ScenarioError(
@@ -49,4 +49,3 @@ def load_scenario(path: Path) -> ScenarioBundle:
         )
 
     return ScenarioBundle(root, manifest_path, script_path, manifest)
-

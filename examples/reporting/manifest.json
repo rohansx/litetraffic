@@ -38,12 +38,22 @@
     "report_total_matches_fixture",
     "report_row_count_complete",
     "report_region_breakdown_complete",
-    "report_response_valid"
+    "report_response_valid",
+    "ledger_matches_fixture"
   ],
   "observer": "sales-report-endpoint",
+  "observation": {
+    "path": "/reports/ledger",
+    "assertion": "ledger_matches_fixture",
+    "expected": {
+      "/total": 1000,
+      "/row_count": 5,
+      "/regions/west": 100
+    }
+  },
   "budgets": {
     "max_seconds": 15,
-    "max_requests": 6,
+    "max_requests": 7,
     "max_write_attempts": 0,
     "max_in_flight": 6,
     "max_artifact_bytes": 67108864

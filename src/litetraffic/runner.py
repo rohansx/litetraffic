@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from litetraffic.observation import observe
 from litetraffic.report import render_report
 from litetraffic.scenario import load_scenario
 
@@ -232,7 +233,8 @@ def verify(
             start_new_session=os.name == "posix",
         )
         try:
-            stdout, stderr = _communicate(process, timeout=bundle.manifest.budgets.max_seconds)
+            engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0)
+            stdout, stderr = _communicate(process, timeout=engine_seconds)
             lifecycle = "finished" if process.returncode == 0 else "crashed"
         except subprocess.TimeoutExpired:
             lifecycle = "timed_out"
@@ -265,11 +267,33 @@ def verify(
     events_path.write_text("".join(json.dumps(event, sort_keys=True) + "\n" for event in events), encoding="utf-8")
     events_path.chmod(0o600)
 
+    observation = None
+    if bundle.manifest.observation:
+        if lifecycle == "finished":
+            observation = observe(target, bundle.manifest.observation, run_id)
+        else:
+            observation = {
+                "assertion": bundle.manifest.observation.assertion,
+                "status": "unknown",
+                "reason": "engine did not finish",
+            }
+        _write_json(run_dir / "observation.json", observation)
+        metrics["observer_requests"] = int(lifecycle == "finished" and observation.get("reason") != "observer bearer token missing")
+        metrics["total_http_reqs"] = float(metrics.get("http_reqs", 0)) + metrics["observer_requests"]
+
     assertions = []
     missing = []
     partial = []
     definite_failure = False
     for assertion_id in bundle.manifest.assertions:
+        if observation and assertion_id == observation["assertion"]:
+            status = observation["status"]
+            if status == "fail":
+                definite_failure = True
+            elif status == "unknown":
+                missing.append(assertion_id)
+            assertions.append({"id": assertion_id, "status": status, "samples": int(status != "unknown")})
+            continue
         samples = [event["passed"] for event in events if event["assertion"] == assertion_id]
         if not samples:
             status = "unknown"
@@ -293,6 +317,12 @@ def verify(
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:
         limitations.append(f"ignored {malformed_metrics} malformed metric record(s)")
+    observed_requests = metrics.get("total_http_reqs", metrics.get("http_reqs", 0))
+    request_budget_exceeded = observed_requests > bundle.manifest.budgets.max_requests
+    if request_budget_exceeded:
+        limitations.append(
+            f"request budget exceeded: {observed_requests} > {bundle.manifest.budgets.max_requests}"
+        )
     delivered = metrics.get("iterations")
     if delivered != bundle.manifest.planned_journeys:
         limitations.append(
@@ -305,7 +335,9 @@ def verify(
     elif lifecycle == "crashed":
         limitations.append(engine_error or f"k6 exited with status {engine_exit_code}")
     completeness = "complete" if not limitations else "incomplete"
-    if definite_failure:
+    if request_budget_exceeded:
+        verdict = "error"
+    elif definite_failure:
         verdict = "fail"
     elif lifecycle == "crashed":
         verdict = "error"

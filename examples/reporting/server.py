@@ -8,10 +8,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 class ReportingHandler(BaseHTTPRequestHandler):
     wrong_partial = False
+    wrong_ledger = False
     delay_seconds = 0.0
 
     def do_GET(self) -> None:
-        if self.path != "/reports/sales?window=current" or not self.headers.get("X-LiteTraffic-Run"):
+        if not self.headers.get("X-LiteTraffic-Run"):
+            self._send(404, {})
+            return
+        if self.path == "/reports/ledger":
+            self._send(200, {
+                "total": 900 if self.wrong_ledger else 1000,
+                "row_count": 4 if self.wrong_ledger else 5,
+                "regions": {"west": 100},
+            })
+            return
+        if self.path != "/reports/sales?window=current":
             self._send(404, {})
             return
         time.sleep(self.delay_seconds)
@@ -46,11 +57,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8767)
     parser.add_argument("--wrong-partial", action="store_true")
+    parser.add_argument("--wrong-ledger", action="store_true")
     parser.add_argument("--delay-ms", type=float, default=0)
     args = parser.parse_args()
     if args.delay_ms < 0:
         parser.error("--delay-ms must be non-negative")
     ReportingHandler.wrong_partial = args.wrong_partial
+    ReportingHandler.wrong_ledger = args.wrong_ledger
     ReportingHandler.delay_seconds = args.delay_ms / 1000
     ThreadingHTTPServer(("127.0.0.1", args.port), ReportingHandler).serve_forever()
 

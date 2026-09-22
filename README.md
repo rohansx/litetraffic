@@ -56,6 +56,7 @@ litetraffic verify examples/reporting --target http://127.0.0.1:8767 --seed 42 -
 ```
 
 Restart it with `--wrong-partial` to verify that a fast HTTP 200 response still fails when report totals, rows, or regional data are incomplete.
+Restart it with `--wrong-ledger` to verify the final read-only observer catches incorrect persisted totals. A bundle may declare one same-origin `observation` with JSON Pointer expectations and an optional `bearer_token_env`; its extra request and five-second deadline must fit the manifest budgets. The token value stays in the environment and is never written to the manifest or run artifacts.
 
 Use consecutive seeds to expose seed-sensitive or intermittent behavior:
 
@@ -75,7 +76,7 @@ litetraffic diff .litetraffic/runs/<baseline> .litetraffic/runs/<candidate> \
 
 The optional p95 gate requires at least 200 request samples in both runs. Without a gate, LiteTraffic reports latency, HTTP error rate, throughput, and progress without manufacturing a performance verdict. Scenario hash, seed, engine, and resolved schedule must match before performance is graded.
 
-Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, `result.json`, and a self-contained `report.html`.
+Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, `result.json`, and a self-contained `report.html`. Bundles with a final observer also write `observation.json` containing only the declared expected and observed fields. Fixture preparation and cleanup are still supplied by the caller; this slice verifies known fixture values but does not provision them.
 
 Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently from the business verdict. Timeout and Ctrl+C terminate the k6 process group on POSIX systems, preserve available evidence, and can never produce a passing verdict. Ctrl+C returns shell status 130 after finalization.
 

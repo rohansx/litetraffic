@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
@@ -20,6 +21,23 @@ class Actor(StrictModel):
 class Fixtures(StrictModel):
     recipe: str = Field(min_length=1)
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class FinalObservation(StrictModel):
+    path: str = Field(min_length=1)
+    assertion: str = Field(min_length=1)
+    expected: dict[str, JsonValue] = Field(min_length=1)
+    bearer_token_env: str | None = None
+
+    @model_validator(mode="after")
+    def require_safe_read(self) -> "FinalObservation":
+        if not self.path.startswith("/") or self.path.startswith("//") or "#" in self.path:
+            raise ValueError("observation path must be a same-origin relative path")
+        if any(not pointer.startswith("/") for pointer in self.expected):
+            raise ValueError("expected keys must be JSON Pointers")
+        if self.bearer_token_env and not re.fullmatch(r"[A-Z_][A-Z0-9_]*", self.bearer_token_env):
+            raise ValueError("bearer_token_env must name an uppercase environment variable")
+        return self
 
 
 class Journey(StrictModel):
@@ -195,6 +213,7 @@ class ScenarioManifest(StrictModel):
     schedule: Schedule
     assertions: list[str] = Field(min_length=1)
     observer: str = Field(min_length=1)
+    observation: FinalObservation | None = None
     budgets: Budgets
 
     @model_validator(mode="after")
@@ -204,6 +223,10 @@ class ScenarioManifest(StrictModel):
         scheduled_seconds = sum(phase.seconds for phase in self.schedule.resolve(seed=0))
         if scheduled_seconds > self.budgets.max_seconds:
             raise ValueError("scheduled duration exceeds max_seconds budget")
+        if self.observation and scheduled_seconds + 5 > self.budgets.max_seconds:
+            raise ValueError("scheduled duration plus 5-second observation deadline exceeds max_seconds budget")
+        if self.observation and self.observation.assertion not in self.assertions:
+            raise ValueError("observation assertion must be declared in assertions")
         return self
 
     @computed_field

@@ -19,6 +19,8 @@ LiteTraffic ran the checkout, inventory, and reporting scenarios through the off
 | Sustained-burst sales report server | 19 / 19 | 19 | Ramp, plateau, and recovery schedule preserved complete evidence | `pass` |
 | Three-seed reporting series | 18 / 18 total | 18 | Seeds 42–44 produced three consistent complete passes | `pass`, consistent |
 | Controlled latency comparison | 200 / 200 per run | 200 per run | p95 increased 5.675 ms → 20.693 ms; 20% gate detected +264.634% | `fail`, regression |
+| Correct final ledger observation | 6 / 6 | 6 + 1 observer | Journey assertions and final fixture assertion passed | `pass` |
+| Wrong final ledger observation | 6 / 6 | 6 + 1 observer | Journey assertions passed; final fixture assertion detected wrong persisted total | `fail` |
 | Real k6 timeout probe | 1 planned / incomplete | 0 | One pre-timeout event preserved | `inconclusive`, `timed_out` |
 
 The negative targets still returned valid HTTP responses. Their failures came from observed business state rather than an HTTP error shortcut.
@@ -29,6 +31,6 @@ Separate back-to-back `constant-arrival-rate` scenarios produced 14 iterations f
 
 ## Proven boundary
 
-This validates stock-k6 subprocess execution, process-group timeout termination, direct-SIGINT cancellation with shell status 130, partial-evidence finalization, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, seeded spiky and random-burst profiles, ramp/plateau/recovery sustained bursts, repeated-seed summaries, compatible-run checks, latency regression gates, stateful idempotency, finite-resource contention, report completeness, and self-contained HTML reports. Engine-crash behavior is covered by executable tests. It does not yet validate long-duration event loss, memory ceilings, E2B execution, fixture provisioning, or an observer plugin interface.
+This validates stock-k6 subprocess execution, process-group timeout termination, direct-SIGINT cancellation with shell status 130, partial-evidence finalization, structured console framing, JSONL metrics, complete assertion capture, schedule reconciliation, seeded spiky and random-burst profiles, ramp/plateau/recovery sustained bursts, repeated-seed summaries, compatible-run checks, latency regression gates, stateful idempotency, finite-resource contention, report completeness, read-only final observation, and self-contained HTML reports. Engine-crash behavior is covered by executable tests. It does not yet validate long-duration event loss, memory ceilings, E2B execution, fixture provisioning or cleanup, or an observer plugin interface.
 
 The release archive came from the official [grafana/k6 v2.2.0 release](https://github.com/grafana/k6/releases/tag/v2.2.0). The binary remains an external prerequisite and is not redistributed by LiteTraffic.

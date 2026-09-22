@@ -93,6 +93,52 @@ def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
     assert result["assertions"] == [{"id": "accepted_orders_persist", "status": "fail", "samples": 1}]
 
 
+def test_verify_fails_when_final_observation_disagrees_with_fixture(tmp_path, monkeypatch):
+    data = manifest(
+        assertions=["accepted_orders_persist", "ledger_total"],
+        observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setattr(
+        "litetraffic.runner.observe",
+        lambda *args: {"assertion": "ledger_total", "status": "fail", "expected": {"/total": 1000}, "actual": {"/total": 900}},
+    )
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert result["verdict"] == "fail"
+    assert {row["id"]: row["status"] for row in result["assertions"]} == {
+        "accepted_orders_persist": "pass",
+        "ledger_total": "fail",
+    }
+    assert result["metrics"]["observer_requests"] == 1
+    assert result["metrics"]["total_http_reqs"] == 3
+    assert json.loads((tmp_path / "runs" / result["run_id"] / "observation.json").read_text())["actual"] == {"/total": 900}
+
+
+def test_verify_is_inconclusive_when_final_observation_is_unavailable(tmp_path, monkeypatch):
+    data = manifest(
+        assertions=["accepted_orders_persist", "ledger_total"],
+        observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setattr(
+        "litetraffic.runner.observe",
+        lambda *args: {"assertion": "ledger_total", "status": "unknown", "reason": "observer HTTP 503"},
+    )
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert result["verdict"] == "inconclusive"
+    assert result["assertions"][-1] == {"id": "ledger_total", "status": "unknown", "samples": 0}
+
+
 def test_verify_escapes_scenario_names_in_the_html_report(tmp_path, monkeypatch):
     scenario = write_bundle(tmp_path / "scenario", manifest(name="<script>alert(1)</script>"))
     events = [assertion("accepted_orders_persist") for _ in range(20)]
@@ -117,6 +163,22 @@ def test_verify_counts_the_html_report_toward_the_artifact_budget(tmp_path, monk
     assert result["verdict"] == "error"
     assert "artifact budget exceeded" in result["limitations"][0]
     assert "ERROR" in report
+
+
+def test_verify_enforces_the_observed_request_budget(tmp_path, monkeypatch):
+    data = manifest(
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        journeys=[{"name": "purchase", "max_requests": 1, "max_writes": 1}],
+        budgets=manifest()["budgets"] | {"max_requests": 1, "max_write_attempts": 1},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=1)))
+
+    assert result["verdict"] == "error"
+    assert any("request budget exceeded" in item for item in result["limitations"])
 
 
 def test_verify_is_inconclusive_when_required_evidence_is_missing(tmp_path, monkeypatch):

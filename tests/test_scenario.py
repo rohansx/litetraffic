@@ -47,6 +47,35 @@ def test_fixture_parameters_are_explicitly_supported(tmp_path):
     assert bundle.manifest.fixtures.parameters["large_carts"] == 20
 
 
+def test_final_observation_consumes_its_own_request_budget(tmp_path):
+    data = manifest(
+        observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
+        assertions=["accepted_orders_persist", "ledger_total"],
+    )
+    with pytest.raises(ScenarioError, match="request budget"):
+        load_scenario(write_bundle(tmp_path, data))
+
+
+def test_final_observation_requires_a_relative_path(tmp_path):
+    data = manifest(
+        observation={"path": "https://elsewhere.test/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
+        assertions=["accepted_orders_persist", "ledger_total"],
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    with pytest.raises(ValidationError, match="relative path"):
+        load_scenario(write_bundle(tmp_path, data))
+
+
+def test_final_observation_reserves_time_for_its_deadline(tmp_path):
+    data = manifest(
+        observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
+        assertions=["accepted_orders_persist", "ledger_total"],
+        budgets=manifest()["budgets"] | {"max_seconds": 12, "max_requests": 61},
+    )
+    with pytest.raises(ValidationError, match="observation deadline"):
+        load_scenario(write_bundle(tmp_path, data))
+
+
 def test_rejects_unknown_manifest_fields(tmp_path):
     with pytest.raises(ValidationError, match="unexpected"):
         load_scenario(write_bundle(tmp_path, manifest(unexpected=True)))
