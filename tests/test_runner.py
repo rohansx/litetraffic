@@ -165,6 +165,63 @@ def test_verify_leaves_every_run_file_owner_only(tmp_path, monkeypatch):
         assert stat.S_IMODE(path.stat().st_mode) == (0o700 if path.is_dir() else 0o600), path
 
 
+def test_write_bytes_keeps_the_old_file_when_replace_fails(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    target = tmp_path / "result.json"
+    target.write_text('{"verdict": "pass"}\n')
+    seen = {}
+
+    def failing_replace(src, dst):
+        seen["mode"] = stat.S_IMODE(Path(src).stat().st_mode)
+        seen["content"] = Path(src).read_bytes()
+        raise OSError("disk full")
+
+    monkeypatch.setattr(runner.os, "replace", failing_replace)
+    with pytest.raises(OSError, match="disk full"):
+        runner._write_bytes(target, b'{"verdict": "error"}\n')
+
+    assert target.read_text() == '{"verdict": "pass"}\n'
+    assert seen == {"mode": 0o600, "content": b'{"verdict": "error"}\n'}
+    assert [path.name for path in tmp_path.iterdir()] == ["result.json"]
+
+
+def test_write_bytes_replaces_a_permissive_file_with_an_owner_only_one(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    target = tmp_path / "report.html"
+    target.write_text("old")
+    target.chmod(0o644)
+    runner._write_bytes(target, b"new")
+
+    assert target.read_bytes() == b"new"
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_verify_writes_every_controller_artifact_atomically(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    written = set()
+    original = runner._write_bytes
+
+    def recording(path, data):
+        written.add(path)
+        original(path, data)
+
+    monkeypatch.setattr(runner, "_write_bytes", recording)
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    controller_files = {path for path in run_dir.rglob("*") if path.is_file()} - {
+        run_dir / "console.log",
+        run_dir / "metrics.jsonl",
+    }
+    assert controller_files == written
+
+
 def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
     data = manifest(assertions=["accepted_orders_persist"])
     scenario = write_bundle(tmp_path / "scenario", data)

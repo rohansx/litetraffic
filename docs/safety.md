@@ -29,7 +29,7 @@ Only `owned_http` fixtures are cleaned up by the controller, and a failed cleanu
 
 ## Artifacts
 
-When a run finishes, every directory in the run directory is set to `0700` and every file to `0600`, including the `console.log` and `metrics.jsonl` that k6 creates. While k6 is still running, those two files keep the mode k6 gave them. `verify --repeat` also sets the output directory that holds the series summary to `0700`. They contain raw k6 output and whatever the script logs, so review them before sharing.
+Files LiteTraffic writes itself (`run.json`, `result.json`, reports, logs, events, the series summary) are written to a `0600` temporary file in the same directory and then renamed over the target, so they are never readable by others and a crash leaves either the previous file or the new one, never a truncated one. When a run finishes, every directory in the run directory is set to `0700` and every file to `0600`, including the `console.log` and `metrics.jsonl` that k6 creates. While k6 is still running, those two files keep the mode k6 gave them. `verify --repeat` also sets the output directory that holds the series summary to `0700`. They contain raw k6 output and whatever the script logs, so review them before sharing.
 
 ## Known limitations of this preview
 

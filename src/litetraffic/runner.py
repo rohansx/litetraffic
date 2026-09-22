@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,9 +29,24 @@ class RunnerError(ValueError):
     """The experiment could not be started safely."""
 
 
+def _write_bytes(path: Path, data: bytes) -> None:
+    # mkstemp creates the file 0600 before any content lands; os.replace swaps it in whole or not at all.
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        os.unlink(tmp)
+        raise
+
+
+def _write_text(path: Path, text: str) -> None:
+    _write_bytes(path, text.encode("utf-8"))
+
+
 def _write_json(path: Path, value: object) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    path.chmod(0o600)
+    _write_text(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
 def _record_stage(run_dir: Path, run: dict, stage: str) -> None:
@@ -180,16 +196,13 @@ def verify(
         engine_finished = _now()
 
     engine_exit_code = process.returncode if process is not None else None
-    (run_dir / "engine.stdout.log").write_text(stdout, encoding="utf-8")
-    (run_dir / "engine.stderr.log").write_text(stderr, encoding="utf-8")
-    (run_dir / "engine.stdout.log").chmod(0o600)
-    (run_dir / "engine.stderr.log").chmod(0o600)
+    _write_text(run_dir / "engine.stdout.log", stdout)
+    _write_text(run_dir / "engine.stderr.log", stderr)
 
     events, malformed_events = _read_events(console_path, run_id)
     metrics, malformed_metrics = _read_metrics(metrics_path)
     events_path = events_dir / "000001.jsonl"
-    events_path.write_text("".join(json.dumps(event, sort_keys=True) + "\n" for event in events), encoding="utf-8")
-    events_path.chmod(0o600)
+    _write_text(events_path, "".join(json.dumps(event, sort_keys=True) + "\n" for event in events))
 
     _record_stage(run_dir, run, "observing")
     observation = None
@@ -321,8 +334,7 @@ def verify(
     _write_json(run_dir / "result.json", result)
     _record_stage(run_dir, run, lifecycle)
     report_path = run_dir / result["report"]
-    report_path.write_text(render_report(result, run), encoding="utf-8")
-    report_path.chmod(0o600)
+    _write_text(report_path, render_report(result, run))
     artifact_bytes = sum(path.stat().st_size for path in run_dir.rglob("*") if path.is_file())
     if artifact_bytes > bundle.manifest.budgets.max_artifact_bytes:
         result["verdict"] = "error"
@@ -331,7 +343,7 @@ def verify(
             f"artifact budget exceeded: {artifact_bytes} > {bundle.manifest.budgets.max_artifact_bytes} bytes"
         )
         _write_json(run_dir / "result.json", result)
-        report_path.write_text(render_report(result, run), encoding="utf-8")
+        _write_text(report_path, render_report(result, run))
     _restrict(run_dir)
     return result
 
