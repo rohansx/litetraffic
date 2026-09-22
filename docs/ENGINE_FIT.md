@@ -24,6 +24,8 @@ LiteTraffic ran the checkout, inventory, and reporting scenarios through the off
 | Run-owned reporting fixture | 6 / 6 | 6 + 1 observer + 2 lifecycle | Fixture created, scoped through journey/observer, then deleted | `pass` |
 | Run-owned fixture with wrong ledger | 6 / 6 | 6 + 1 observer + 2 lifecycle | Final assertion failed; fixture still deleted | `fail` |
 | E2B external target | 4 / 4 | 4 | Seeded spiky profile reached a short-lived sandbox through its exposed HTTPS port | `pass` |
+| Correct cached search | 12 / 12 | 84 + 1 observer + 2 lifecycle | Hot/cold reads and all post-update reads passed | `pass` |
+| Permanently stale cache | 12 / 12 | 84 + 1 observer + 2 lifecycle | Journey and final observer detected the stale hot key | `fail` |
 | Real k6 timeout probe | 1 planned / incomplete | 0 | One pre-timeout event preserved | `inconclusive`, `timed_out` |
 
 The negative targets still returned valid HTTP responses. Their failures came from observed business state rather than an HTTP error shortcut.

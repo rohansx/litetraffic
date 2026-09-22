@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "cached-search-invalidation",
+  "script": "journeys.js",
+  "actors": [{"class": "searcher", "count": 4, "auth_recipe": "run-scoped-header"}],
+  "fixtures": {
+    "recipe": "owned-product-catalog",
+    "owned_http": {
+      "create_path": "/fixtures",
+      "delete_path": "/fixtures/{fixture_id}",
+      "id_pointer": "/id",
+      "create_body": {"hot_price": 100, "cold_price": 10}
+    }
+  },
+  "journeys": [{"name": "search-update-search", "max_requests": 7, "max_writes": 1}],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "profile": {
+      "kind": "sustained_burst",
+      "baseline_rate": 1,
+      "plateau_rate": 3,
+      "ramp_seconds": 2,
+      "plateau_seconds": 2,
+      "recovery_seconds": 1
+    }
+  },
+  "assertions": ["search_reads_valid", "cache_update_visible", "cache_state_current"],
+  "observer": "owned-cache-state",
+  "observation": {
+    "path": "/cache/state",
+    "assertion": "cache_state_current",
+    "expected": {"/source_price": 120, "/cache_price": 120}
+  },
+  "budgets": {
+    "max_seconds": 22,
+    "max_requests": 87,
+    "max_write_attempts": 14,
+    "max_in_flight": 4,
+    "max_artifact_bytes": 67108864
+  }
+}

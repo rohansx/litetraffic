@@ -67,6 +67,15 @@ LiteTraffic resolves this to E2B's external HTTPS host and leaves sandbox creati
 Restart it with `--wrong-partial` to verify that a fast HTTP 200 response still fails when report totals, rows, or regional data are incomplete.
 Restart it with `--wrong-ledger` to verify the final read-only observer catches incorrect persisted totals. A bundle may declare one same-origin `observation` with JSON Pointer expectations and an optional `bearer_token_env`; its extra request and five-second deadline must fit the manifest budgets. The token value stays in the environment and is never written to the manifest or run artifacts.
 
+Run the cached-search sequence with an 83/17 hot/cold read split, an update, and a post-update read under a sustained burst:
+
+```bash
+python examples/cached_search/server.py --port 8768
+litetraffic verify examples/cached_search --target http://127.0.0.1:8768 --seed 42 --json
+```
+
+Restart it with `--wrong-stale` to keep the warmed hot-key cache permanently stale. The journey assertions and final cache-state observer both detect the defect.
+
 Use consecutive seeds to expose seed-sensitive or intermittent behavior:
 
 ```bash

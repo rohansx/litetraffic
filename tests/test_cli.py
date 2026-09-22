@@ -110,6 +110,18 @@ def test_repository_reporting_example_is_valid(capsys):
     assert output["planned_journeys"] == 6
 
 
+def test_repository_cached_search_example_is_valid(capsys):
+    scenario = Path(__file__).parents[1] / "examples" / "cached_search"
+
+    status = main(["inspect", str(scenario), "--seed", "42", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["name"] == "cached-search-invalidation"
+    assert output["planned_journeys"] == 12
+    assert output["maximum_journey_requests"] == 84
+
+
 def test_cancelled_verify_returns_shell_interrupt_status(monkeypatch, capsys):
     monkeypatch.setattr(
         "litetraffic.cli.verify",
