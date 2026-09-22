@@ -239,3 +239,20 @@ def test_out_of_range_port_is_a_usage_error(tmp_path, port, capsys):
 
     assert exc.value.code == 2
     assert "--port" in capsys.readouterr().err
+
+
+def test_default_port_does_not_collide_with_example_servers():
+    # Following the quickstart leaves a demo server on its port; the dashboard must still start.
+    import re
+    from pathlib import Path
+
+    from litetraffic.cli import _parser
+
+    examples = Path(__file__).resolve().parents[1] / "examples"
+    example_ports = {
+        int(port)
+        for server in examples.glob("*/server.py")
+        for port in re.findall(r'"--port", type=int, default=(\d+)', server.read_text())
+    }
+    assert example_ports
+    assert _parser().parse_args(["dashboard"]).port not in example_ports

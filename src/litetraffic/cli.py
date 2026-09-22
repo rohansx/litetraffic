@@ -91,7 +91,7 @@ def _parser() -> argparse.ArgumentParser:
 
     dashboard = commands.add_parser("dashboard", help="browse run artifacts on a local web page")
     dashboard.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
-    dashboard.add_argument("--port", type=_port, default=8765)
+    dashboard.add_argument("--port", type=_port, default=8780)
 
     prune_command = commands.add_parser("prune", help="delete old run directories")
     prune_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
