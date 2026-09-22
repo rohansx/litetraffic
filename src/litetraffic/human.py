@@ -63,4 +63,8 @@ def format_inspect(result: dict) -> list[str]:
     ]
     lines += [f"phase: {phase['name']}  {phase['seconds']}s at {phase['rate']}/s" for phase in result["resolved_schedule"]]
     lines += [f"assertion: {assertion}" for assertion in result["assertions"]]
+    command = result.get("fixture", {}).get("command")
+    if command:
+        # ponytail: space-joined for reading, not shell-quoted; --json has the exact argv.
+        lines += [f"fixture {stage}: {' '.join(command[stage])}" for stage in ("setup", "teardown")]
     return lines

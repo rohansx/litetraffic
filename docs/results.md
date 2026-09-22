@@ -17,7 +17,7 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 | `console.log` | Raw k6 console output, if emitted |
 | `engine.stdout.log`, `engine.stderr.log` | Captured engine diagnostics |
 | `observation.json` | Optional final observer expectations and selected actual fields |
-| `fixture.json` | Optional fixture create/cleanup outcomes |
+| `fixture.json` | Optional fixture outcomes: `owned_http` create/cleanup, or `command` setup/teardown argv, exit code, duration and stderr tail |
 | `artifacts.json` | Finalization manifest, written last: `{"schema_version", "run_id", "files", "total_bytes"}`, where `files` lists every other run file as `{path, bytes, sha256}` sorted by path and `total_bytes` is their sum. It excludes itself; the `max_artifact_bytes` budget is summed over the same file set |
 
 The controller restricts permissions on directories and files it creates. Raw engine output may still contain anything the script logs. Treat the entire run directory as potentially sensitive and review it before sharing. Scripts and imported files are recorded by hash in `scenario.lock.json` but **not** copied into the run directory.

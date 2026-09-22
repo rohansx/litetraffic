@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 import uuid
@@ -10,25 +9,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from litetraffic.artifacts import MANIFEST, artifact_files
+from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, target_unreachable
-from litetraffic.fixture import cleanup_fixture, create_fixture
+from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, run_fixture_command
 from litetraffic.observation import observe
 from litetraffic.process import _communicate, _stop_process
 from litetraffic.report import render_report
 from litetraffic.scenario import load_scenario, staged
 from litetraffic.series import aggregate_verdict, dispersion
-from litetraffic.target import validate_target
 
-SUPPORTED_K6_VERSION = "v2.2.0"
 K6_THRESHOLDS_FAILED = 99  # k6 exit code: the run completed but a threshold was crossed
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
-
-
-class RunnerError(ValueError):
-    """The experiment could not be started safely."""
 
 
 def _write_bytes(path: Path, data: bytes) -> None:
@@ -61,29 +55,6 @@ def _restrict(run_dir: Path) -> None:
     # k6 creates console.log and metrics.jsonl with its own (umask) mode.
     for path in [run_dir, *run_dir.rglob("*")]:
         path.chmod(0o700 if path.is_dir() else 0o600)
-
-
-def _engine(k6_path: str | None) -> tuple[str, str]:
-    executable = k6_path or shutil.which("k6")
-    if not executable:
-        raise RunnerError("k6 executable not found")
-    try:
-        result = subprocess.run([executable, "version"], capture_output=True, text=True, timeout=5, check=False)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RunnerError(f"cannot execute k6: {exc}") from exc
-    if result.returncode:
-        raise RunnerError((result.stderr or result.stdout).strip() or "k6 version failed")
-    version = (result.stdout or result.stderr).strip()
-    if len(version.split()) < 2 or version.split()[1] != SUPPORTED_K6_VERSION:
-        raise RunnerError(f"unsupported k6 version; expected {SUPPORTED_K6_VERSION}, got {version or 'no version'}")
-    return executable, version
-
-
-def _target(value: str) -> str:
-    try:
-        return validate_target(value)
-    except ValueError as exc:
-        raise RunnerError(str(exc)) from exc
 
 
 def verify(
@@ -136,12 +107,12 @@ def verify(
         f"json={metrics_path}",
     ]
     environment = os.environ.copy()
-    environment.pop("LT_FIXTURE_ID", None)
+    for name in ("LT_FIXTURE_ID", "LT_FIXTURE_JSON"):
+        environment.pop(name, None)
+    environment.update({"LT_RUN_ID": run_id, "LT_TARGET": target, "LT_SEED": str(seed)})
+    hook_environment = dict(environment)  # command fixtures see only the run identity, not the schedule
     environment.update(
         {
-            "LT_RUN_ID": run_id,
-            "LT_TARGET": target,
-            "LT_SEED": str(seed),
             "LT_MAX_IN_FLIGHT": str(bundle.manifest.budgets.max_in_flight),
             "LT_SCHEDULE_JSON": json.dumps(
                 [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule]
@@ -152,7 +123,15 @@ def verify(
     engine_error = ""
     process: subprocess.Popen[str] | None = None
     engine_started = engine_finished = None
-    fixture = None
+    fixture = hooks = None
+    commands = bundle.manifest.fixtures.command
+    if commands:
+        setup, setup_stdout = run_fixture_command("setup", commands.setup, bundle.root, hook_environment, commands.timeout_seconds)
+        hooks = {"setup": setup}
+        if fixture_json(setup_stdout):
+            environment["LT_FIXTURE_JSON"] = hook_environment["LT_FIXTURE_JSON"] = fixture_json(setup_stdout)
+        lifecycle = {"ok": "running", "cancelled": "cancelled"}.get(setup["status"], "crashed")
+        engine_error = setup.get("reason", "")
     if bundle.manifest.fixtures.owned_http:
         try:
             fixture = {"create": create_fixture(target, bundle.manifest.fixtures.owned_http, run_id)}
@@ -170,7 +149,7 @@ def verify(
     else:
         _record_stage(run_dir, run, "running")
         try:
-            engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - (10 if fixture else 0)
+            engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - bundle.manifest.fixtures.reserved_seconds
             engine_started = _now()
             # k6 runs a staged copy so the bundled runtime helper sits next to the script.
             with staged(bundle) as root:
@@ -230,6 +209,13 @@ def verify(
                 fixture["cleanup"] = {"status": "error", "reason": f"fixture cleanup cancelled; fixture {fixture_id} may remain", "requests": 1}
         _write_json(run_dir / "fixture.json", fixture)
         metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
+    if hooks:
+        # Teardown runs whatever happened before it, including a failed or cancelled setup.
+        hooks["teardown"], _ = run_fixture_command("teardown", commands.teardown, bundle.root, hook_environment, commands.timeout_seconds)
+        if hooks["teardown"]["status"] == "cancelled":
+            lifecycle = "cancelled"
+            hooks["teardown"].update(status="error", reason="fixture teardown cancelled; fixture state may remain")
+        _write_json(run_dir / "fixture.json", hooks)
     # Fixture create (POST) and cleanup (DELETE) are writes; the observer only reads.
     metrics["write_attempts"] = metrics.get("write_attempts", 0) + metrics.get("fixture_requests", 0)
     if fixture or observation:
@@ -282,6 +268,8 @@ def verify(
     )
     if fixture_error:
         limitations.append(fixture.get("cleanup", fixture["create"])["reason"])
+    hook_errors = [record["reason"] for record in (hooks or {}).values() if record["status"] == "error"]
+    limitations.extend(hook_errors)
     overruns = budget_overruns(metrics, bundle.manifest.budgets)
     limitations.extend(overruns)
     delivered = metrics.get("iterations")
@@ -297,8 +285,9 @@ def verify(
         limitations.append("run cancelled by user")
     elif lifecycle == "crashed":
         limitations.append(engine_error or f"k6 exited with status {engine_exit_code}")
+    limitations = list(dict.fromkeys(limitations))  # a fixture failure can also be the crash reason
     completeness = "complete" if not limitations else "incomplete"
-    if overruns or fixture_error or unreachable:
+    if overruns or fixture_error or hook_errors or unreachable:
         verdict = "error"
     elif definite_failure or thresholds_breached:
         verdict = "fail"

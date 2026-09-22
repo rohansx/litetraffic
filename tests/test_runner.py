@@ -28,6 +28,8 @@ def fake_k6(
         "    raise SystemExit(0)\n"
         "if os.environ.get('FAKE_K6_ARGV'):\n"
         "    pathlib.Path(os.environ['FAKE_K6_ARGV']).write_text(json.dumps(sys.argv))\n"
+        "if os.environ.get('FAKE_K6_ENV'):\n"
+        "    pathlib.Path(os.environ['FAKE_K6_ENV']).write_text(json.dumps({k: v for k, v in os.environ.items() if k.startswith('LT_')}))\n"
         "if os.environ.get('FAKE_K6_CWD'):\n"
         "    helper = pathlib.Path('litetraffic/runtime.js')\n"
         "    pathlib.Path(os.environ['FAKE_K6_CWD']).write_text(json.dumps({'cwd': os.getcwd(), 'script': sys.argv[-1], "

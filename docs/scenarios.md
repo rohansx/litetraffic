@@ -23,6 +23,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `actors` | yes | `[{"class", "count", "auth_recipe"}]` — descriptive labels for reviewers; the controller does not execute them |
 | `fixtures.recipe`, `fixtures.parameters` | yes / no | Descriptive fixture label and parameters |
 | `fixtures.owned_http` | no | Run-owned HTTP fixture the controller creates and deletes ([below](#run-owned-fixtures)) |
+| `fixtures.command` | no | Setup and teardown commands run on the controller host ([below](#command-fixtures)); cannot be combined with `owned_http` |
 | `journeys` | yes | `[{"name", "max_requests", "max_writes"}]` per-journey maxima used for budget checks |
 | `schedule` | yes | `unit: "journeys_per_second"` plus exactly one of `phases` or `profile` |
 | `assertions` | yes | Assertion IDs that must receive evidence for a pass |
@@ -30,7 +31,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `observation` | no | Final read-only HTTP check ([below](#final-observation)) |
 | `budgets` | yes | `max_seconds`, `max_requests`, `max_write_attempts`, `max_in_flight`, `max_artifact_bytes` |
 
-`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s) and observation (5 s) deadlines must fit `max_seconds`.
+`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s for `owned_http`, 2 × `timeout_seconds` for `command`) and observation (5 s) deadlines must fit `max_seconds`.
 
 ## Schedules
 
@@ -68,6 +69,7 @@ The script is ordinary k6 JavaScript. The controller passes these environment va
 | `LT_MAX_IN_FLIGHT` | Use as `preAllocatedVUs`/`maxVUs` |
 | `LT_SEED` | Seed, if the script needs deterministic choices |
 | `LT_FIXTURE_ID` | Present only when an `owned_http` fixture was created |
+| `LT_FIXTURE_JSON` | Present only when a `command` fixture's setup printed a JSON object as its last stdout line |
 
 ### Bundled runtime helper
 
@@ -133,6 +135,32 @@ Give the run its own starting state and remove it afterwards:
 ```
 
 Before k6 starts, the controller sends `POST create_path` with `create_body` and an `X-LiteTraffic-Run` header. It expects HTTP 200/201 and reads the ID at the JSON Pointer `id_pointer`. The ID must match `[A-Za-z0-9_-]{1,128}`. After the run, it sends `DELETE delete_path` and expects 200/204. Paths must be same-origin; `delete_path` must end in `/{fixture_id}`. `bearer_token_env` is optional and names an environment variable, never a literal token. A failed create or cleanup makes the verdict `error`.
+
+## Command fixtures
+
+When the app has no create/delete endpoints, seed and reset state with commands instead:
+
+```json
+"fixtures": {
+  "recipe": "seeded-orders",
+  "command": {
+    "setup": ["psql", "--no-psqlrc", "-v", "ON_ERROR_STOP=1", "-f", "seed.sql"],
+    "teardown": ["psql", "--no-psqlrc", "-v", "ON_ERROR_STOP=1", "-f", "reset.sql"],
+    "timeout_seconds": 20,
+    "cwd": "bundle"
+  }
+}
+```
+
+`setup` and `teardown` are argv lists, run directly without a shell, so write `["sh", "-c", "..."]` yourself if you need one. Both run in the scenario directory (`cwd` accepts only `"bundle"`), with the caller's environment plus `LT_RUN_ID`, `LT_TARGET` and `LT_SEED`; put connection settings such as `PGHOST` or `DATABASE_URL` in the environment, not in the manifest. `timeout_seconds` (1–60) applies to each command, and both timeouts are reserved from `max_seconds` before k6 gets its share.
+
+- `setup` runs before k6. A non-zero exit, a timeout or a missing executable makes the verdict `error` (`fixture setup failed: exit N`, `fixture setup failed: timed out after Ns`), and k6 is not started.
+- If the last line `setup` prints to stdout is a JSON object, it is passed to k6 (and to `teardown`) as `LT_FIXTURE_JSON` — for example `psql -At -c "select json_build_object('tenant_id', id) from ..."`.
+- `teardown` always runs once setup has been attempted: after a pass, a failed setup, a k6 crash or timeout, or a cancel. A non-zero exit, timeout or cancel makes the verdict `error` (`fixture teardown failed: exit N`).
+- On timeout or cancel, the command's process group gets SIGTERM, then SIGKILL.
+- `fixture.json` records each command's `argv`, `exit_code`, `duration_seconds`, `status` and the last 4 KB of its stderr. Stdout is not stored.
+
+`inspect` prints both argv lists and the `scenario_sha256` digest, which covers the whole manifest, so a changed command is visible in the digest and in `scenario.lock.json`.
 
 ## Final observation
 

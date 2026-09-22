@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import random
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
 
@@ -45,10 +45,34 @@ class OwnedHttpFixture(StrictModel):
         return self
 
 
+Argv = list[Annotated[str, Field(min_length=1)]]
+
+
+class CommandFixture(StrictModel):
+    setup: Argv = Field(min_length=1)
+    teardown: Argv = Field(min_length=1)
+    timeout_seconds: int = Field(gt=0, le=60)
+    cwd: Literal["bundle"] = "bundle"
+
+
 class Fixtures(StrictModel):
     recipe: str = Field(min_length=1)
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     owned_http: OwnedHttpFixture | None = None
+    command: CommandFixture | None = None
+
+    @model_validator(mode="after")
+    def require_one_lifecycle(self) -> "Fixtures":
+        if self.owned_http and self.command:
+            raise ValueError("fixtures.owned_http and fixtures.command are mutually exclusive")
+        return self
+
+    @property
+    def reserved_seconds(self) -> int:
+        """Seconds of max_seconds held back from k6 for fixture setup and cleanup."""
+        if self.command:
+            return 2 * self.command.timeout_seconds
+        return 10 if self.owned_http else 0
 
 
 class FinalObservation(StrictModel):
@@ -251,9 +275,9 @@ class ScenarioManifest(StrictModel):
         scheduled_seconds = sum(phase.seconds for phase in self.schedule.resolve(seed=0))
         if scheduled_seconds > self.budgets.max_seconds:
             raise ValueError("scheduled duration exceeds max_seconds budget")
-        fixture_seconds = 10 if self.fixtures.owned_http else 0
-        if self.fixtures.owned_http and scheduled_seconds + fixture_seconds > self.budgets.max_seconds:
-            raise ValueError("scheduled duration plus 10-second fixture deadline exceeds max_seconds budget")
+        fixture_seconds = self.fixtures.reserved_seconds
+        if fixture_seconds and scheduled_seconds + fixture_seconds > self.budgets.max_seconds:
+            raise ValueError(f"scheduled duration plus {fixture_seconds}-second fixture deadline exceeds max_seconds budget")
         if self.observation and scheduled_seconds + fixture_seconds + 5 > self.budgets.max_seconds:
             raise ValueError("scheduled duration plus fixture and 5-second observation deadline exceeds max_seconds budget")
         if self.observation and self.observation.assertion not in self.assertions:

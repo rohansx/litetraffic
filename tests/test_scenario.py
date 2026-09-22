@@ -62,7 +62,38 @@ def test_owned_fixture_reserves_setup_cleanup_requests_writes_and_time(tmp_path)
     assert load_scenario(write_bundle(tmp_path, data)).manifest.fixtures.owned_http.id_pointer == "/id"
 
 
-@pytest.mark.parametrize("delete_path", ["https://other.test/{fixture_id}", "/fixtures/all", "//other.test/{fixture_id}", "/fixtures/{fixture_id}/../all", "/fixtures/%2e%2e/{fixture_id}"])
+COMMAND = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 5}
+
+
+def test_command_fixture_reserves_setup_and_teardown_timeouts(tmp_path):
+    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND}, budgets=manifest()["budgets"] | {"max_seconds": 19})
+    with pytest.raises(ValidationError, match="10-second fixture deadline"):
+        load_scenario(write_bundle(tmp_path, data))
+    data["budgets"]["max_seconds"] = 20
+    command = load_scenario(write_bundle(tmp_path, data)).manifest.fixtures.command
+    assert command.setup == ["psql", "-f", "seed.sql"]
+    assert command.cwd == "bundle"
+
+
+@pytest.mark.parametrize(
+    "fixtures",
+    [
+        {"recipe": "seeded", "command": COMMAND | {"setup": "psql -f seed.sql"}},
+        {"recipe": "seeded", "command": COMMAND | {"setup": []}},
+        {"recipe": "seeded", "command": COMMAND | {"setup": [""]}},
+        {"recipe": "seeded", "command": COMMAND | {"timeout_seconds": 61}},
+        {"recipe": "seeded", "command": COMMAND | {"timeout_seconds": 0}},
+        {"recipe": "seeded", "command": COMMAND | {"cwd": "/tmp"}},
+        {"recipe": "seeded", "command": COMMAND, "owned_http": {"create_path": "/f", "delete_path": "/f/{fixture_id}", "id_pointer": "/id"}},
+    ],
+)
+def test_command_fixture_rejects_unsafe_shapes(tmp_path, fixtures):
+    data = manifest(fixtures=fixtures, budgets=manifest()["budgets"] | {"max_seconds": 200, "max_requests": 62, "max_write_attempts": 22})
+    with pytest.raises(ValidationError):
+        load_scenario(write_bundle(tmp_path, data))
+
+
+@pytest.mark.parametrize("delete_path",["https://other.test/{fixture_id}", "/fixtures/all", "//other.test/{fixture_id}", "/fixtures/{fixture_id}/../all", "/fixtures/%2e%2e/{fixture_id}"])
 def test_owned_fixture_requires_same_origin_scoped_cleanup(tmp_path, delete_path):
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": delete_path, "id_pointer": "/id"}},

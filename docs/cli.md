@@ -28,7 +28,7 @@ With a target, it first applies the same URL checks as `verify` (link-local and 
 litetraffic inspect (SCENARIO | --scenario SCENARIO) [--seed INTEGER] [--json]
 ```
 
-Validates the manifest and script path and resolves the schedule. `--seed` defaults to `0`. Returns scenario name, schema version, script path, planned journeys, request/write maxima, resolved phases, and assertion IDs. The JSON form also includes `actors` (class, count, auth recipe), all five `budgets`, `fixture` (`recipe`, and `owned_http` holding `create_path`/`delete_path` for an owned HTTP fixture, otherwise `null`), `secret_env` (the sorted `bearer_token_env` names referenced by the fixture and observation; values are never read or printed), `observer`, and `observation_path` (`null` without an observation). Does not execute the scenario or infer routes.
+Validates the manifest and script path and resolves the schedule. `--seed` defaults to `0`. Returns scenario name, schema version, script path, planned journeys, request/write maxima, resolved phases, and assertion IDs. The JSON form also includes `scenario_sha256` (the bundle digest), `actors` (class, count, auth recipe), all five `budgets`, `fixture` (`recipe`, and `owned_http` holding `create_path`/`delete_path` for an owned HTTP fixture, otherwise `null`, and `command` holding `setup`, `teardown`, `timeout_seconds` and `cwd` for a command fixture, otherwise `null`), `secret_env` (the sorted `bearer_token_env` names referenced by the fixture and observation; values are never read or printed), `observer`, and `observation_path` (`null` without an observation). Does not execute the scenario or infer routes.
 
 ## `verify`
 
@@ -149,7 +149,7 @@ Without `--json`, `verify`, `diff`, and `inspect` print a short text summary mea
 
 - `verify`: `verdict: PASS  lifecycle: finished  journeys: 20/20`, then one `ID  STATUS  SAMPLES` line per assertion, each limitation as a `- ...` line, and `report: PATH` to the run's `report.html`. With `--repeat`, a series line (`verdict: VERDICT  lifecycle: LIFECYCLE  runs: COMPLETED/REQUESTED  consistent: yes|no`), one `seed N  VERDICT  LIFECYCLE  journeys: D/P` line per run, and `summary: PATH` to the series JSON.
 - `diff`: `verdict: ...`, each reason as `- ...`, `compatibility: comparable` or `compatibility: incompatible (FIELDS)`, one `regression: ID` line per assertion that passed in the baseline but not the candidate, and `p95: BASELINEms -> CANDIDATEms (+X%)  status: STATUS` (`n/a` when a value is missing), then one `p95 OPERATION: BASELINEms -> CANDIDATEms (+X%)` line per operation present in both runs.
-- `inspect`: name, script, planned journeys, request/write maxima, one `phase:` line per resolved phase, and one `assertion:` line per assertion ID.
+- `inspect`: name, script, planned journeys, request/write maxima, one `phase:` line per resolved phase, one `assertion:` line per assertion ID, and `fixture setup:`/`fixture teardown:` lines with the space-joined argv of a command fixture.
 
 `doctor` and error results print `key: value` lines. The text layout may change; integrations should use `--json`.
 

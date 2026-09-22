@@ -460,7 +460,7 @@ def test_inspect_explains_actors_budgets_fixture_and_observer(capsys, example, a
     assert output["actors"] == actors
     assert output["budgets"] == budgets
     assert set(output["budgets"]) == {"max_seconds", "max_requests", "max_write_attempts", "max_in_flight", "max_artifact_bytes"}
-    assert output["fixture"] == {"recipe": recipe, "owned_http": OWNED_FIXTURES}
+    assert output["fixture"] == {"recipe": recipe, "owned_http": OWNED_FIXTURES, "command": None}
     assert output["secret_env"] == []
     assert output["observer"] == observer
     assert output["observation_path"] == observation_path
@@ -488,10 +488,28 @@ def test_inspect_without_owned_fixture_or_observation(tmp_path, capsys):
     output = json.loads(capsys.readouterr().out)
 
     assert status == 0
-    assert output["fixture"] == {"recipe": "owned-shop", "owned_http": None}
+    assert output["fixture"] == {"recipe": "owned-shop", "owned_http": None, "command": None}
     assert output["observer"] == "owned-order-ledger"
     assert output["observation_path"] is None
     assert output["secret_env"] == []
+
+
+def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
+    command = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 2}
+    data = manifest(fixtures={"recipe": "seeded", "command": command})
+
+    assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["fixture"]["command"] == command | {"cwd": "bundle"}
+
+    data["fixtures"]["command"]["setup"] = ["psql", "-f", "other.sql"]
+    assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["scenario_sha256"] != first["scenario_sha256"]
+
+    assert main(["inspect", str(write_bundle(tmp_path, data))]) == 0
+    out = capsys.readouterr().out
+    assert "fixture setup: psql -f other.sql" in out
+    assert "fixture teardown: psql -f reset.sql" in out
 
 
 def test_verify_cancelled_during_fixture_create_exits_130(tmp_path, monkeypatch, capsys):

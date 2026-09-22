@@ -9,6 +9,7 @@ LiteTraffic sends real requests, including writes, to the target you give it. Tr
 - **Scenarios are trusted code.** The journey script runs in k6 with your environment variables and network access. Review scripts as you would any test code. Do not run scenarios from untrusted sources.
 - **Target only what you own.** Use a local app, an isolated preview, or a sandbox. Do not aim writes at production or shared data unless the scenario only touches run-owned fixtures.
 - **No metadata or link-local targets.** `verify` and `doctor` reject targets whose host is a literal link-local address (including `169.254.169.254` and `fe80::/10`) or a known cloud-metadata name, and k6 runs with `--max-redirects 0`. Hostnames are not resolved, so a DNS name that points at such an address is not caught.
+- **Command fixtures run on the controller host.** `fixtures.command` setup and teardown execute as your user, in the scenario directory, with your environment, and without a shell. Review them like the script; `inspect` shows the exact argv.
 - **Secrets stay outside bundles.** Target URLs with embedded credentials are rejected. Fixture and observer tokens are referenced by environment-variable name. The whole caller environment is passed to k6, so run with only the credentials the scenario needs.
 
 ## What budgets enforce
@@ -25,7 +26,7 @@ Budgets are a declared envelope, not a sandbox: a script that ignores its declar
 
 ## Cleanup
 
-Only `owned_http` fixtures are cleaned up by the controller, and a failed cleanup produces `error` so it is never hidden. The checkout and inventory examples keep state in their demo servers; restart those servers to reset them.
+The controller cleans up `owned_http` fixtures and runs `command` fixture teardowns; a failed cleanup or teardown produces `error` so it is never hidden. The checkout and inventory examples keep state in their demo servers; restart those servers to reset them.
 
 ## Artifacts
 

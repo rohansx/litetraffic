@@ -196,6 +196,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "name": manifest.name,
             "schema_version": manifest.schema_version,
             "script": str(bundle.script_path),
+            "scenario_sha256": bundle.digest,
             "planned_journeys": manifest.planned_journeys,
             "maximum_journey_requests": manifest.maximum_journey_requests,
             "maximum_observation_requests": int(manifest.observation is not None),
@@ -207,6 +208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "fixture": {
                 "recipe": manifest.fixtures.recipe,
                 "owned_http": owned and owned.model_dump(include={"create_path", "delete_path"}),
+                "command": manifest.fixtures.command and manifest.fixtures.command.model_dump(),
             },
             # Names only: the environment is never read here.
             "secret_env": sorted({ref for ref in (owned and owned.bearer_token_env, observation and observation.bearer_token_env) if ref}),
