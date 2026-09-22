@@ -87,7 +87,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, args.json)
             if payload["lifecycle"] == "cancelled":
                 return 130
-            return 0 if payload["verdict"] == "pass" else 1
+            return {"pass": 0, "fail": 1, "inconclusive": 2}.get(payload["verdict"], 3)
 
         if args.command == "diff":
             payload = compare_runs(args.baseline, args.candidate, args.max_p95_regression_percent)

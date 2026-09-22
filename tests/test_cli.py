@@ -3,7 +3,10 @@ import os
 from pathlib import Path
 
 from litetraffic.cli import main
+import pytest
+
 from test_compare import write_run
+from test_runner import assertion, fake_k6
 from test_scenario import manifest, write_bundle
 
 
@@ -228,3 +231,35 @@ def test_diff_returns_inconclusive_for_incompatible_runs(tmp_path, capsys):
 
     assert status == 2
     assert json.loads(capsys.readouterr().out)["comparable"] is False
+
+
+@pytest.mark.parametrize(
+    ("k6_options", "expected_verdict", "expected_status"),
+    [({"iterations": 19}, "inconclusive", 2), ({"returncode": 7}, "error", 3)],
+)
+def test_verify_exit_status_distinguishes_inconclusive_and_error(tmp_path, monkeypatch, capsys, k6_options, expected_verdict, expected_status):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    k6 = fake_k6(tmp_path, events, **k6_options)
+
+    status = main(["verify", str(scenario), "--target", "http://example.test", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--json"])
+
+    assert json.loads(capsys.readouterr().out)["verdict"] == expected_verdict
+    assert status == expected_status
+
+
+@pytest.mark.parametrize(
+    ("verdict", "expected_status"),
+    [("pass", 0), ("fail", 1), ("inconclusive", 2), ("error", 3)],
+)
+def test_verify_repeat_maps_aggregate_verdict_to_exit_status(monkeypatch, capsys, verdict, expected_status):
+    monkeypatch.setattr(
+        "litetraffic.cli.repeat_verify",
+        lambda *args: {"mode": "repeat", "lifecycle": "finished", "verdict": verdict, "runs": []},
+    )
+
+    status = main(["verify", "scenario", "--target", "http://example.test", "--repeat", "2", "--json"])
+
+    capsys.readouterr()
+    assert status == expected_status

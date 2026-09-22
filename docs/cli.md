@@ -58,8 +58,10 @@ The current commands have different exit mappings. Integrations should inspect t
 |---|---|---|---|---|---|
 | `doctor` | Checks succeeded | — | CLI usage error | Failed check/configuration error | — |
 | `inspect` | Valid manifest | — | CLI usage error | Invalid scenario | — |
-| `verify` | `pass` | Any returned non-pass verdict, including `inconclusive` and `error` | CLI usage error | Configuration/engine preflight error | Cancelled run |
+| `verify` | `pass` | `fail` | `inconclusive`; also CLI usage error | `error`; also configuration/engine preflight error | Cancelled run |
 | `diff` | Comparison `pass` | Comparison `fail` | Inconclusive comparison or CLI usage error | Invalid arguments/artifacts | — |
+
+With `--repeat`, `verify` applies the same mapping to the aggregate series verdict.
 
 `--json` formats handled command results and errors. `argparse` usage errors can still print text to stderr and exit 2 before JSON handling. Do not assume every possible process failure produces JSON.
 
