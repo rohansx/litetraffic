@@ -486,3 +486,26 @@ def test_scenario_must_be_given_exactly_once(command, spelling, capsys):
     output = json.loads(capsys.readouterr().out)
     assert status == 3
     assert output["error"] == "give the scenario directory once, either positionally or with --scenario"
+
+
+def test_diff_accepts_run_ids_from_runs_dir(tmp_path, capsys):
+    write_run(tmp_path / "run_a", "run_a", p95=100)
+    write_run(tmp_path / "run_b", "run_b", p95=130)
+
+    status = main(
+        ["diff", "run_a", "run_b", "--runs-dir", str(tmp_path), "--max-p95-regression-percent", "20", "--json"]
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert status == 1
+    assert output["baseline_run_id"] == "run_a"
+    assert output["candidate_run_id"] == "run_b"
+
+
+def test_diff_unknown_run_id_exits_3(tmp_path, capsys):
+    write_run(tmp_path / "run_a", "run_a")
+
+    status = main(["diff", "run_a", "run_nope", "--runs-dir", str(tmp_path), "--json"])
+
+    assert status == 3
+    assert "run_nope" in json.loads(capsys.readouterr().out)["error"]

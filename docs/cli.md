@@ -54,11 +54,11 @@ One run validates inputs, optionally creates a fixture, runs k6, collects eviden
 ## `diff`
 
 ```text
-litetraffic diff BASELINE_DIR CANDIDATE_DIR
+litetraffic diff BASELINE CANDIDATE [--runs-dir DIR]
   [--max-p95-regression-percent NUMBER] [--json]
 ```
 
-Reads `run.json` and `result.json` from both directories. Does not contact a target. Compatibility requires equal manifest digest, seed, full engine version string, and resolved schedule. A supplied p95 gate must be finite and non-negative and needs at least 200 duration samples in each run. Without the gate, timing differences are descriptive. See [results](results.md) for correctness and comparison limitations.
+`BASELINE` and `CANDIDATE` are each a run directory or a bare run ID such as `run_20260101T000000Z_ab12cd34`. An argument naming an existing directory is used as-is; otherwise it is looked up as a subdirectory of `--runs-dir` (default `.litetraffic/runs`). An unknown run ID exits 3. Reads `run.json` and `result.json` from both directories. Does not contact a target. Compatibility requires equal manifest digest, seed, full engine version string, and resolved schedule. A supplied p95 gate must be finite and non-negative and needs at least 200 duration samples in each run. Without the gate, timing differences are descriptive. See [results](results.md) for correctness and comparison limitations.
 
 ## Exit codes
 

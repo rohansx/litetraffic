@@ -12,6 +12,7 @@ from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
 from litetraffic.human import format_diff, format_inspect, format_verify
 from litetraffic.runner import RunnerError, repeat_verify, verify
+from litetraffic.runs import resolve
 from litetraffic.scenario import ScenarioError, load_scenario
 
 
@@ -53,8 +54,9 @@ def _parser() -> argparse.ArgumentParser:
     verify_command.add_argument("--json", action="store_true")
 
     diff_command = commands.add_parser("diff", help="compare compatible run artifacts")
-    diff_command.add_argument("baseline", type=Path)
-    diff_command.add_argument("candidate", type=Path)
+    diff_command.add_argument("baseline", help="run directory or run ID")
+    diff_command.add_argument("candidate", help="run directory or run ID")
+    diff_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
     diff_command.add_argument("--max-p95-regression-percent", type=float)
     diff_command.add_argument("--json", action="store_true")
     return parser
@@ -109,7 +111,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return {"pass": 0, "fail": 1, "inconclusive": 2}.get(payload["verdict"], 3)
 
         if args.command == "diff":
-            payload = compare_runs(args.baseline, args.candidate, args.max_p95_regression_percent)
+            baseline, candidate = (resolve(ref, args.runs_dir) for ref in (args.baseline, args.candidate))
+            payload = compare_runs(baseline, candidate, args.max_p95_regression_percent)
             _emit(payload, args.json, format_diff)
             return {"pass": 0, "fail": 1}.get(payload["verdict"], 2)
 
