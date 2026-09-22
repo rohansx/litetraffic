@@ -29,7 +29,7 @@ k6 version
 
 This archive and checksum are specifically for Linux amd64. For Linux arm64 or macOS, use the corresponding asset and checksum from the release page. You may instead leave k6 outside `PATH` and pass `--k6-path /absolute/path/to/k6` to `doctor` and `verify`.
 
-LiteTraffic currently rejects engine versions other than v2.2.0 during verification. `doctor` checks that k6 can execute, but does not enforce that version itself.
+LiteTraffic rejects engine versions other than v2.2.0: `doctor` reports them as a failed `k6` check and `verify` refuses to run.
 
 ## Install LiteTraffic from source
 
@@ -62,6 +62,6 @@ Once your app is running, optionally check a safe health URL:
 litetraffic doctor --target http://127.0.0.1:8765 --json
 ```
 
-`doctor` sends one GET without following redirects. Any HTTP response establishes reachability, including 404 or 500; this is not an application health or readiness assertion. It never installs binaries or writes to the target.
+`doctor` sends one GET without following redirects. Only a 2xx or 3xx response passes; any other status, such as 404 or 503, fails as `reachable but not ready`. It never installs binaries or writes to the target.
 
-Run artifacts are written under `.litetraffic/runs/` unless overridden. Ensure the directory is writable and has enough free space. The preview has no calibrated minimum CPU/RAM requirement; allocate enough resources for the target and the declared virtual-user count, and inspect dropped/undelivered journeys rather than treating an overloaded generator as a valid pass.
+Run artifacts are written under `.litetraffic/runs/` unless overridden. `doctor` checks that this directory (or `--output-dir`) is writable and that its filesystem has at least 100 MiB free. The preview has no calibrated minimum CPU/RAM requirement; allocate enough resources for the target and the declared virtual-user count, and inspect dropped/undelivered journeys rather than treating an overloaded generator as a valid pass.

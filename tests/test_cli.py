@@ -36,6 +36,19 @@ def test_doctor_json_returns_nonzero_when_k6_is_missing(monkeypatch, capsys):
     assert output["checks"][0]["name"] == "k6"
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can write anywhere")
+def test_doctor_checks_the_output_dir_argument(tmp_path, capsys):
+    locked = tmp_path / "locked"
+    locked.mkdir(mode=0o500)
+    try:
+        status = main(["doctor", "--output-dir", str(locked / "runs"), "--json"])
+    finally:
+        locked.chmod(0o700)
+    output = json.loads(capsys.readouterr().out)
+    assert status == 3
+    assert {item["name"]: item["ok"] for item in output["checks"]}["output_dir"] is False
+
+
 @pytest.mark.parametrize("command", ["doctor", "verify"])
 @pytest.mark.parametrize("target", ["http://169.254.169.254/", "http://[fe80::1]/"])
 def test_metadata_targets_exit_with_configuration_error(tmp_path, capsys, command, target):

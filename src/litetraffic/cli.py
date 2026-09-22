@@ -21,6 +21,7 @@ def _parser() -> argparse.ArgumentParser:
     doctor = commands.add_parser("doctor", help="check local prerequisites and target reachability")
     doctor.add_argument("--target")
     doctor.add_argument("--k6-path")
+    doctor.add_argument("--output-dir", type=Path, default=Path(".litetraffic/runs"))
     doctor.add_argument("--json", action="store_true")
 
     inspect = commands.add_parser("inspect", help="validate and explain a scenario bundle")
@@ -64,7 +65,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "doctor":
-            report = run_doctor(target=args.target, k6_path=args.k6_path)
+            report = run_doctor(target=args.target, k6_path=args.k6_path, output_dir=args.output_dir)
             payload = {"ok": report.ok, "checks": [check.model_dump() for check in report.checks]}
             _emit(payload, args.json)
             return 0 if report.ok else 3

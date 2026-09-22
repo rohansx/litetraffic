@@ -35,7 +35,6 @@ When a run finishes, every directory in the run directory is set to `0700` and e
 
 - The comparison digest covers the manifest only, not scripts or imported modules.
 - Real-engine execution is validated on Linux. Other platforms are not release-qualified.
-- `doctor` checks reachability, not readiness, and does not enforce the k6 version (`verify` does).
 - No automatic scenario authoring, repository discovery, or sandbox provisioning yet. See the [roadmap](roadmap.md).
 
 Found a security problem? See [SECURITY.md](../SECURITY.md).

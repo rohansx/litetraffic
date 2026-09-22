@@ -7,10 +7,20 @@ All scenario arguments are **directory paths** containing `manifest.json` and th
 ## `doctor`
 
 ```text
-litetraffic doctor [--target URL] [--k6-path PATH] [--json]
+litetraffic doctor [--target URL] [--k6-path PATH] [--output-dir PATH] [--json]
 ```
 
-Checks that k6 can execute. If a target is supplied, applies the same URL checks as `verify` (link-local and metadata targets exit `3` without a request), then sends one GET with a three-second HTTP timeout and no redirect following. Any response proves reachability; status codes are not interpreted as readiness. This command does not enforce the exact engine version, install dependencies, or write to the target.
+Runs these checks, each reported with `name`, `ok`, and `detail`:
+
+| Check | Passes when |
+|---|---|
+| `k6` | The executable runs and reports exactly v2.2.0 |
+| `python` | The interpreter is Python 3.11 or newer |
+| `output_dir` | `--output-dir` (default `.litetraffic/runs`) is writable, or would be creatable under its nearest existing parent; nothing is created |
+| `disk` | The filesystem holding the output directory has at least 100 MiB free; `detail` reports free bytes |
+| `target` | Only with `--target`: the GET returns a 2xx or 3xx status |
+
+With a target, it first applies the same URL checks as `verify` (link-local and metadata targets exit `3` without a request), then sends one GET with a three-second HTTP timeout and no redirect following. Any other status fails with `reachable but not ready (HTTP N)`. This command does not install dependencies or write to the target.
 
 ## `inspect`
 
