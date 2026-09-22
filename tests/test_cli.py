@@ -122,6 +122,18 @@ def test_repository_cached_search_example_is_valid(capsys):
     assert output["maximum_journey_requests"] == 84
 
 
+def test_repository_tenant_api_example_is_valid(capsys):
+    scenario = Path(__file__).parents[1] / "examples" / "tenant_api"
+
+    status = main(["inspect", str(scenario), "--seed", "42", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["name"] == "tenant-isolation"
+    assert output["planned_journeys"] == 10
+    assert output["maximum_journey_requests"] == 30
+
+
 def test_cancelled_verify_returns_shell_interrupt_status(monkeypatch, capsys):
     monkeypatch.setattr(
         "litetraffic.cli.verify",

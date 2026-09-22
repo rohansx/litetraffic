@@ -76,6 +76,15 @@ litetraffic verify examples/cached_search --target http://127.0.0.1:8768 --seed 
 
 Restart it with `--wrong-stale` to keep the warmed hot-key cache permanently stale. The journey assertions and final cache-state observer both detect the defect.
 
+Run the tenant-isolation example with two identities that both own local record ID `1`:
+
+```bash
+python examples/tenant_api/server.py --port 8769
+litetraffic verify examples/tenant_api --target http://127.0.0.1:8769 --seed 42 --json
+```
+
+Use `--wrong-leak` to expose tenant B's record to tenant A, or `--deny-all` to block legitimate reads too. Positive-access assertions ensure deny-all fails rather than appearing secure.
+
 Use consecutive seeds to expose seed-sensitive or intermittent behavior:
 
 ```bash

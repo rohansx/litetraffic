@@ -26,6 +26,9 @@ LiteTraffic ran the checkout, inventory, and reporting scenarios through the off
 | E2B external target | 4 / 4 | 4 | Seeded spiky profile reached a short-lived sandbox through its exposed HTTPS port | `pass` |
 | Correct cached search | 12 / 12 | 84 + 1 observer + 2 lifecycle | Hot/cold reads and all post-update reads passed | `pass` |
 | Permanently stale cache | 12 / 12 | 84 + 1 observer + 2 lifecycle | Journey and final observer detected the stale hot key | `fail` |
+| Correct tenant isolation | 10 / 10 | 30 + 1 observer + 2 lifecycle | Both identities read their own overlapping local ID; cross-tenant read blocked | `pass` |
+| Cross-tenant leak | 10 / 10 | 30 + 1 observer + 2 lifecycle | Tenant A read tenant B's local record ID | `fail` |
+| Deny-all tenant API | 10 / 10 | 30 + 1 observer + 2 lifecycle | Isolation check passed but both required positive reads failed | `fail` |
 | Real k6 timeout probe | 1 planned / incomplete | 0 | One pre-timeout event preserved | `inconclusive`, `timed_out` |
 
 The negative targets still returned valid HTTP responses. Their failures came from observed business state rather than an HTTP error shortcut.

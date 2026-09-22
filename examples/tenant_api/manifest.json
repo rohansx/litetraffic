@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "tenant-isolation",
+  "script": "journeys.js",
+  "actors": [
+    {"class": "tenant-a-reader", "count": 3, "auth_recipe": "fixture-tenant-header"},
+    {"class": "tenant-b-reader", "count": 3, "auth_recipe": "fixture-tenant-header"}
+  ],
+  "fixtures": {
+    "recipe": "owned-overlapping-tenant-records",
+    "owned_http": {
+      "create_path": "/fixtures",
+      "delete_path": "/fixtures/{fixture_id}",
+      "id_pointer": "/id",
+      "create_body": {"tenant_a_value": "alpha", "tenant_b_value": "beta"}
+    }
+  },
+  "journeys": [{"name": "read-own-and-probe-other", "max_requests": 3, "max_writes": 0}],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {"name": "warmup", "seconds": 1, "rate": 1},
+      {"name": "measure", "seconds": 4, "rate": 2},
+      {"name": "recovery", "seconds": 1, "rate": 1}
+    ]
+  },
+  "assertions": ["tenant_a_reads_own", "tenant_b_reads_own", "cross_tenant_blocked", "tenant_fixture_intact"],
+  "observer": "owned-tenant-state",
+  "observation": {
+    "path": "/tenant/state",
+    "assertion": "tenant_fixture_intact",
+    "expected": {"/tenant_count": 2, "/overlapping_local_ids": true}
+  },
+  "budgets": {
+    "max_seconds": 23,
+    "max_requests": 33,
+    "max_write_attempts": 2,
+    "max_in_flight": 6,
+    "max_artifact_bytes": 67108864
+  }
+}
