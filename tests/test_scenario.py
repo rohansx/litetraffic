@@ -319,3 +319,39 @@ def test_rejects_missing_local_imports(tmp_path):
     (path / "journeys.js").write_text('import "./missing.js";\n')
     with pytest.raises(ScenarioError, match="does not exist"):
         load_scenario(path)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'import http from "https://jslib.k6.io/k6-utils/1.4.0/index.js";\n',
+        "import { x } from 'http://example.test/lib.js';\n",
+        'import sql from "k6/x/sql";\n',
+        'const mod = require("k6/x/kafka");\n',
+        'import "https://example.test/side-effect.js";\n',
+        'const m = await import("http://example.test/dyn.js");\n',
+    ],
+)
+def test_rejects_remote_imports_and_k6_extensions(tmp_path, source):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text(source + "export default function () {}\n")
+    with pytest.raises(ScenarioError, match="remote modules and k6/x extensions"):
+        load_scenario(path)
+
+
+def test_rejects_remote_imports_in_local_imports(tmp_path):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text('import "./lib.js";\nexport default function () {}\n')
+    (path / "lib.js").write_text('export * from "k6/x/sql";\n')
+    with pytest.raises(ScenarioError, match="lib.js"):
+        load_scenario(path)
+
+
+def test_allows_k6_builtins_and_relative_imports(tmp_path):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text(
+        'import http from "k6/http";\nimport exec from "k6/execution";\nimport { check } from "k6";\n'
+        'import { crypto } from "k6/experimental/webcrypto";\nimport "./lib.js";\nexport default function () {}\n'
+    )
+    (path / "lib.js").write_text("export const a = 1;\n")
+    assert set(load_scenario(path).files) == {"journeys.js", "lib.js"}

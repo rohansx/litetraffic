@@ -19,7 +19,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | Field | Required | Meaning |
 |---|---|---|
 | `name` | yes | Scenario name recorded in run metadata |
-| `script` | yes | Script path relative to the bundle; must stay inside the directory. Relative imports it reaches (`./`, `../`) must also resolve to existing files inside the directory, or loading fails |
+| `script` | yes | Script path relative to the bundle; must stay inside the directory. Relative imports it reaches (`./`, `../`) must also resolve to existing files inside the directory, or loading fails. Remote modules (any `scheme://` specifier, such as `https://jslib.k6.io/...`) and `k6/x/...` extensions are rejected in the script and every local import; k6 built-ins such as `k6`, `k6/http` and `k6/execution` are allowed |
 | `actors` | yes | `[{"class", "count", "auth_recipe"}]` — descriptive labels for reviewers; the controller does not execute them |
 | `fixtures.recipe`, `fixtures.parameters` | yes / no | Descriptive fixture label and parameters |
 | `fixtures.owned_http` | no | Run-owned HTTP fixture the controller creates and deletes ([below](#run-owned-fixtures)) |

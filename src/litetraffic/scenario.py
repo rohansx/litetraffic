@@ -8,9 +8,9 @@ from pathlib import Path
 
 from litetraffic.models import ScenarioManifest
 
-# ponytail: regex scan, not a JS parser; a relative specifier inside a comment or string is
-# also followed, and computed import paths are not. Swap for a real parser if that bites.
-_RELATIVE_IMPORT = re.compile(r"""(?:\bfrom|\bimport\s*\(?|\brequire\s*\()\s*["'](\.\.?/[^"'\n]+)["']""")
+# ponytail: regex scan, not a JS parser; a specifier inside a comment or string is also
+# checked, and computed import paths are not. Swap for a real parser if that bites.
+_IMPORT = re.compile(r"""(?:\bfrom|\bimport\s*\(?|\brequire\s*\()\s*["']([^"'\n]+)["']""")
 
 
 class ScenarioError(ValueError):
@@ -67,7 +67,7 @@ def load_scenario(path: Path) -> ScenarioBundle:
 
 
 def _import_closure(root: Path, script_path: Path) -> dict[str, str]:
-    """Map each file reachable from the script via relative imports to its sha256."""
+    """Map each file reachable from the script via relative imports to its sha256; reject remote/extension imports."""
     files: dict[str, str] = {}
     pending = [script_path]
     while pending:
@@ -77,7 +77,13 @@ def _import_closure(root: Path, script_path: Path) -> dict[str, str]:
             continue
         data = path.read_bytes()
         files[name] = hashlib.sha256(data).hexdigest()
-        for specifier in _RELATIVE_IMPORT.findall(data.decode("utf-8", errors="replace")):
+        for specifier in _IMPORT.findall(data.decode("utf-8", errors="replace")):
+            if "://" in specifier or specifier.startswith("k6/x/"):
+                raise ScenarioError(
+                    f"import {specifier!r} in {name} is not allowed: remote modules and k6/x extensions are rejected"
+                )
+            if not specifier.startswith(("./", "../")):
+                continue  # k6 built-ins such as "k6/http"
             imported = (path.parent / specifier).resolve()
             if not imported.is_relative_to(root):
                 raise ScenarioError(f"import {specifier!r} in {name} must stay inside the scenario directory")
