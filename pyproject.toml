@@ -5,8 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "litetraffic"
 version = "0.1.0.dev0"
-description = "Stateful application traffic with bounded, reviewable scenarios"
+description = "Stateful synthetic traffic that verifies business effects, not just HTTP responses"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Rohan Sharma" }]
+keywords = ["load-testing", "k6", "traffic", "testing", "verification", "idempotency"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Software Development :: Testing :: Traffic Generation",
+]
 requires-python = ">=3.11"
 dependencies = [
   "httpx>=0.27,<1",
@@ -15,6 +31,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+
+[project.urls]
+Homepage = "https://github.com/rohansx/litetraffic"
+Documentation = "https://github.com/rohansx/litetraffic/tree/main/docs"
+Issues = "https://github.com/rohansx/litetraffic/issues"
 
 [project.scripts]
 litetraffic = "litetraffic.cli:entrypoint"
