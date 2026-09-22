@@ -25,7 +25,7 @@ LiteTraffic is a Python controller around a stock k6 child process. There is no 
 1. **Load** — `scenario.py` parses the manifest with Pydantic (`models.py`), checks the script and its relative import closure stay inside the bundle, computes the bundle digest, and checks budgets against the worst case.
 2. **Preflight** — `runner.py` requires k6 v2.2.0 and a credential-free HTTP(S) target. `e2b.py` can resolve an E2B sandbox ID and port to a URL.
 3. **Fixture** — optional `POST` via `fixture.py`; the returned ID is passed to k6.
-4. **Engine** — k6 runs in its own process group with a deadline derived from `max_seconds`. Console output and JSON metrics go to files in the run directory.
+4. **Engine** — k6 runs a temporary copy of the scenario directory that also holds the bundled helper `k6/runtime.js` (at `litetraffic/runtime.js`), in its own process group with a deadline derived from `max_seconds`. Console output and JSON metrics go to files in the run directory.
 5. **Evidence** — `LT_EVENT` lines are parsed and validated against the run ID; metrics are aggregated (p50/p95/max, error rate, iterations).
 6. **Observation** — optional final `GET` via `observation.py`, compared by JSON Pointer.
 7. **Cleanup** — optional fixture `DELETE`.

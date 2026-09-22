@@ -1,4 +1,5 @@
 import json
+import shutil
 import stat
 from pathlib import Path
 
@@ -27,6 +28,10 @@ def fake_k6(
         "    raise SystemExit(0)\n"
         "if os.environ.get('FAKE_K6_ARGV'):\n"
         "    pathlib.Path(os.environ['FAKE_K6_ARGV']).write_text(json.dumps(sys.argv))\n"
+        "if os.environ.get('FAKE_K6_CWD'):\n"
+        "    helper = pathlib.Path('litetraffic/runtime.js')\n"
+        "    pathlib.Path(os.environ['FAKE_K6_CWD']).write_text(json.dumps({'cwd': os.getcwd(), 'script': sys.argv[-1], "
+        "'runtime': helper.read_text() if helper.is_file() else None}))\n"
         "console = pathlib.Path(sys.argv[sys.argv.index('--console-output') + 1])\n"
         "metrics = pathlib.Path(sys.argv[sys.argv.index('--out') + 1].split('=', 1)[1])\n"
         "events = json.loads(os.environ['FAKE_K6_EVENTS'])\n"
@@ -1144,3 +1149,59 @@ def test_read_metrics_omits_operation_breakdown_without_http_points(tmp_path):
     metrics, _ = _read_metrics(path)
 
     assert "by_operation" not in metrics
+
+
+RUNTIME = Path(__file__).parents[1] / "src" / "litetraffic" / "k6" / "runtime.js"
+HELPER_SCRIPT = 'import * as lt from "./litetraffic/runtime.js";\nexport const options = lt.options();\nexport default function () {}\n'
+
+
+def test_verify_runs_a_staged_copy_that_contains_the_bundled_runtime(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    (scenario / "journeys.js").write_text(HELPER_SCRIPT)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("FAKE_K6_CWD", str(tmp_path / "cwd.json"))
+
+    result = verify("http://127.0.0.1:8000", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    seen = json.loads((tmp_path / "cwd.json").read_text())
+    assert seen["runtime"] == RUNTIME.read_text()
+    assert Path(seen["script"]) == Path(seen["cwd"]) / "journeys.js"
+    assert not Path(seen["cwd"]).is_relative_to(scenario.resolve())
+    assert not Path(seen["cwd"]).exists()  # the staged copy is removed after the run
+    assert not (scenario / "litetraffic").exists()
+    lock = json.loads((tmp_path / "runs" / result["run_id"] / "scenario.lock.json").read_text())
+    assert set(lock["files"]) == {"journeys.js", "litetraffic/runtime.js"}
+    assert result["verdict"] == "pass"
+
+
+@pytest.mark.skipif(shutil.which("k6") is None, reason="real k6 not installed")
+def test_bundled_runtime_under_real_k6(tmp_path):
+    scenario = write_bundle(
+        tmp_path / "scenario",
+        manifest(
+            schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 3}]},
+            budgets=manifest()["budgets"] | {"max_artifact_bytes": 1048576},
+        ),
+    )
+    (scenario / "journeys.js").write_text(
+        'import * as lt from "./litetraffic/runtime.js";\n'
+        "export const options = lt.options();\n"
+        "export default function () {\n"
+        "  const first = lt.rng()();\n"
+        "  const again = lt.rng()();\n"
+        '  lt.evidence("accepted_orders_persist", first === again && first >= 0 && first < 1, '
+        "{ expected: 1, actual: first, detail: String(first) });\n"
+        "}\n"
+    )
+
+    result = verify("http://127.0.0.1:9", scenario, tmp_path / "runs", seed=7)
+
+    assert result["verdict"] == "pass", result["limitations"]
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "runs" / result["run_id"] / "events" / "000001.jsonl").read_text().splitlines()
+    ]
+    keys = {event["logical_key"] for event in events}
+    assert len(keys) == 3 and all(key.startswith(f"{result['run_id']}-traffic-") for key in keys)
+    assert len({event["detail"] for event in events}) == 3  # each iteration draws its own seeded stream

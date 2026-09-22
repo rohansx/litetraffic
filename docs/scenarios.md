@@ -69,11 +69,35 @@ The script is ordinary k6 JavaScript. The controller passes these environment va
 | `LT_SEED` | Seed, if the script needs deterministic choices |
 | `LT_FIXTURE_ID` | Present only when an `owned_http` fixture was created |
 
-The bundled examples show the standard executor setup. `verify` runs k6 with `--max-redirects 0`, which overrides a script's `maxRedirects` option, so redirects are not followed. A request that sets its own `redirects` parameter still follows them; avoid that unless your journey needs it.
+### Bundled runtime helper
+
+Import `./litetraffic/runtime.js` instead of copying the schedule and evidence code into every script. The file is not in your scenario directory: `verify` runs k6 against a temporary copy of the directory with LiteTraffic's helper placed at that path, and deletes the copy afterwards. The helper's sha256 is recorded under `litetraffic/runtime.js` in the bundle digest and in `scenario.lock.json`. A scenario that contains its own `litetraffic/runtime.js` is rejected, because that path is reserved.
+
+```js
+import http from "k6/http";
+import * as lt from "./litetraffic/runtime.js";
+
+export const options = lt.options();
+
+export default function () {
+  const key = lt.journeyKey();
+  const res = http.get(`${__ENV.LT_TARGET}/orders/${key}`);
+  lt.evidence("order_visible", res.status === 200, { expected: 200, actual: res.status });
+}
+```
+
+| Export | Behavior |
+|---|---|
+| `options()` | k6 options: one `ramping-arrival-rate` scenario named `traffic` built from `LT_SCHEDULE_JSON` and `LT_MAX_IN_FLIGHT`, running the script's default export, with `maxRedirects: 0` |
+| `journeyKey()` | `<run_id>-<k6 scenario name>-<iterationInTest>`; the same for every call within one journey and independent of the VU that runs it |
+| `evidence(assertion, passed, {logicalKey, expected, actual, detail})` | Logs one `LT_EVENT` line. `logicalKey` defaults to `journeyKey()`; `expected`/`actual`/`detail` are included only when given; `detail` is cut to 500 characters |
+| `rng(iteration)` | Returns a function yielding numbers in `[0, 1)`, seeded from `LT_SEED` and `iteration` (default: the current `iterationInTest`), so the same seed replays the same choices per journey |
+
+All bundled examples use the helper. Scripts that build their own options still work; they must then apply `LT_SCHEDULE_JSON` and `LT_MAX_IN_FLIGHT` themselves. `verify` runs k6 with `--max-redirects 0`, which overrides a script's `maxRedirects` option, so redirects are not followed. A request that sets its own `redirects` parameter still follows them; avoid that unless your journey needs it.
 
 ### Emitting evidence
 
-Every declared assertion needs evidence. Log one line per assertion per journey:
+Every declared assertion needs evidence: one `LT_EVENT` line per assertion per journey. `lt.evidence` writes it; without the helper, log it directly:
 
 ```js
 function evidence(assertion, passed, logicalKey) {

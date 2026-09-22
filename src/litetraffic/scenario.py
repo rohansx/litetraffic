@@ -3,6 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +14,8 @@ from litetraffic.models import ScenarioManifest
 
 # ponytail: regex scan, not a JS parser; a specifier inside a comment or string is also
 # checked, and computed import paths are not. Swap for a real parser if that bites.
+RUNTIME_PATH = "litetraffic/runtime.js"  # where scripts import the bundled helper from
+RUNTIME_SOURCE = Path(__file__).with_name("k6") / "runtime.js"
 _IMPORT = re.compile(r"""(?:\bfrom|\bimport\s*\(?|\brequire\s*\()\s*["']([^"'\n]+)["']""")
 
 
@@ -87,7 +93,24 @@ def _import_closure(root: Path, script_path: Path) -> dict[str, str]:
             imported = (path.parent / specifier).resolve()
             if not imported.is_relative_to(root):
                 raise ScenarioError(f"import {specifier!r} in {name} must stay inside the scenario directory")
+            if imported == root / RUNTIME_PATH:
+                if imported.exists():
+                    raise ScenarioError(f"{RUNTIME_PATH} is reserved for the bundled LiteTraffic runtime helper")
+                files[RUNTIME_PATH] = hashlib.sha256(RUNTIME_SOURCE.read_bytes()).hexdigest()
+                continue
             if not imported.is_file():
                 raise ScenarioError(f"import {specifier!r} in {name} does not exist: {imported}")
             pending.append(imported)
     return files
+
+
+@contextmanager
+def staged(bundle: ScenarioBundle) -> Iterator[Path]:
+    """Yield a temporary copy of the scenario directory with the bundled runtime helper added."""
+    with tempfile.TemporaryDirectory(prefix="litetraffic-") as tmp:
+        root = Path(tmp) / "scenario"
+        shutil.copytree(bundle.root, root)
+        if RUNTIME_PATH in bundle.files:
+            (root / RUNTIME_PATH).parent.mkdir(exist_ok=True)
+            shutil.copyfile(RUNTIME_SOURCE, root / RUNTIME_PATH)
+        yield root

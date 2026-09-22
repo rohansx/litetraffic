@@ -15,7 +15,7 @@ from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
 from litetraffic.process import _communicate, _stop_process
 from litetraffic.report import render_report
-from litetraffic.scenario import load_scenario
+from litetraffic.scenario import load_scenario, staged
 from litetraffic.series import aggregate_verdict, dispersion
 from litetraffic.target import validate_target
 
@@ -134,7 +134,6 @@ def verify(
         str(console_path),
         "--out",
         f"json={metrics_path}",
-        str(bundle.script_path),
     ]
     environment = os.environ.copy()
     environment.pop("LT_FIXTURE_ID", None)
@@ -173,24 +172,26 @@ def verify(
         try:
             engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - (10 if fixture else 0)
             engine_started = _now()
-            process = subprocess.Popen(
-                command,
-                cwd=bundle.root,
-                env=environment,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                start_new_session=os.name == "posix",
-            )
-            try:
-                stdout, stderr = _communicate(process, timeout=engine_seconds)
-                lifecycle = "finished" if process.returncode in (0, K6_THRESHOLDS_FAILED) else "crashed"
-            except subprocess.TimeoutExpired:
-                lifecycle = "timed_out"
-                stdout, stderr = _stop_process(process)
-            except KeyboardInterrupt:
-                lifecycle = "cancelled"
-                stdout, stderr = _stop_process(process)
+            # k6 runs a staged copy so the bundled runtime helper sits next to the script.
+            with staged(bundle) as root:
+                process = subprocess.Popen(
+                    [*command, str(root / bundle.script_path.relative_to(bundle.root))],
+                    cwd=root,
+                    env=environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    start_new_session=os.name == "posix",
+                )
+                try:
+                    stdout, stderr = _communicate(process, timeout=engine_seconds)
+                    lifecycle = "finished" if process.returncode in (0, K6_THRESHOLDS_FAILED) else "crashed"
+                except subprocess.TimeoutExpired:
+                    lifecycle = "timed_out"
+                    stdout, stderr = _stop_process(process)
+                except KeyboardInterrupt:
+                    lifecycle = "cancelled"
+                    stdout, stderr = _stop_process(process)
         except OSError as exc:
             lifecycle = "crashed"
             engine_error = str(exc)

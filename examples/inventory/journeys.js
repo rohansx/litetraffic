@@ -1,47 +1,10 @@
-import exec from "k6/execution";
 import http from "k6/http";
+import * as lt from "./litetraffic/runtime.js";
 
-const phases = JSON.parse(__ENV.LT_SCHEDULE_JSON);
-const maxVUs = Number(__ENV.LT_MAX_IN_FLIGHT);
-const stages = [];
-let rate = phases[0].rate;
+export const options = lt.options();
 
-for (const phase of phases) {
-  if (phase.rate !== rate) {
-    stages.push({ target: phase.rate, duration: "0s" });
-    rate = phase.rate;
-  }
-  stages.push({ target: rate, duration: `${phase.seconds * 1000 + 1}ms` });
-}
-
-export const options = {
-  scenarios: {
-    traffic: {
-      executor: "ramping-arrival-rate",
-      exec: "reserve",
-      startRate: phases[0].rate,
-      timeUnit: "1s",
-      stages,
-      preAllocatedVUs: maxVUs,
-      maxVUs,
-    },
-  },
-  maxRedirects: 0,
-};
-
-function evidence(assertion, passed, logicalKey) {
-  console.log(`LT_EVENT ${JSON.stringify({
-    schema_version: 1,
-    type: "assertion",
-    run_id: __ENV.LT_RUN_ID,
-    assertion,
-    passed,
-    logical_key: logicalKey,
-  })}`);
-}
-
-export function reserve() {
-  const journey = `${__ENV.LT_RUN_ID}-${exec.vu.idInTest}-${exec.scenario.iterationInTest}`;
+export default function reserve() {
+  const journey = lt.journeyKey();
   const requests = Array.from({ length: 4 }, (_, index) => [
     "POST",
     `${__ENV.LT_TARGET}/inventory/reservations`,
@@ -64,20 +27,17 @@ export function reserve() {
   } catch (_) {
     // Failed parsing is captured by reservation_responses_valid.
   }
-  evidence("inventory_never_negative", observed.status === 200 && state.remaining >= 0, journey);
-  evidence(
+  lt.evidence("inventory_never_negative", observed.status === 200 && state.remaining >= 0);
+  lt.evidence(
     "accepted_reservations_within_capacity",
     observed.status === 200 && state.accepted_count <= state.capacity,
-    journey,
   );
-  evidence(
+  lt.evidence(
     "rejections_require_empty_inventory",
     outcomes.length === 4 && outcomes.every((outcome) => outcome.accepted || outcome.remaining === 0),
-    journey,
   );
-  evidence(
+  lt.evidence(
     "reservation_responses_valid",
     outcomes.length === 4 && responses.every((response) => [200, 201].includes(response.status)),
-    journey,
   );
 }

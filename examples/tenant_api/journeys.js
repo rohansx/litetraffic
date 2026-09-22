@@ -1,43 +1,7 @@
-import exec from "k6/execution";
 import http from "k6/http";
+import * as lt from "./litetraffic/runtime.js";
 
-const phases = JSON.parse(__ENV.LT_SCHEDULE_JSON);
-const maxVUs = Number(__ENV.LT_MAX_IN_FLIGHT);
-const stages = [];
-let rate = phases[0].rate;
-for (const phase of phases) {
-  if (phase.rate !== rate) {
-    stages.push({ target: phase.rate, duration: "0s" });
-    rate = phase.rate;
-  }
-  stages.push({ target: rate, duration: `${phase.seconds * 1000 + 1}ms` });
-}
-
-export const options = {
-  scenarios: {
-    traffic: {
-      executor: "ramping-arrival-rate",
-      exec: "readOwnAndProbeOther",
-      startRate: phases[0].rate,
-      timeUnit: "1s",
-      stages,
-      preAllocatedVUs: maxVUs,
-      maxVUs,
-    },
-  },
-  maxRedirects: 0,
-};
-
-function evidence(assertion, passed, logicalKey) {
-  console.log(`LT_EVENT ${JSON.stringify({
-    schema_version: 1,
-    type: "assertion",
-    run_id: __ENV.LT_RUN_ID,
-    assertion,
-    passed,
-    logical_key: logicalKey,
-  })}`);
-}
+export const options = lt.options();
 
 function headers(tenant) {
   return {
@@ -47,8 +11,7 @@ function headers(tenant) {
   };
 }
 
-export function readOwnAndProbeOther() {
-  const key = `${__ENV.LT_RUN_ID}-${exec.scenario.iterationInTest}`;
+export default function readOwnAndProbeOther() {
   const tenantA = http.get(`${__ENV.LT_TARGET}/tenants/a/records/1`, { headers: headers("a") });
   const tenantB = http.get(`${__ENV.LT_TARGET}/tenants/b/records/1`, { headers: headers("b") });
   const crossTenant = http.get(`${__ENV.LT_TARGET}/tenants/b/records/1`, { headers: headers("a") });
@@ -60,7 +23,7 @@ export function readOwnAndProbeOther() {
   } catch (_) {
     // Parse failures become positive-access assertion failures.
   }
-  evidence("tenant_a_reads_own", tenantA.status === 200 && valueA === "alpha", key);
-  evidence("tenant_b_reads_own", tenantB.status === 200 && valueB === "beta", key);
-  evidence("cross_tenant_blocked", crossTenant.status === 403, key);
+  lt.evidence("tenant_a_reads_own", tenantA.status === 200 && valueA === "alpha");
+  lt.evidence("tenant_b_reads_own", tenantB.status === 200 && valueB === "beta");
+  lt.evidence("cross_tenant_blocked", crossTenant.status === 403);
 }

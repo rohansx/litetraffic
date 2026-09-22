@@ -355,3 +355,31 @@ def test_allows_k6_builtins_and_relative_imports(tmp_path):
     )
     (path / "lib.js").write_text("export const a = 1;\n")
     assert set(load_scenario(path).files) == {"journeys.js", "lib.js"}
+
+
+RUNTIME = Path(__file__).parents[1] / "src" / "litetraffic" / "k6" / "runtime.js"
+
+
+def test_bundled_runtime_import_resolves_to_the_package_helper_and_is_hashed(tmp_path):
+    import hashlib
+
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text('import * as lt from "./litetraffic/runtime.js";\nexport default function () {}\n')
+    bundle = load_scenario(path)
+    assert bundle.files["litetraffic/runtime.js"] == hashlib.sha256(RUNTIME.read_bytes()).hexdigest()
+    assert not (path / "litetraffic").exists()
+
+
+def test_rejects_a_scenario_file_that_shadows_the_bundled_runtime(tmp_path):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text('import * as lt from "./litetraffic/runtime.js";\nexport default function () {}\n')
+    (path / "litetraffic").mkdir()
+    (path / "litetraffic" / "runtime.js").write_text("export const options = () => ({});\n")
+    with pytest.raises(ScenarioError, match="reserved"):
+        load_scenario(path)
+
+
+def test_bundled_runtime_exports_the_helper_api():
+    source = RUNTIME.read_text()
+    for name in ("options()", "evidence(assertion, passed", "journeyKey()", "rng(iteration"):
+        assert f"export function {name}" in source, name

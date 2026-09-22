@@ -46,3 +46,6 @@ testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+litetraffic = ["k6/*.js"]

@@ -557,3 +557,13 @@ def test_diff_unknown_run_id_exits_3(tmp_path, capsys):
 
     assert status == 3
     assert "run_nope" in json.loads(capsys.readouterr().out)["error"]
+
+
+@pytest.mark.parametrize("example", ["checkout", "inventory", "reporting", "cached_search", "tenant_api"])
+def test_examples_use_the_bundled_runtime_helper(example, capsys):
+    scenario = Path(__file__).parents[1] / "examples" / example
+    script = (scenario / "journeys.js").read_text()
+
+    assert 'from "./litetraffic/runtime.js"' in script
+    assert "function evidence" not in script and "LT_SCHEDULE_JSON" not in script
+    assert main(["inspect", str(scenario), "--json"]) == 0
