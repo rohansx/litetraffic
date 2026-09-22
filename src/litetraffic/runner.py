@@ -253,6 +253,8 @@ def verify(
     if partial:
         limitations.append(f"partial assertion evidence: {', '.join(partial)}")
     limitations.extend(f"duplicate evidence for {key}" for key in dict.fromkeys(duplicates))
+    if metrics.get("dropped_iterations"):
+        limitations.append(f"k6 dropped {int(metrics['dropped_iterations'])} iterations (under-delivered load)")
     if malformed_events:
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:
@@ -296,8 +298,14 @@ def verify(
     result = {
         "schema_version": 1,
         "run_id": run_id,
+        "mode": "verify",
         "seed": seed,
         "planned_journeys": bundle.manifest.planned_journeys,
+        "planned_journeys_per_second": round(
+            sum(phase.admitted_journeys for phase in resolved_schedule)
+            / max(sum(phase.seconds for phase in resolved_schedule), 1),
+            3,
+        ),
         "report": "report.html",
         "lifecycle": lifecycle,
         "engine_exit_code": engine_exit_code,
@@ -307,6 +315,8 @@ def verify(
         "assertions": assertions,
         "metrics": metrics,
         "limitations": limitations,
+        # Honesty notes describe what this preview never measures; they do not affect completeness.
+        "notes": ["per-arrival lateness not measured", "workload is synthetic (no traces supplied)"],
     }
     _write_json(run_dir / "result.json", result)
     report_path = run_dir / result["report"]

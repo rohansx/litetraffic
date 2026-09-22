@@ -88,9 +88,50 @@ def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
     assert "<dd>20 / 20</dd>" in report
     assert "<dt>HTTP requests</dt><dd>2</dd>" in report
     assert "<td>20</td>" in report
-    assert ".0 /" not in report and ".0</dd>" not in report and ".0</td>" not in report
+    counts = report.replace("<dd>k6 v2.2.0</dd>", "")  # the engine version legitimately ends in ".0"
+    assert ".0 /" not in counts and ".0</dd>" not in counts and ".0</td>" not in counts
     first_event = (run_dir / "events" / "000001.jsonl").read_text().splitlines()[0]
     assert json.loads(first_event)["sequence"] == 1
+
+
+def test_verify_records_run_context_rates_and_honesty_notes(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://127.0.0.1:8000", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)), seed=42)
+
+    assert result["mode"] == "verify"
+    assert result["planned_journeys_per_second"] == 2.0
+    assert result["metrics"]["iterations_per_second"] > 0
+    assert "per-arrival lateness not measured" in result["notes"]
+    assert "workload is synthetic (no traces supplied)" in result["notes"]
+    assert result["limitations"] == [] and result["completeness"] == "complete"
+    report = (tmp_path / "runs" / result["run_id"] / "report.html").read_text()
+    assert "<dt>Seed</dt><dd>42</dd>" in report
+    assert "<dt>Target</dt><dd>http://127.0.0.1:8000</dd>" in report
+    assert "<dt>Engine</dt><dd>k6 v2.2.0</dd>" in report
+    assert "<dt>HTTP avg</dt><dd>20.0 ms</dd>" in report
+    assert "<dt>HTTP p50</dt><dd>20.0 ms</dd>" in report
+    assert "<dt>HTTP p95</dt><dd>29.0 ms</dd>" in report
+    assert "<dt>HTTP max</dt><dd>30.0 ms</dd>" in report
+    assert "<dt>Latency samples</dt><dd>2</dd>" in report
+    assert "per-arrival lateness not measured" in report
+
+
+def test_verify_reports_dropped_iterations_as_a_limitation(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    dropped = json.dumps({"type": "Point", "metric": "dropped_iterations", "data": {"value": 3}})
+
+    result = verify(
+        "http://127.0.0.1:8000", scenario, tmp_path / "runs",
+        str(fake_k6(tmp_path, events, extra_metric_lines=(dropped,))),
+    )
+
+    assert "k6 dropped 3 iterations (under-delivered load)" in result["limitations"]
+    assert result["verdict"] == "inconclusive"
 
 
 def test_verify_leaves_every_run_file_owner_only(tmp_path, monkeypatch):
