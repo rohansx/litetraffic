@@ -376,6 +376,76 @@ def test_inspect_human_output_is_readable(tmp_path, capsys):
     assert "{" not in out and "[" not in out
 
 
+OWNED_FIXTURES = {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}"}
+
+
+@pytest.mark.parametrize(
+    ("example", "actors", "recipe", "observer", "observation_path"),
+    [
+        (
+            "tenant_api",
+            [
+                {"class": "tenant-a-reader", "count": 3, "auth_recipe": "fixture-tenant-header"},
+                {"class": "tenant-b-reader", "count": 3, "auth_recipe": "fixture-tenant-header"},
+            ],
+            "owned-overlapping-tenant-records",
+            "owned-tenant-state",
+            "/tenant/state",
+        ),
+        (
+            "cached_search",
+            [{"class": "searcher", "count": 4, "auth_recipe": "run-scoped-header"}],
+            "owned-product-catalog",
+            "owned-cache-state",
+            "/cache/state",
+        ),
+    ],
+)
+def test_inspect_explains_actors_budgets_fixture_and_observer(capsys, example, actors, recipe, observer, observation_path):
+    scenario = Path(__file__).parents[1] / "examples" / example
+    budgets = json.loads((scenario / "manifest.json").read_text())["budgets"]
+
+    status = main(["inspect", str(scenario), "--seed", "42", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["actors"] == actors
+    assert output["budgets"] == budgets
+    assert set(output["budgets"]) == {"max_seconds", "max_requests", "max_write_attempts", "max_in_flight", "max_artifact_bytes"}
+    assert output["fixture"] == {"recipe": recipe, "owned_http": OWNED_FIXTURES}
+    assert output["secret_env"] == []
+    assert output["observer"] == observer
+    assert output["observation_path"] == observation_path
+
+
+def test_inspect_lists_secret_env_names_but_never_values(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FIXTURE_TOKEN", "fixture-secret-value")
+    monkeypatch.setenv("OBSERVER_TOKEN", "observer-secret-value")
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": OWNED_FIXTURES | {"id_pointer": "/id", "bearer_token_env": "FIXTURE_TOKEN"}},
+        observation={"path": "/state", "assertion": "accepted_orders_persist", "expected": {"/ok": True}, "bearer_token_env": "OBSERVER_TOKEN"},
+        budgets=manifest()["budgets"] | {"max_seconds": 40, "max_requests": 70, "max_write_attempts": 30},
+    )
+
+    status = main(["inspect", str(write_bundle(tmp_path, data)), "--json"])
+    raw = capsys.readouterr().out
+
+    assert status == 0
+    assert json.loads(raw)["secret_env"] == ["FIXTURE_TOKEN", "OBSERVER_TOKEN"]
+    assert "secret-value" not in raw
+
+
+def test_inspect_without_owned_fixture_or_observation(tmp_path, capsys):
+    status = main(["inspect", str(write_bundle(tmp_path)), "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 0
+    assert output["fixture"] == {"recipe": "owned-shop", "owned_http": None}
+    assert output["observer"] == "owned-order-ledger"
+    assert output["observation_path"] is None
+    assert output["secret_env"] == []
+
+
 def test_verify_cancelled_during_fixture_create_exits_130(tmp_path, monkeypatch, capsys):
     import litetraffic.runner as runner
 

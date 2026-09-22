@@ -102,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         bundle = load_scenario(args.scenario)
         manifest = bundle.manifest
         resolved_schedule = manifest.schedule.resolve(args.seed)
+        owned, observation = manifest.fixtures.owned_http, manifest.observation
         payload = {
             "ok": True,
             "name": manifest.name,
@@ -113,6 +114,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             "maximum_journey_writes": manifest.maximum_journey_writes,
             "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,
+            "actors": [actor.model_dump(by_alias=True) for actor in manifest.actors],
+            "budgets": manifest.budgets.model_dump(),
+            "fixture": {
+                "recipe": manifest.fixtures.recipe,
+                "owned_http": owned and owned.model_dump(include={"create_path", "delete_path"}),
+            },
+            # Names only: the environment is never read here.
+            "secret_env": sorted({ref for ref in (owned and owned.bearer_token_env, observation and observation.bearer_token_env) if ref}),
+            "observer": manifest.observer,
+            "observation_path": observation and observation.path,
         }
         _emit(payload, args.json, format_inspect)
         return 0

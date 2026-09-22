@@ -28,7 +28,7 @@ With a target, it first applies the same URL checks as `verify` (link-local and 
 litetraffic inspect SCENARIO [--seed INTEGER] [--json]
 ```
 
-Validates the manifest and script path and resolves the schedule. `--seed` defaults to `0`. Returns scenario name, schema version, script path, planned journeys, request/write maxima, resolved phases, and assertion IDs. Does not execute the scenario or infer routes.
+Validates the manifest and script path and resolves the schedule. `--seed` defaults to `0`. Returns scenario name, schema version, script path, planned journeys, request/write maxima, resolved phases, and assertion IDs. The JSON form also includes `actors` (class, count, auth recipe), all five `budgets`, `fixture` (`recipe` and, for an owned HTTP fixture, its `create_path`/`delete_path`, otherwise `null`), `secret_env` (the sorted `bearer_token_env` names referenced by the fixture and observation; values are never read or printed), `observer`, and `observation_path` (`null` without an observation). Does not execute the scenario or infer routes.
 
 ## `verify`
 
