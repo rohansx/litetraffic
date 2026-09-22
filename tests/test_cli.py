@@ -256,6 +256,16 @@ def test_diff_returns_inconclusive_for_incompatible_runs(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["comparable"] is False
 
 
+def test_diff_returns_failure_when_both_runs_fail(tmp_path, capsys):
+    baseline = write_run(tmp_path / "baseline", "baseline", verdict="fail")
+    candidate = write_run(tmp_path / "candidate", "candidate", verdict="fail")
+
+    status = main(["diff", str(baseline), str(candidate), "--json"])
+
+    assert status == 1
+    assert json.loads(capsys.readouterr().out)["verdict"] == "fail"
+
+
 @pytest.mark.parametrize(
     ("k6_options", "expected_verdict", "expected_status"),
     [

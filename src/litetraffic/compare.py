@@ -50,6 +50,43 @@ def _load_run(path: Path) -> tuple[dict, dict]:
     return run, result
 
 
+def _delivered_less_work(progress: dict) -> bool:
+    for counts in progress.values():
+        baseline, candidate = counts["baseline"], counts["candidate"]
+        if _finite_number(baseline) and (not _finite_number(candidate) or candidate < baseline):
+            return True
+    return False
+
+
+def _grade(
+    incompatibilities: list[str],
+    candidate_verdict: str,
+    p95_status: str,
+    p95_gate: float | None,
+    candidate_has_latency: bool,
+    progress: dict,
+) -> tuple[str, list[str]]:
+    if incompatibilities:
+        return "inconclusive", [f"incompatible runs: {', '.join(incompatibilities)}"]
+    failures = []
+    if candidate_verdict == "fail":
+        failures.append("candidate verdict is fail")
+    if p95_status == "regression":
+        failures.append("p95 regression exceeds the gate")
+    if failures:
+        return "fail", failures
+    reasons = []
+    if candidate_verdict in {"error", "inconclusive"}:
+        reasons.append(f"candidate verdict is {candidate_verdict}")
+    if _delivered_less_work(progress):
+        reasons.append("candidate delivered less work")
+    if p95_gate is not None and p95_status in {"inconclusive", "unavailable"}:
+        reasons.append(f"p95 gate is {p95_status}")
+    elif p95_gate is None and not candidate_has_latency:
+        reasons.append("candidate has no latency samples")
+    return ("inconclusive" if reasons else "pass"), reasons
+
+
 def compare_runs(
     baseline_path: Path,
     candidate_path: Path,
@@ -69,10 +106,10 @@ def compare_runs(
 
     baseline_verdict = baseline.get("verdict")
     candidate_verdict = candidate.get("verdict")
-    correctness_regression = baseline_verdict == "pass" and candidate_verdict == "fail"
+    correctness_regression = not incompatibilities and baseline_verdict == "pass" and candidate_verdict == "fail"
     baseline_assertions = {item.get("id"): item.get("status") for item in baseline.get("assertions", [])}
     candidate_assertions = {item.get("id"): item.get("status") for item in candidate.get("assertions", [])}
-    assertion_regressions = sorted(
+    assertion_regressions = [] if incompatibilities else sorted(
         assertion_id
         for assertion_id, status in baseline_assertions.items()
         if status == "pass" and candidate_assertions.get(assertion_id) != "pass"
@@ -158,16 +195,14 @@ def compare_runs(
         },
     }
 
-    if incompatibilities:
-        verdict = "inconclusive"
-    elif correctness_regression or status == "regression":
-        verdict = "fail"
-    elif candidate_verdict in {"error", "inconclusive"} or (
-        max_p95_regression_percent is not None and status in {"inconclusive", "unavailable"}
-    ):
-        verdict = "inconclusive"
-    else:
-        verdict = "pass"
+    verdict, reasons = _grade(
+        incompatibilities,
+        candidate_verdict,
+        status,
+        max_p95_regression_percent,
+        candidate_samples > 0 and _finite_number(candidate_p95),
+        progress,
+    )
 
     return {
         "schema_version": 1,
@@ -176,6 +211,7 @@ def compare_runs(
         "comparable": not incompatibilities,
         "incompatibilities": incompatibilities,
         "verdict": verdict,
+        "reasons": reasons,
         "correctness": correctness,
         "progress": progress,
         "performance": performance,

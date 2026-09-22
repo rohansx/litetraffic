@@ -51,7 +51,7 @@ litetraffic diff \
   .litetraffic/runs/<broken-run-id> --json
 ```
 
-Comparison reads local artifacts and does not contact the app. A correct baseline followed by the broken duplicate server should report a correctness regression. A diff `pass` means no regression under its implemented rules; it does not certify that a candidate run passed business verification. Check `correctness.candidate_verdict` as well.
+Comparison reads local artifacts and does not contact the app. A correct baseline followed by the broken duplicate server should report a correctness regression. A diff `pass` requires the candidate verdict to be `pass`: for compatible runs, a `fail` candidate fails the diff, and an `error` or `inconclusive` candidate makes it inconclusive. When the diff is not `pass`, `reasons` says why.
 
 An optional performance gate is available:
 

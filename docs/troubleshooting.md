@@ -22,7 +22,7 @@ Start with `litetraffic doctor --target <url> --json`, then open the run's `resu
 | `fixture cleanup ...` makes the verdict `error` | Delete failed | Clean up manually; fix `delete_path` |
 | `observer HTTP ...` / `unknown` | Observation endpoint not reachable or not 200 JSON | Check `observation.path` and token |
 | Example `verify` fails on the first try | A demo server is still running from earlier with a fault flag, or holds old state | Stop it and restart without the fault flag |
-| `diff` is `inconclusive` | Different seed, manifest, engine, or schedule; or the candidate did not pass cleanly | Compare runs of the same scenario and seed |
+| `diff` is `inconclusive` | Different seed, manifest, engine, or schedule; the candidate verdict is `error`/`inconclusive`; the candidate delivered less work (fewer iterations or HTTP requests than the baseline); or, without a p95 gate, the candidate has no latency samples | Read the `reasons` field; compare runs of the same scenario and seed that ran to completion |
 | p95 gate inconclusive | Fewer than 200 duration samples in a run | Use a longer or higher-rate schedule |
 
 Still stuck? Open an issue with the command, `result.json`, and `engine.stderr.log` after removing any secrets.

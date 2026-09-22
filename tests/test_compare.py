@@ -154,3 +154,93 @@ def test_compare_runs_treats_invalid_sample_counts_as_inconclusive(tmp_path):
 
     assert comparison["verdict"] == "inconclusive"
     assert comparison["performance"]["p95"]["samples"]["candidate"] == 0
+
+
+def _edit_metrics(run_dir: Path, **changes) -> None:
+    result_path = run_dir / "result.json"
+    result = json.loads(result_path.read_text())
+    result["metrics"].update(changes)
+    result_path.write_text(json.dumps(result))
+
+
+def test_compare_runs_fails_when_both_runs_fail(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline", verdict="fail")
+    candidate = write_run(tmp_path / "candidate", "candidate", verdict="fail")
+
+    comparison = compare_runs(baseline, candidate)
+
+    assert comparison["verdict"] == "fail"
+    assert comparison["correctness"]["regression"] is False
+    assert comparison["reasons"] == ["candidate verdict is fail"]
+
+
+def test_compare_runs_lists_only_the_mismatch_for_incompatible_runs(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline", scenario_sha256="scenario-a")
+    candidate = write_run(tmp_path / "candidate", "candidate", scenario_sha256="scenario-b", verdict="fail")
+
+    comparison = compare_runs(baseline, candidate)
+
+    assert comparison["verdict"] == "inconclusive"
+    assert comparison["correctness"]["assertion_regressions"] == []
+    assert comparison["correctness"]["regression"] is False
+    assert comparison["reasons"] == ["incompatible runs: scenario_sha256"]
+
+
+@pytest.mark.parametrize("metric", ["iterations", "http_reqs"])
+def test_compare_runs_does_not_pass_a_candidate_that_did_less_work(tmp_path, metric):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    candidate = write_run(tmp_path / "candidate", "candidate")
+    _edit_metrics(candidate, **{metric: 150})
+
+    comparison = compare_runs(baseline, candidate)
+
+    assert comparison["verdict"] == "inconclusive"
+    assert comparison["reasons"] == ["candidate delivered less work"]
+
+
+def test_compare_runs_does_not_pass_a_candidate_without_latency_samples(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    candidate = write_run(tmp_path / "candidate", "candidate")
+    _edit_metrics(candidate, http_req_duration_ms={"samples": 0})
+
+    comparison = compare_runs(baseline, candidate)
+
+    assert comparison["verdict"] == "inconclusive"
+    assert comparison["reasons"] == ["candidate has no latency samples"]
+
+
+def test_compare_runs_passes_equivalent_runs_without_reasons(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    candidate = write_run(tmp_path / "candidate", "candidate")
+
+    comparison = compare_runs(baseline, candidate)
+
+    assert comparison["verdict"] == "pass"
+    assert comparison["reasons"] == []
+
+
+@pytest.mark.parametrize("metric", ["iterations", "http_reqs"])
+def test_compare_runs_does_not_pass_a_candidate_missing_a_work_count(tmp_path, metric):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    candidate = write_run(tmp_path / "candidate", "candidate")
+    result_path = candidate / "result.json"
+    result = json.loads(result_path.read_text())
+    del result["metrics"][metric]
+    result_path.write_text(json.dumps(result))
+
+    comparison = compare_runs(baseline, candidate)
+
+    assert comparison["verdict"] == "inconclusive"
+    assert comparison["reasons"] == ["candidate delivered less work"]
+
+
+def test_compare_runs_less_work_is_inconclusive_even_within_p95_gate(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline", p95=100)
+    candidate = write_run(tmp_path / "candidate", "candidate", p95=105)
+    _edit_metrics(candidate, iterations=250)
+
+    comparison = compare_runs(baseline, candidate, max_p95_regression_percent=20)
+
+    assert comparison["performance"]["p95"]["status"] == "within_limit"
+    assert comparison["verdict"] == "inconclusive"
+    assert comparison["reasons"] == ["candidate delivered less work"]
