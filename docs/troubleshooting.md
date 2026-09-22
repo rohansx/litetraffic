@@ -13,6 +13,7 @@ Start with `litetraffic doctor --target <url> --json`, then open the run's `resu
 | `request budget ... is below the journey and lifecycle maximum` | Budgets too small for the schedule | Raise `max_requests`, or lower rates/durations/`max_requests` per journey |
 | `scheduled duration ... exceeds max_seconds budget` | Schedule plus fixture/observer deadlines is too long | Raise `max_seconds` or shorten the schedule |
 | Verdict `error`, lifecycle `crashed` | k6 failed to start or exited non-zero | Read `engine.stderr.log`; often a script syntax error or a connection refused |
+| `target unreachable: all N requests failed before an HTTP response` | Every request failed before any HTTP response (connection refused, DNS, TLS, timeout) | Check that the app is running and `--target` host/port is correct; run `litetraffic doctor --target <url>` |
 | Verdict `inconclusive`, `missing assertion evidence` | Script never emitted `LT_EVENT` for that assertion, or used the wrong `run_id` | Check `console.log`; make sure each declared assertion is logged |
 | `partial assertion evidence (n/m)` | Some journeys did not run or did not log | Check `dropped_iterations`; raise `max_in_flight` or reduce the rate |
 | `delivered journeys ... do not match planned journeys` | The generator could not keep up, or the run ended early | Same as above; also check that the target is not overloaded |

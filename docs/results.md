@@ -28,9 +28,11 @@ The controller restricts permissions on directories and files it creates. Raw en
 | `pass` | Declared assertions passed with complete expected evidence and no reported run limitation |
 | `fail` | At least one declared business assertion definitely failed |
 | `inconclusive` | Evidence/progress was incomplete without a definitive failure, such as a timeout |
-| `error` | Engine/lifecycle or budget/fixture failure prevented a clean evaluation |
+| `error` | Engine/lifecycle, budget/fixture failure, or an unreachable target prevented a clean evaluation |
 
 Lifecycle is `finished`, `timed_out`, `cancelled`, or `crashed`, independently of the verdict. For example, a timed-out run can retain a definite failing assertion; it can never pass. An observer that cannot respond yields unknown evidence. A failed configured fixture cleanup makes the verdict `error`.
+
+When k6 made requests but every `http_req_failed` point is a transport-level failure (k6 tag `status` of `"0"` or an `error_code` tag, meaning no HTTP response arrived), the verdict is `error`, failing assertions become `unknown`, and `limitations` contains `target unreachable: all N requests failed before an HTTP response`. `metrics.http_req_failed_rate.transport` counts those failures when any occur. A run that receives any HTTP response, including HTTP 500, is judged normally.
 
 For ordinary journey assertions, each declared assertion must have exactly one sample per planned journey. A final-observer assertion instead receives one aggregate observation. Missing samples and delivered/planned journey mismatches prevent a pass. Inspect `limitations`, `completeness`, and each assertion's sample count when diagnosing a result.
 

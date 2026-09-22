@@ -235,11 +235,16 @@ def test_diff_returns_inconclusive_for_incompatible_runs(tmp_path, capsys):
 
 @pytest.mark.parametrize(
     ("k6_options", "expected_verdict", "expected_status"),
-    [({"iterations": 19}, "inconclusive", 2), ({"returncode": 7}, "error", 3)],
+    [
+        ({"iterations": 19}, "inconclusive", 2),
+        ({"returncode": 7}, "error", 3),
+        ({"failed_tags": ({"status": "0", "error_code": "1212"},) * 2, "passed": False}, "error", 3),
+    ],
 )
 def test_verify_exit_status_distinguishes_inconclusive_and_error(tmp_path, monkeypatch, capsys, k6_options, expected_verdict, expected_status):
     scenario = write_bundle(tmp_path / "scenario")
-    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    passed = k6_options.pop("passed", True)
+    events = [assertion("accepted_orders_persist", passed) for _ in range(20)]
     monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
     k6 = fake_k6(tmp_path, events, **k6_options)
 

@@ -15,6 +15,7 @@ def fake_k6(
     iterations: int = 20,
     sleep_seconds: int = 0,
     extra_metric_lines: tuple[str, ...] = (),
+    failed_tags: tuple[dict, dict] = ({}, {}),
 ) -> Path:
     path = tmp_path / "k6"
     path.write_text(
@@ -33,8 +34,8 @@ def fake_k6(
         "with metrics.open('a') as stream:\n"
         "    stream.write(json.dumps({'type':'Point','metric':'http_req_duration','data':{'value':10}}) + '\\n')\n"
         "    stream.write(json.dumps({'type':'Point','metric':'http_req_duration','data':{'value':30}}) + '\\n')\n"
-        "    stream.write(json.dumps({'type':'Point','metric':'http_req_failed','data':{'value':0}}) + '\\n')\n"
-        "    stream.write(json.dumps({'type':'Point','metric':'http_req_failed','data':{'value':1}}) + '\\n')\n"
+        f"    stream.write(json.dumps({{'type':'Point','metric':'http_req_failed','data':{{'value':{int(bool(failed_tags[0]))},'tags':{failed_tags[0]!r}}}}}) + '\\n')\n"
+        f"    stream.write(json.dumps({{'type':'Point','metric':'http_req_failed','data':{{'value':1,'tags':{failed_tags[1]!r}}}}}) + '\\n')\n"
         f"    stream.write({''.join(line + chr(10) for line in extra_metric_lines)!r})\n"
         f"time.sleep({sleep_seconds})\n"
         f"raise SystemExit({returncode})\n"
@@ -484,3 +485,33 @@ def test_verify_survives_non_object_metric_lines(tmp_path, monkeypatch):
 
     assert (tmp_path / "runs" / result["run_id"] / "result.json").exists()
     assert "ignored 3 malformed metric record(s)" in result["limitations"]
+
+
+REFUSED = {"status": "0", "error_code": "1212"}
+
+
+def test_verify_reports_an_unreachable_target_as_error(tmp_path, monkeypatch):
+    data = manifest(assertions=["accepted_orders_persist"])
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist", False) for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    k6 = fake_k6(tmp_path, events, failed_tags=(REFUSED, REFUSED))
+
+    result = verify("http://127.0.0.1:9", scenario, tmp_path / "runs", str(k6))
+
+    assert result["verdict"] == "error"
+    assert "target unreachable: all 2 requests failed before an HTTP response" in result["limitations"]
+    assert result["assertions"] == [{"id": "accepted_orders_persist", "status": "unknown", "samples": 20}]
+
+
+def test_verify_still_fails_when_the_target_answers_with_http_500(tmp_path, monkeypatch):
+    data = manifest(assertions=["accepted_orders_persist"])
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist", False) for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    k6 = fake_k6(tmp_path, events, failed_tags=(REFUSED, {"status": "500"}))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(k6))
+
+    assert result["verdict"] == "fail"
+    assert not any("unreachable" in item for item in result["limitations"])

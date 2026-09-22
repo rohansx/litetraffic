@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import signal
 import shutil
@@ -12,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from litetraffic.evidence import _read_events, _read_metrics, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
 from litetraffic.report import render_report
@@ -52,80 +52,6 @@ def _target(value: str) -> str:
     if parsed.username or parsed.password:
         raise RunnerError("target URL must not contain credentials")
     return value.rstrip("/")
-
-
-def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
-    events: list[dict] = []
-    malformed = 0
-    decoder = json.JSONDecoder()
-    for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
-        marker = line.find("LT_EVENT ")
-        if marker < 0:
-            continue
-        try:
-            event, _ = decoder.raw_decode(line[marker + len("LT_EVENT ") :])
-            if (
-                event.get("schema_version") != 1
-                or event.get("type") != "assertion"
-                or event.get("run_id") != run_id
-                or not isinstance(event.get("assertion"), str)
-                or not isinstance(event.get("passed"), bool)
-            ):
-                raise ValueError
-        except (AttributeError, json.JSONDecodeError, ValueError):
-            malformed += 1
-            continue
-        events.append({"sequence": len(events) + 1, **event})
-    return events, malformed
-
-
-def _percentile(values: list[float], quantile: float) -> float:
-    ordered = sorted(values)
-    position = (len(ordered) - 1) * quantile
-    lower = math.floor(position)
-    upper = math.ceil(position)
-    if lower == upper:
-        return ordered[lower]
-    return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
-
-
-def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
-    count_metrics = {"dropped_iterations", "http_reqs", "iterations"}
-    totals: dict[str, object] = {}
-    durations: list[float] = []
-    failed: list[float] = []
-    malformed = 0
-    for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
-        try:
-            item = json.loads(line)
-            metric = item.get("metric")
-            value = item.get("data", {}).get("value")
-            if item.get("type") != "Point" or not isinstance(value, (int, float)):
-                continue
-            if metric in count_metrics:
-                totals[metric] = float(totals.get(metric, 0)) + value
-            elif metric == "http_req_duration":
-                durations.append(float(value))
-            elif metric == "http_req_failed" and 0 <= value <= 1:
-                failed.append(float(value))
-        except (AttributeError, KeyError, json.JSONDecodeError, TypeError):
-            malformed += 1
-    if durations:
-        totals["http_req_duration_ms"] = {
-            "samples": len(durations),
-            "average": round(sum(durations) / len(durations), 3),
-            "p50": round(_percentile(durations, 0.5), 3),
-            "p95": round(_percentile(durations, 0.95), 3),
-            "max": round(max(durations), 3),
-        }
-    if failed:
-        failures = sum(failed)
-        totals["http_req_failed_rate"] = {
-            "samples": len(failed),
-            "failed": int(failures),
-            "rate": round(failures / len(failed), 6),
-        }
-    return totals, malformed
 
 
 def _communicate(process: subprocess.Popen[str], timeout: float) -> tuple[str, str]:
@@ -328,6 +254,14 @@ def verify(
         assertions.append({"id": assertion_id, "status": status, "samples": len(samples)})
 
     limitations = []
+    unreachable = target_unreachable(metrics)
+    if unreachable:
+        # Failed assertions against a target that never answered say nothing about the application.
+        assertions = [row | {"status": "unknown"} if row["status"] == "fail" else row for row in assertions]
+        definite_failure = False
+        limitations.append(
+            f"target unreachable: all {int(metrics['http_reqs'])} requests failed before an HTTP response"
+        )
     if missing:
         limitations.append(f"missing assertion evidence: {', '.join(missing)}")
     if partial:
@@ -359,7 +293,7 @@ def verify(
     elif lifecycle == "crashed":
         limitations.append(engine_error or f"k6 exited with status {engine_exit_code}")
     completeness = "complete" if not limitations else "incomplete"
-    if request_budget_exceeded or fixture_error:
+    if request_budget_exceeded or fixture_error or unreachable:
         verdict = "error"
     elif definite_failure:
         verdict = "fail"
