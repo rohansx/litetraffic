@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from litetraffic.runner import RunnerError, repeat_verify, verify
+from litetraffic.runner import RunnerError, _read_metrics, repeat_verify, verify
 from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
 
@@ -14,6 +14,7 @@ def fake_k6(
     returncode: int = 0,
     iterations: int = 20,
     sleep_seconds: int = 0,
+    extra_metric_lines: tuple[str, ...] = (),
 ) -> Path:
     path = tmp_path / "k6"
     path.write_text(
@@ -34,6 +35,7 @@ def fake_k6(
         "    stream.write(json.dumps({'type':'Point','metric':'http_req_duration','data':{'value':30}}) + '\\n')\n"
         "    stream.write(json.dumps({'type':'Point','metric':'http_req_failed','data':{'value':0}}) + '\\n')\n"
         "    stream.write(json.dumps({'type':'Point','metric':'http_req_failed','data':{'value':1}}) + '\\n')\n"
+        f"    stream.write({''.join(line + chr(10) for line in extra_metric_lines)!r})\n"
         f"time.sleep({sleep_seconds})\n"
         f"raise SystemExit({returncode})\n"
     )
@@ -453,3 +455,32 @@ def test_repeat_verify_stops_after_user_cancellation(tmp_path, monkeypatch):
     assert calls == [42]
     assert result["lifecycle"] == "cancelled"
     assert result["completed_runs"] == 1
+
+
+NON_OBJECT_METRIC_LINES = ("[1]", "5", '{"type":"Point","data":null}')
+
+
+def test_read_metrics_counts_non_object_lines_as_malformed(tmp_path):
+    path = tmp_path / "metrics.jsonl"
+    path.write_text("\n".join(NON_OBJECT_METRIC_LINES) + "\n")
+
+    _, malformed = _read_metrics(path)
+
+    assert malformed == 3
+
+
+def test_verify_survives_non_object_metric_lines(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    k6 = fake_k6(tmp_path, events, extra_metric_lines=NON_OBJECT_METRIC_LINES)
+
+    result = verify(
+        target="http://127.0.0.1:8000",
+        scenario=scenario,
+        output_dir=tmp_path / "runs",
+        k6_path=str(k6),
+    )
+
+    assert (tmp_path / "runs" / result["run_id"] / "result.json").exists()
+    assert "ignored 3 malformed metric record(s)" in result["limitations"]

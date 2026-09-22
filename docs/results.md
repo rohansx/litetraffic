@@ -34,6 +34,8 @@ Lifecycle is `finished`, `timed_out`, `cancelled`, or `crashed`, independently o
 
 For ordinary journey assertions, each declared assertion must have exactly one sample per planned journey. A final-observer assertion instead receives one aggregate observation. Missing samples and delivered/planned journey mismatches prevent a pass. Inspect `limitations`, `completeness`, and each assertion's sample count when diagnosing a result.
 
+Engine event or metric lines that cannot be parsed (invalid JSON, a non-object value, or a metric record whose `data` field is present but is not an object) are skipped and reported as an `ignored N malformed event record(s)` or `ignored N malformed metric record(s)` limitation; the run is still finalized and `result.json` is still written.
+
 The report includes request duration samples, average/p50/p95/max, HTTP error rate, iterations, and throughput when k6 supplies them. Those are observations, not automatic performance promises. Expected application rejections may contribute to k6's HTTP failure rate even when the business assertion passes.
 
 ## Repeat summaries

@@ -108,7 +108,7 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
                 durations.append(float(value))
             elif metric == "http_req_failed" and 0 <= value <= 1:
                 failed.append(float(value))
-        except (KeyError, json.JSONDecodeError, TypeError):
+        except (AttributeError, KeyError, json.JSONDecodeError, TypeError):
             malformed += 1
     if durations:
         totals["http_req_duration_ms"] = {
