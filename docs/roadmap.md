@@ -17,7 +17,6 @@ The long-term goal is **users as an API**: give an application a believable, sta
 
 ## Next
 
-- Digest scripts and imports alongside the manifest for stronger comparisons
 - Run-time write counting and in-flight enforcement
 - macOS release qualification and a PyPI release
 

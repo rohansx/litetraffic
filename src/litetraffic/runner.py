@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import signal
@@ -110,7 +109,6 @@ def verify(
     events_dir.mkdir(parents=True, mode=0o700)
     run_dir.chmod(0o700)
 
-    manifest_bytes = bundle.manifest_path.read_bytes()
     started_at = _now()
     run = {
         "schema_version": 1,
@@ -119,15 +117,14 @@ def verify(
         "mode": "verify",
         "target": target,
         "seed": seed,
-        "scenario_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+        "scenario_sha256": bundle.digest,
         "engine": engine_version,
         "lifecycle": "running",
         "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
         "started_at": started_at.isoformat(),
     }
     _write_json(run_dir / "run.json", run)
-    (run_dir / "scenario.lock.json").write_bytes(manifest_bytes)
-    (run_dir / "scenario.lock.json").chmod(0o600)
+    _write_json(run_dir / "scenario.lock.json", {"manifest": bundle.manifest_data, "engine": engine_version, "files": bundle.files})
 
     console_path = run_dir / "console.log"
     metrics_path = run_dir / "metrics.jsonl"

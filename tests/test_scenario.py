@@ -282,3 +282,40 @@ def test_rejects_insufficient_budgets(tmp_path, field, value, message):
     budgets = manifest()["budgets"] | {field: value}
     with pytest.raises(ScenarioError, match=message):
         load_scenario(write_bundle(tmp_path, manifest(budgets=budgets)))
+
+
+def test_digest_ignores_manifest_whitespace_but_covers_script_and_local_imports(tmp_path):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text('import http from "k6/http";\nimport { pick } from "./lib/helper.js";\nexport default function () {}\n')
+    (path / "lib").mkdir()
+    (path / "lib" / "helper.js").write_text('export { x } from "./deep.js";\nexport const pick = 1;\n')
+    (path / "lib" / "deep.js").write_text("export const x = 1;\n")
+    bundle = load_scenario(path)
+    assert set(bundle.files) == {"journeys.js", "lib/helper.js", "lib/deep.js"}
+    first = bundle.digest
+
+    (path / "manifest.json").write_text(json.dumps(manifest(), indent=4))
+    assert load_scenario(path).digest == first
+
+    for name in ("journeys.js", "lib/helper.js", "lib/deep.js"):
+        original = (path / name).read_text()
+        (path / name).write_text(original + "// edited\n")
+        assert load_scenario(path).digest != first, name
+        (path / name).write_text(original)
+    assert load_scenario(path).digest == first
+
+
+@pytest.mark.parametrize("source", ['import a from "../outside.js";\n', 'export * from "./../outside.js";\n', 'const m = require("../outside.js");\n'])
+def test_rejects_relative_imports_outside_the_scenario_dir(tmp_path, source):
+    (tmp_path / "outside.js").write_text("export default 1;\n")
+    path = write_bundle(tmp_path / "scenario")
+    (path / "journeys.js").write_text(source + "export default function () {}\n")
+    with pytest.raises(ScenarioError, match="inside the scenario directory"):
+        load_scenario(path)
+
+
+def test_rejects_missing_local_imports(tmp_path):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text('import "./missing.js";\n')
+    with pytest.raises(ScenarioError, match="does not exist"):
+        load_scenario(path)

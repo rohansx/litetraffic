@@ -8,8 +8,8 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 
 | File | Contents |
 |---|---|
-| `run.json` | Target, seed, manifest digest, engine, resolved schedule, run and engine-window timestamps (`engine_started_at`, `engine_finished_at` when k6 was launched), lifecycle |
-| `scenario.lock.json` | Copy of the original manifest bytes |
+| `run.json` | Target, seed, bundle digest (`scenario_sha256`), engine, resolved schedule, run and engine-window timestamps (`engine_started_at`, `engine_finished_at` when k6 was launched), lifecycle |
+| `scenario.lock.json` | `{"manifest", "engine", "files"}`: the parsed manifest, the k6 version string, and the sha256 of the script and of every file in its relative import closure, keyed by path inside the bundle |
 | `result.json` | Mode (`verify`), seed, verdict, completeness, assertion summaries, metrics, planned vs observed rate, limitations, notes |
 | `report.html` | Standalone readable report (seed, target, engine, latency, assertions, limitations, notes); open in a browser |
 | `events/000001.jsonl` | Validated, sequenced assertion events |
@@ -19,7 +19,7 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 | `observation.json` | Optional final observer expectations and selected actual fields |
 | `fixture.json` | Optional fixture create/cleanup outcomes |
 
-The controller restricts permissions on directories and files it creates. Raw engine output may still contain anything the script logs. Treat the entire run directory as potentially sensitive and review it before sharing. Scripts and imported dependencies are **not** copied into the run directory by this preview.
+The controller restricts permissions on directories and files it creates. Raw engine output may still contain anything the script logs. Treat the entire run directory as potentially sensitive and review it before sharing. Scripts and imported files are recorded by hash in `scenario.lock.json` but **not** copied into the run directory.
 
 ## Verdict and lifecycle
 
@@ -52,7 +52,7 @@ Every result also has `notes`, which list what this preview never measures: `per
 
 ## Comparison
 
-`diff` requires equal manifest digest, seed, engine version string, and resolved schedule. Incompatible inputs produce an inconclusive comparison. Target environment equivalence, fixture equivalence, and script equality are the operator's responsibility: the current digest covers **manifest bytes only**, not journey code or imports.
+`diff` requires equal bundle digest, seed, engine version string, and resolved schedule. Incompatible inputs produce an inconclusive comparison. The bundle digest is the sha256 of the canonical manifest JSON (sorted keys, compact separators, so reformatting whitespace does not change it) plus the sha256 of the script and each file it reaches through relative imports (`./` or `../` specifiers in `import`/`export ... from`, `import()` and `require()`), so editing journey code or a local helper makes runs incompatible. Module imports such as `k6/http` and remote URLs are not hashed. Target environment and fixture equivalence remain the operator's responsibility.
 
 The comparison fails whenever the candidate verdict is `fail` (including when the baseline also failed), or the optional p95 gate reports a regression. It is inconclusive when the candidate verdict is `error`/`inconclusive`, when the candidate completed fewer iterations or HTTP requests than the baseline (`candidate delivered less work`), when the p95 gate is inconclusive or unavailable, or, without a gate, when the candidate has no latency samples. Otherwise it passes. `reasons` lists why the verdict is not `pass`; for incompatible runs it contains only the compatibility mismatch, and `correctness.assertion_regressions` is empty. Individual assertion regressions (baseline `pass`, candidate not `pass`) are listed for compatible runs but are not a separate aggregate gate.
 

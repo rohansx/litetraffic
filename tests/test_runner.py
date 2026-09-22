@@ -119,6 +119,23 @@ def test_verify_records_run_context_rates_and_honesty_notes(tmp_path, monkeypatc
     assert "per-arrival lateness not measured" in report
 
 
+def test_verify_writes_a_real_lock_file_and_bundle_digest(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    (scenario / "journeys.js").write_text('import "./helper.js";\nexport default function () {}\n')
+    (scenario / "helper.js").write_text("export const x = 1;\n")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://127.0.0.1:8000", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    bundle = load_scenario(scenario)
+    lock = json.loads((run_dir / "scenario.lock.json").read_text())
+    assert lock == {"manifest": manifest(), "engine": "k6 v2.2.0", "files": bundle.files}
+    assert set(lock["files"]) == {"journeys.js", "helper.js"}
+    assert json.loads((run_dir / "run.json").read_text())["scenario_sha256"] == bundle.digest
+
+
 def test_verify_reports_dropped_iterations_as_a_limitation(tmp_path, monkeypatch):
     scenario = write_bundle(tmp_path / "scenario")
     events = [assertion("accepted_orders_persist") for _ in range(20)]
