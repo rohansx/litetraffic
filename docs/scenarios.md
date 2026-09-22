@@ -69,7 +69,7 @@ The script is ordinary k6 JavaScript. The controller passes these environment va
 | `LT_SEED` | Seed, if the script needs deterministic choices |
 | `LT_FIXTURE_ID` | Present only when an `owned_http` fixture was created |
 
-The bundled examples show the standard executor setup. Set `maxRedirects: 0` unless your journey needs redirects.
+The bundled examples show the standard executor setup. `verify` runs k6 with `--max-redirects 0`, which overrides a script's `maxRedirects` option, so redirects are not followed. A request that sets its own `redirects` parameter still follows them; avoid that unless your journey needs it.
 
 ### Emitting evidence
 

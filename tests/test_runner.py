@@ -25,6 +25,8 @@ def fake_k6(
         "if sys.argv[1] == 'version':\n"
         "    print('k6 v2.2.0')\n"
         "    raise SystemExit(0)\n"
+        "if os.environ.get('FAKE_K6_ARGV'):\n"
+        "    pathlib.Path(os.environ['FAKE_K6_ARGV']).write_text(json.dumps(sys.argv))\n"
         "console = pathlib.Path(sys.argv[sys.argv.index('--console-output') + 1])\n"
         "metrics = pathlib.Path(sys.argv[sys.argv.index('--out') + 1].split('=', 1)[1])\n"
         "events = json.loads(os.environ['FAKE_K6_EVENTS'])\n"
@@ -251,6 +253,30 @@ def test_verify_rejects_an_unpinned_engine(tmp_path, monkeypatch):
 
     with pytest.raises(RunnerError, match="expected v2.2.0"):
         verify("http://example.test", scenario, tmp_path / "runs", str(k6))
+
+
+def test_verify_disables_k6_redirects(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    monkeypatch.setenv("FAKE_K6_EVENTS", "[]")
+    monkeypatch.setenv("FAKE_K6_ARGV", str(tmp_path / "argv.json"))
+
+    verify("http://localhost:8000", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
+
+    argv = json.loads((tmp_path / "argv.json").read_text())
+    assert argv[argv.index("--max-redirects") + 1] == "0"
+
+
+@pytest.mark.parametrize(
+    "target",
+    ["http://169.254.169.254/", "http://[fe80::1]/", "http://[::ffff:169.254.169.254]/", "http://metadata.google.internal/"],
+)
+def test_verify_rejects_link_local_and_metadata_targets(tmp_path, monkeypatch, target):
+    scenario = write_bundle(tmp_path / "scenario")
+    monkeypatch.setenv("FAKE_K6_EVENTS", "[]")
+
+    with pytest.raises(RunnerError, match="link-local/metadata address not allowed"):
+        verify(target, scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
+    assert not (tmp_path / "runs").exists()
 
 
 def test_verify_freezes_the_seeded_resolved_schedule(tmp_path, monkeypatch):

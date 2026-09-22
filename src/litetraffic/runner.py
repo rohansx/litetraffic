@@ -9,13 +9,13 @@ import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from litetraffic.evidence import _read_events, _read_metrics, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
 from litetraffic.report import render_report
 from litetraffic.scenario import load_scenario
+from litetraffic.target import validate_target
 
 SUPPORTED_K6_VERSION = "v2.2.0"
 
@@ -52,12 +52,10 @@ def _engine(k6_path: str | None) -> tuple[str, str]:
 
 
 def _target(value: str) -> str:
-    parsed = urlsplit(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise RunnerError("target must be an absolute http or https URL")
-    if parsed.username or parsed.password:
-        raise RunnerError("target URL must not contain credentials")
-    return value.rstrip("/")
+    try:
+        return validate_target(value)
+    except ValueError as exc:
+        raise RunnerError(str(exc)) from exc
 
 
 def _communicate(process: subprocess.Popen[str], timeout: float) -> tuple[str, str]:
@@ -97,9 +95,9 @@ def verify(
     k6_path: str | None = None,
     seed: int = 0,
 ) -> dict:
+    target = _target(target)
     bundle = load_scenario(Path(scenario))
     executable, engine_version = _engine(k6_path)
-    target = _target(target)
     resolved_schedule = bundle.manifest.schedule.resolve(seed)
     run_id = f"run_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
     run_dir = Path(output_dir).resolve() / run_id
@@ -132,6 +130,8 @@ def verify(
         executable,
         "run",
         "--quiet",
+        "--max-redirects",
+        "0",
         "--log-format",
         "raw",
         "--console-output",

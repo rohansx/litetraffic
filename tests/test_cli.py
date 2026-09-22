@@ -36,6 +36,16 @@ def test_doctor_json_returns_nonzero_when_k6_is_missing(monkeypatch, capsys):
     assert output["checks"][0]["name"] == "k6"
 
 
+@pytest.mark.parametrize("command", ["doctor", "verify"])
+@pytest.mark.parametrize("target", ["http://169.254.169.254/", "http://[fe80::1]/"])
+def test_metadata_targets_exit_with_configuration_error(tmp_path, capsys, command, target):
+    extra = [str(write_bundle(tmp_path / "scenario")), "--output-dir", str(tmp_path / "runs")] if command == "verify" else []
+    status = main([command, *extra, "--target", target, "--json"])
+    output = json.loads(capsys.readouterr().out)
+    assert status == 3
+    assert "link-local/metadata address not allowed" in output["error"]
+
+
 def test_repository_checkout_example_is_valid(capsys):
     scenario = Path(__file__).parents[1] / "examples" / "checkout"
 

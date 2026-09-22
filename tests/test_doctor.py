@@ -46,3 +46,17 @@ def test_rejects_non_http_target(tmp_path):
     with pytest.raises(ValueError, match="http or https"):
         run_doctor(target="file:///etc/passwd", k6_path=str(executable(tmp_path)))
 
+
+
+@pytest.mark.parametrize("target", ["http://169.254.169.254/", "http://[fe80::1]/"])
+def test_rejects_link_local_and_metadata_targets_without_sending(tmp_path, target):
+    def forbidden(request):
+        raise AssertionError("doctor must not contact a metadata target")
+    with pytest.raises(ValueError, match="link-local/metadata address not allowed"):
+        run_doctor(target=target, k6_path=str(executable(tmp_path)), transport=httpx.MockTransport(forbidden))
+
+
+@pytest.mark.parametrize("target", ["http://localhost:8000/", "http://127.0.0.1:8000/"])
+def test_accepts_loopback_targets(tmp_path, target):
+    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    assert run_doctor(target=target, k6_path=str(executable(tmp_path)), transport=transport).ok is True

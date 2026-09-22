@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from urllib.parse import urlsplit
 
 import httpx
 from pydantic import BaseModel, ConfigDict
+
+from litetraffic.target import validate_target
 
 
 class Check(BaseModel):
@@ -51,11 +52,7 @@ def run_doctor(
     if target is None:
         return DoctorReport(checks=checks)
 
-    parsed = urlsplit(target)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("target must use http or https")
-    if parsed.username or parsed.password:
-        raise ValueError("target URL must not contain credentials")
+    validate_target(target)
     try:
         with httpx.Client(transport=transport, timeout=3, follow_redirects=False) as client:
             response = client.get(target)

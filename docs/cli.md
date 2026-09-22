@@ -10,7 +10,7 @@ All scenario arguments are **directory paths** containing `manifest.json` and th
 litetraffic doctor [--target URL] [--k6-path PATH] [--json]
 ```
 
-Checks that k6 can execute. If a target is supplied, sends one GET with a three-second HTTP timeout and no redirect following. Any response proves reachability; status codes are not interpreted as readiness. This command does not enforce the exact engine version, install dependencies, or write to the target.
+Checks that k6 can execute. If a target is supplied, applies the same URL checks as `verify` (link-local and metadata targets exit `3` without a request), then sends one GET with a three-second HTTP timeout and no redirect following. Any response proves reachability; status codes are not interpreted as readiness. This command does not enforce the exact engine version, install dependencies, or write to the target.
 
 ## `inspect`
 
@@ -29,7 +29,7 @@ litetraffic verify SCENARIO
   [--seed INTEGER] [--repeat COUNT] [--json]
 ```
 
-Exactly one target form is required. URL targets must use HTTP/HTTPS and must not contain URL credentials. E2B coordinates must include both sandbox ID and a port from 1 through 65535. Prefer an origin URL; the controller appends declared fixture/observation paths to it.
+Exactly one target form is required. URL targets must use HTTP/HTTPS, must not contain URL credentials, and must not be a link-local or cloud-metadata address (for example `169.254.169.254`, `fe80::/10`, or `metadata.google.internal`); such targets exit `3`. Loopback targets such as `localhost` and `127.0.0.1` are allowed. Hostnames are not resolved, so this check covers literal addresses and known metadata names only. k6 runs with `--max-redirects 0`. E2B coordinates must include both sandbox ID and a port from 1 through 65535. Prefer an origin URL; the controller appends declared fixture/observation paths to it.
 
 | Option | Default | Meaning |
 |---|---|---|
