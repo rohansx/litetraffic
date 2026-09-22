@@ -797,3 +797,94 @@ def test_throughput_is_measured_over_the_engine_window_only(tmp_path, monkeypatc
     assert engine_seconds == 1
     assert result["metrics"]["iterations_per_second"] == 1.0
     assert result["metrics"]["http_reqs_per_second"] == 2.0
+
+
+def owned_fixture_observed_bundle(tmp_path: Path) -> Path:
+    data = manifest(
+        assertions=["accepted_orders_persist", "ledger_total"],
+        fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
+        observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        budgets=manifest()["budgets"] | {"max_seconds": 16, "max_requests": 6, "max_write_attempts": 3},
+    )
+    return write_bundle(tmp_path / "scenario", data)
+
+
+def cancel(*args, **kwargs):
+    raise KeyboardInterrupt
+
+
+def test_cancel_during_fixture_create_finalizes_without_traffic(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = owned_fixture_observed_bundle(tmp_path)
+    cleaned = []
+    monkeypatch.setattr(runner, "create_fixture", cancel)
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: cleaned.append(args) or {"status": "deleted", "requests": 1})
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    assert result["lifecycle"] == "cancelled"
+    assert result["verdict"] == "inconclusive"
+    assert result["engine_exit_code"] is None
+    assert "run cancelled by user" in result["limitations"]
+    assert cleaned == []
+    assert json.loads((run_dir / "result.json").read_text())["lifecycle"] == "cancelled"
+    assert json.loads((run_dir / "run.json").read_text())["lifecycle"] == "cancelled"
+    assert json.loads((run_dir / "fixture.json").read_text())["create"]["status"] == "cancelled"
+
+
+def test_cancel_during_observe_still_cleans_up_the_fixture(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = owned_fixture_observed_bundle(tmp_path)
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps([assertion("accepted_orders_persist")]))
+    cleaned = []
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "observe", cancel)
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: cleaned.append(args[-1]) or {"status": "deleted", "requests": 1})
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [], iterations=1)))
+
+    assert result["lifecycle"] == "cancelled"
+    assert result["verdict"] == "inconclusive"
+    assert cleaned == ["owned-1"]
+    ledger = next(row for row in result["assertions"] if row["id"] == "ledger_total")
+    assert ledger["status"] == "unknown"
+
+
+def test_cancel_during_fixture_cleanup_is_an_error(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = owned_fixture_observed_bundle(tmp_path)
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps([assertion("accepted_orders_persist")]))
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "observe", lambda *args, **kwargs: {"assertion": "ledger_total", "status": "pass"})
+    monkeypatch.setattr(runner, "cleanup_fixture", cancel)
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [], iterations=1)))
+
+    assert result["lifecycle"] == "cancelled"
+    assert result["verdict"] == "error"
+    assert "fixture cleanup cancelled; fixture owned-1 may remain" in result["limitations"]
+
+
+def test_run_json_records_each_lifecycle_stage_as_it_happens(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = owned_fixture_observed_bundle(tmp_path)
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps([assertion("accepted_orders_persist")]))
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "observe", lambda *args, **kwargs: {"assertion": "ledger_total", "status": "pass"})
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: {"status": "deleted", "requests": 1})
+    stages = []
+    write_json = runner._write_json
+
+    def record(path, value):
+        if path.name == "run.json":
+            stages.append(value["lifecycle"])
+        write_json(path, value)
+
+    monkeypatch.setattr(runner, "_write_json", record)
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [], iterations=1)))
+
+    assert result["lifecycle"] == "finished"
+    assert stages == ["preparing", "running", "observing", "finalizing", "finished"]

@@ -40,7 +40,8 @@ LiteTraffic is a Python controller around a stock k6 child process. There is no 
 | `src/litetraffic/cli.py` | Argument parsing, JSON/text output, exit codes |
 | `src/litetraffic/models.py` | Manifest schema, profiles, schedule resolution |
 | `src/litetraffic/scenario.py` | Bundle loading and static budget checks |
-| `src/litetraffic/runner.py` | Engine process, evidence, verdict, repeat series |
+| `src/litetraffic/runner.py` | Run lifecycle, evidence, verdict, repeat series |
+| `src/litetraffic/process.py` | Engine subprocess waits and process-group termination |
 | `src/litetraffic/fixture.py` | Run-owned fixture create/cleanup |
 | `src/litetraffic/observation.py` | Final observation and JSON Pointer lookup |
 | `src/litetraffic/compare.py` | Baseline/candidate comparison |

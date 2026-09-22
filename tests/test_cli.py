@@ -374,3 +374,21 @@ def test_inspect_human_output_is_readable(tmp_path, capsys):
     assert "planned journeys: 20" in out
     assert "assertion: accepted_orders_persist" in out
     assert "{" not in out and "[" not in out
+
+
+def test_verify_cancelled_during_fixture_create_exits_130(tmp_path, monkeypatch, capsys):
+    import litetraffic.runner as runner
+
+    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22})
+    scenario = write_bundle(tmp_path / "scenario", data)
+
+    def cancel(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "create_fixture", cancel)
+    status = main(["verify", str(scenario), "--target", "http://example.test", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(fake_k6(tmp_path, [])), "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert status == 130
+    assert output["lifecycle"] == "cancelled"
+    assert json.loads((tmp_path / "runs" / output["run_id"] / "result.json").read_text())["lifecycle"] == "cancelled"

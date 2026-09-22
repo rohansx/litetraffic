@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import signal
 import shutil
 import subprocess
 import uuid
@@ -12,6 +11,7 @@ from pathlib import Path
 from litetraffic.evidence import _read_events, _read_metrics, evaluate_assertions, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
+from litetraffic.process import _communicate, _stop_process
 from litetraffic.report import render_report
 from litetraffic.scenario import load_scenario
 from litetraffic.target import validate_target
@@ -31,6 +31,12 @@ class RunnerError(ValueError):
 def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     path.chmod(0o600)
+
+
+def _record_stage(run_dir: Path, run: dict, stage: str) -> None:
+    # run.json tracks progress as it happens, so an interrupted host still shows where the run stopped.
+    run["lifecycle"] = stage
+    _write_json(run_dir / "run.json", run)
 
 
 def _restrict(run_dir: Path) -> None:
@@ -62,36 +68,6 @@ def _target(value: str) -> str:
         raise RunnerError(str(exc)) from exc
 
 
-def _communicate(process: subprocess.Popen[str], timeout: float) -> tuple[str, str]:
-    return process.communicate(timeout=timeout)
-
-
-def _signal_process(process: subprocess.Popen[str], value: signal.Signals) -> None:
-    if process.poll() is not None:
-        return
-    try:
-        if os.name == "posix":
-            os.killpg(process.pid, value)
-        elif value == signal.SIGTERM:
-            process.terminate()
-        else:
-            process.kill()
-    except ProcessLookupError:
-        pass
-
-
-def _stop_process(process: subprocess.Popen[str]) -> tuple[str, str]:
-    _signal_process(process, signal.SIGTERM)
-    try:
-        return _communicate(process, timeout=2)
-    except subprocess.TimeoutExpired:
-        _signal_process(process, signal.SIGKILL)
-        try:
-            return _communicate(process, timeout=2)
-        except subprocess.TimeoutExpired:
-            return "", "process did not exit within 2 seconds of SIGKILL"
-
-
 def verify(
     target: str,
     scenario: Path,
@@ -119,7 +95,7 @@ def verify(
         "seed": seed,
         "scenario_sha256": bundle.digest,
         "engine": engine_version,
-        "lifecycle": "running",
+        "lifecycle": "preparing",
         "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
         "started_at": started_at.isoformat(),
     }
@@ -161,15 +137,21 @@ def verify(
     engine_started = engine_finished = None
     fixture = None
     if bundle.manifest.fixtures.owned_http:
-        fixture = {"create": create_fixture(target, bundle.manifest.fixtures.owned_http, run_id)}
+        try:
+            fixture = {"create": create_fixture(target, bundle.manifest.fixtures.owned_http, run_id)}
+        except KeyboardInterrupt:
+            # ponytail: an id-less create cannot be cleaned up; at most one request was sent.
+            fixture = {"create": {"status": "cancelled", "reason": "fixture create cancelled", "requests": 1}}
+            lifecycle = "cancelled"
         if fixture["create"]["status"] == "created":
             environment["LT_FIXTURE_ID"] = fixture["create"]["fixture_id"]
-        else:
+        elif lifecycle != "cancelled":
             lifecycle = "crashed"
             engine_error = fixture["create"]["reason"]
-    if lifecycle == "crashed":
+    if lifecycle != "running":
         stdout, stderr = "", engine_error
     else:
+        _record_stage(run_dir, run, "running")
         try:
             engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - (10 if fixture else 0)
             engine_started = _now()
@@ -209,31 +191,37 @@ def verify(
     events_path.write_text("".join(json.dumps(event, sort_keys=True) + "\n" for event in events), encoding="utf-8")
     events_path.chmod(0o600)
 
+    _record_stage(run_dir, run, "observing")
     observation = None
     if bundle.manifest.observation:
-        if lifecycle == "finished":
-            observation = observe(target, bundle.manifest.observation, run_id, fixture_id=environment.get("LT_FIXTURE_ID"))
-        else:
-            observation = {
-                "assertion": bundle.manifest.observation.assertion,
-                "status": "unknown",
-                "reason": "engine did not finish",
-            }
+        observed = lifecycle == "finished"
+        observation = {"assertion": bundle.manifest.observation.assertion, "status": "unknown", "reason": "engine did not finish"}
+        if observed:
+            try:
+                observation = observe(target, bundle.manifest.observation, run_id, fixture_id=environment.get("LT_FIXTURE_ID"))
+            except KeyboardInterrupt:
+                lifecycle = "cancelled"
+                observation["reason"] = "observation cancelled"
         _write_json(run_dir / "observation.json", observation)
-        metrics["observer_requests"] = int(lifecycle == "finished" and observation.get("reason") != "observer bearer token missing")
+        metrics["observer_requests"] = int(observed and observation.get("reason") != "observer bearer token missing")
     if fixture:
         if fixture["create"]["status"] == "created":
-            fixture["cleanup"] = cleanup_fixture(target, bundle.manifest.fixtures.owned_http, run_id, fixture["create"]["fixture_id"])
+            fixture_id = fixture["create"]["fixture_id"]
+            try:
+                fixture["cleanup"] = cleanup_fixture(target, bundle.manifest.fixtures.owned_http, run_id, fixture_id)
+            except KeyboardInterrupt:
+                lifecycle = "cancelled"
+                fixture["cleanup"] = {"status": "error", "reason": f"fixture cleanup cancelled; fixture {fixture_id} may remain", "requests": 1}
         _write_json(run_dir / "fixture.json", fixture)
         metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
     if fixture or observation:
         metrics["total_http_reqs"] = float(metrics.get("http_reqs", 0)) + metrics.get("observer_requests", 0) + metrics.get("fixture_requests", 0)
+    _record_stage(run_dir, run, "finalizing")
     finished = _now()
     finished_at = finished.isoformat()
-    run.update({"lifecycle": lifecycle, "finished_at": finished_at, "engine_exit_code": engine_exit_code})
+    run.update({"finished_at": finished_at, "engine_exit_code": engine_exit_code})
     if engine_started:
         run.update({"engine_started_at": engine_started.isoformat(), "engine_finished_at": engine_finished.isoformat()})
-    _write_json(run_dir / "run.json", run)
     metrics["elapsed_seconds"] = round(max((finished - started_at).total_seconds(), 0.000001), 6)
     # Rates cover only the engine window: fixture setup, observation and cleanup are not load.
     engine_window = max((engine_finished - engine_started).total_seconds(), 0.000001) if engine_started else 0.000001
@@ -270,7 +258,8 @@ def verify(
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:
         limitations.append(f"ignored {malformed_metrics} malformed metric record(s)")
-    fixture_error = fixture and (
+    # A create cancelled before returning an id is a cancellation, not a fixture failure.
+    fixture_error = fixture and fixture["create"]["status"] != "cancelled" and (
         fixture["create"]["status"] != "created" or fixture.get("cleanup", {}).get("status") != "deleted"
     )
     if fixture_error:
@@ -330,6 +319,7 @@ def verify(
         "notes": ["per-arrival lateness not measured", "workload is synthetic (no traces supplied)"],
     }
     _write_json(run_dir / "result.json", result)
+    _record_stage(run_dir, run, lifecycle)
     report_path = run_dir / result["report"]
     report_path.write_text(render_report(result, run), encoding="utf-8")
     report_path.chmod(0o600)
