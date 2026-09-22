@@ -104,7 +104,7 @@ def test_verify_fails_when_final_observation_disagrees_with_fixture(tmp_path, mo
     monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
     monkeypatch.setattr(
         "litetraffic.runner.observe",
-        lambda *args: {"assertion": "ledger_total", "status": "fail", "expected": {"/total": 1000}, "actual": {"/total": 900}},
+        lambda *args, **kwargs: {"assertion": "ledger_total", "status": "fail", "expected": {"/total": 1000}, "actual": {"/total": 900}},
     )
 
     result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
@@ -130,7 +130,7 @@ def test_verify_is_inconclusive_when_final_observation_is_unavailable(tmp_path, 
     monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
     monkeypatch.setattr(
         "litetraffic.runner.observe",
-        lambda *args: {"assertion": "ledger_total", "status": "unknown", "reason": "observer HTTP 503"},
+        lambda *args, **kwargs: {"assertion": "ledger_total", "status": "unknown", "reason": "observer HTTP 503"},
     )
 
     result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
@@ -330,6 +330,84 @@ def test_verify_finalizes_when_the_user_cancels(tmp_path, monkeypatch):
 
     assert result["lifecycle"] == "cancelled"
     assert result["verdict"] == "inconclusive"
+
+
+@pytest.mark.parametrize(("returncode", "sleep_seconds", "expected_lifecycle"), [(0, 0, "finished"), (7, 0, "crashed"), (0, 60, "timed_out")])
+def test_owned_fixture_is_cleaned_after_engine_exit(tmp_path, monkeypatch, returncode, sleep_seconds, expected_lifecycle):
+    import litetraffic.runner as runner
+
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 5, "max_write_attempts": 3},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    calls = []
+    monkeypatch.setattr(runner, "create_fixture", lambda target, config, run_id: calls.append(("create", run_id)) or {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda target, config, run_id, fixture_id: calls.append(("delete", run_id, fixture_id)) or {"status": "deleted", "requests": 1})
+
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, returncode=returncode, iterations=1, sleep_seconds=sleep_seconds)))
+
+    assert result["lifecycle"] == expected_lifecycle
+    assert result["metrics"]["fixture_requests"] == 2
+    assert result["metrics"]["total_http_reqs"] == 4
+    assert calls == [("create", result["run_id"]), ("delete", result["run_id"], "owned-1")]
+    assert json.loads((tmp_path / "runs" / result["run_id"] / "fixture.json").read_text())["cleanup"]["status"] == "deleted"
+
+
+def test_owned_fixture_setup_failure_prevents_traffic(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22})
+    scenario = write_bundle(tmp_path / "scenario", data)
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "error", "reason": "fixture create HTTP 503", "requests": 1})
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
+    assert result["verdict"] == "error"
+    assert result["engine_exit_code"] is None
+    assert "fixture create HTTP 503" in result["limitations"]
+
+
+def test_owned_fixture_cleanup_failure_cannot_pass(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22})
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: {"status": "error", "reason": "fixture cleanup HTTP 503", "requests": 1})
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+    assert result["verdict"] == "error"
+    assert "fixture cleanup HTTP 503" in result["limitations"]
+
+
+def test_owned_fixture_is_cleaned_when_user_cancels(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 5, "max_write_attempts": 3},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps([assertion("accepted_orders_persist")]))
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    cleaned = []
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: cleaned.append(args[-1]) or {"status": "deleted", "requests": 1})
+    calls = 0
+    def interrupt_once(process, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise KeyboardInterrupt
+        return process.communicate(timeout=timeout)
+    monkeypatch.setattr(runner, "_communicate", interrupt_once)
+
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [], sleep_seconds=60)))
+    assert result["lifecycle"] == "cancelled"
+    assert cleaned == ["owned-1"]
 
 
 def test_repeat_verify_runs_consecutive_seeds_and_exposes_mixed_results(tmp_path, monkeypatch):

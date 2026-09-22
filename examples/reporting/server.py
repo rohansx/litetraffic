@@ -3,16 +3,53 @@ from __future__ import annotations
 import argparse
 import json
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Lock
 
 
 class ReportingHandler(BaseHTTPRequestHandler):
     wrong_partial = False
     wrong_ledger = False
     delay_seconds = 0.0
+    fixtures: dict[str, str] = {}
+    fixture_lock = Lock()
+
+    def do_POST(self) -> None:
+        run_id = self.headers.get("X-LiteTraffic-Run")
+        if self.path != "/fixtures" or not run_id:
+            self._send(404, {})
+            return
+        size = int(self.headers.get("Content-Length", "0"))
+        try:
+            body = json.loads(self.rfile.read(size))
+        except (ValueError, TypeError):
+            self._send(400, {})
+            return
+        if body != {"total": 1000, "row_count": 5}:
+            self._send(400, {})
+            return
+        fixture_id = uuid.uuid4().hex
+        with self.fixture_lock:
+            self.fixtures[fixture_id] = run_id
+        self._send(201, {"id": fixture_id})
+
+    def do_DELETE(self) -> None:
+        run_id = self.headers.get("X-LiteTraffic-Run")
+        fixture_id = self.path.removeprefix("/fixtures/")
+        with self.fixture_lock:
+            if not run_id or not fixture_id or self.path != f"/fixtures/{fixture_id}" or self.fixtures.get(fixture_id) != run_id:
+                self._send(404, {})
+                return
+            del self.fixtures[fixture_id]
+        self._send(200, {"deleted": fixture_id})
 
     def do_GET(self) -> None:
-        if not self.headers.get("X-LiteTraffic-Run"):
+        fixture_id = self.headers.get("X-LiteTraffic-Fixture")
+        run_id = self.headers.get("X-LiteTraffic-Run")
+        with self.fixture_lock:
+            owned = bool(run_id and fixture_id and self.fixtures.get(fixture_id) == run_id)
+        if not owned:
             self._send(404, {})
             return
         if self.path == "/reports/ledger":

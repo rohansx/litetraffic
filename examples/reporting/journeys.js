@@ -43,7 +43,7 @@ function evidence(assertion, passed, logicalKey) {
 export function readReport() {
   const journey = `${__ENV.LT_RUN_ID}-${exec.vu.idInTest}-${exec.scenario.iterationInTest}`;
   const response = http.get(`${__ENV.LT_TARGET}/reports/sales?window=current`, {
-    headers: { "X-LiteTraffic-Run": __ENV.LT_RUN_ID },
+    headers: { "X-LiteTraffic-Run": __ENV.LT_RUN_ID, "X-LiteTraffic-Fixture": __ENV.LT_FIXTURE_ID },
     tags: { operation: "read_sales_report" },
   });
   let report = {};

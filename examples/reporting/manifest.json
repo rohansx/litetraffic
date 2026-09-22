@@ -14,6 +14,12 @@
     "parameters": {
       "expected_total": 1000,
       "expected_rows": 5
+    },
+    "owned_http": {
+      "create_path": "/fixtures",
+      "delete_path": "/fixtures/{fixture_id}",
+      "id_pointer": "/id",
+      "create_body": {"total": 1000, "row_count": 5}
     }
   },
   "journeys": [
@@ -52,9 +58,9 @@
     }
   },
   "budgets": {
-    "max_seconds": 15,
-    "max_requests": 7,
-    "max_write_attempts": 0,
+    "max_seconds": 25,
+    "max_requests": 9,
+    "max_write_attempts": 2,
     "max_in_flight": 6,
     "max_artifact_bytes": 67108864
   }

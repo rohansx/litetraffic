@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
 from litetraffic.report import render_report
 from litetraffic.scenario import load_scenario
@@ -208,6 +209,7 @@ def verify(
         str(bundle.script_path),
     ]
     environment = os.environ.copy()
+    environment.pop("LT_FIXTURE_ID", None)
     environment.update(
         {
             "LT_RUN_ID": run_id,
@@ -222,36 +224,43 @@ def verify(
     lifecycle = "running"
     engine_error = ""
     process: subprocess.Popen[str] | None = None
-    try:
-        process = subprocess.Popen(
-            command,
-            cwd=bundle.root,
-            env=environment,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=os.name == "posix",
-        )
+    fixture = None
+    if bundle.manifest.fixtures.owned_http:
+        fixture = {"create": create_fixture(target, bundle.manifest.fixtures.owned_http, run_id)}
+        if fixture["create"]["status"] == "created":
+            environment["LT_FIXTURE_ID"] = fixture["create"]["fixture_id"]
+        else:
+            lifecycle = "crashed"
+            engine_error = fixture["create"]["reason"]
+    if lifecycle == "crashed":
+        stdout, stderr = "", engine_error
+    else:
         try:
-            engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0)
-            stdout, stderr = _communicate(process, timeout=engine_seconds)
-            lifecycle = "finished" if process.returncode == 0 else "crashed"
-        except subprocess.TimeoutExpired:
-            lifecycle = "timed_out"
-            stdout, stderr = _stop_process(process)
-        except KeyboardInterrupt:
-            lifecycle = "cancelled"
-            stdout, stderr = _stop_process(process)
-    except OSError as exc:
-        lifecycle = "crashed"
-        engine_error = str(exc)
-        stdout, stderr = "", str(exc)
+            process = subprocess.Popen(
+                command,
+                cwd=bundle.root,
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=os.name == "posix",
+            )
+            try:
+                engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - (10 if fixture else 0)
+                stdout, stderr = _communicate(process, timeout=engine_seconds)
+                lifecycle = "finished" if process.returncode == 0 else "crashed"
+            except subprocess.TimeoutExpired:
+                lifecycle = "timed_out"
+                stdout, stderr = _stop_process(process)
+            except KeyboardInterrupt:
+                lifecycle = "cancelled"
+                stdout, stderr = _stop_process(process)
+        except OSError as exc:
+            lifecycle = "crashed"
+            engine_error = str(exc)
+            stdout, stderr = "", str(exc)
 
     engine_exit_code = process.returncode if process is not None else None
-    finished = datetime.now(UTC)
-    finished_at = finished.isoformat()
-    run.update({"lifecycle": lifecycle, "finished_at": finished_at, "engine_exit_code": engine_exit_code})
-    _write_json(run_dir / "run.json", run)
     (run_dir / "engine.stdout.log").write_text(stdout, encoding="utf-8")
     (run_dir / "engine.stderr.log").write_text(stderr, encoding="utf-8")
     (run_dir / "engine.stdout.log").chmod(0o600)
@@ -259,10 +268,6 @@ def verify(
 
     events, malformed_events = _read_events(console_path, run_id)
     metrics, malformed_metrics = _read_metrics(metrics_path)
-    elapsed_seconds = max((finished - started_at).total_seconds(), 0.000001)
-    metrics["elapsed_seconds"] = round(elapsed_seconds, 6)
-    metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / elapsed_seconds, 3)
-    metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / elapsed_seconds, 3)
     events_path = events_dir / "000001.jsonl"
     events_path.write_text("".join(json.dumps(event, sort_keys=True) + "\n" for event in events), encoding="utf-8")
     events_path.chmod(0o600)
@@ -270,7 +275,7 @@ def verify(
     observation = None
     if bundle.manifest.observation:
         if lifecycle == "finished":
-            observation = observe(target, bundle.manifest.observation, run_id)
+            observation = observe(target, bundle.manifest.observation, run_id, fixture_id=environment.get("LT_FIXTURE_ID"))
         else:
             observation = {
                 "assertion": bundle.manifest.observation.assertion,
@@ -279,7 +284,21 @@ def verify(
             }
         _write_json(run_dir / "observation.json", observation)
         metrics["observer_requests"] = int(lifecycle == "finished" and observation.get("reason") != "observer bearer token missing")
-        metrics["total_http_reqs"] = float(metrics.get("http_reqs", 0)) + metrics["observer_requests"]
+    if fixture:
+        if fixture["create"]["status"] == "created":
+            fixture["cleanup"] = cleanup_fixture(target, bundle.manifest.fixtures.owned_http, run_id, fixture["create"]["fixture_id"])
+        _write_json(run_dir / "fixture.json", fixture)
+        metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
+    if fixture or observation:
+        metrics["total_http_reqs"] = float(metrics.get("http_reqs", 0)) + metrics.get("observer_requests", 0) + metrics.get("fixture_requests", 0)
+    finished = datetime.now(UTC)
+    finished_at = finished.isoformat()
+    run.update({"lifecycle": lifecycle, "finished_at": finished_at, "engine_exit_code": engine_exit_code})
+    _write_json(run_dir / "run.json", run)
+    elapsed_seconds = max((finished - started_at).total_seconds(), 0.000001)
+    metrics["elapsed_seconds"] = round(elapsed_seconds, 6)
+    metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / elapsed_seconds, 3)
+    metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / elapsed_seconds, 3)
 
     assertions = []
     missing = []
@@ -317,6 +336,11 @@ def verify(
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:
         limitations.append(f"ignored {malformed_metrics} malformed metric record(s)")
+    fixture_error = fixture and (
+        fixture["create"]["status"] != "created" or fixture.get("cleanup", {}).get("status") != "deleted"
+    )
+    if fixture_error:
+        limitations.append(fixture.get("cleanup", fixture["create"])["reason"])
     observed_requests = metrics.get("total_http_reqs", metrics.get("http_reqs", 0))
     request_budget_exceeded = observed_requests > bundle.manifest.budgets.max_requests
     if request_budget_exceeded:
@@ -335,7 +359,7 @@ def verify(
     elif lifecycle == "crashed":
         limitations.append(engine_error or f"k6 exited with status {engine_exit_code}")
     completeness = "complete" if not limitations else "incomplete"
-    if request_budget_exceeded:
+    if request_budget_exceeded or fixture_error:
         verdict = "error"
     elif definite_failure:
         verdict = "fail"

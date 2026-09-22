@@ -25,8 +25,11 @@ def observe(
     config: FinalObservation,
     run_id: str,
     transport: httpx.BaseTransport | None = None,
+    fixture_id: str | None = None,
 ) -> dict:
     headers = {"X-LiteTraffic-Run": run_id}
+    if fixture_id:
+        headers["X-LiteTraffic-Fixture"] = fixture_id
     if config.bearer_token_env:
         token = os.environ.get(config.bearer_token_env)
         if not token:

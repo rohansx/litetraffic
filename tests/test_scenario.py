@@ -47,6 +47,31 @@ def test_fixture_parameters_are_explicitly_supported(tmp_path):
     assert bundle.manifest.fixtures.parameters["large_carts"] == 20
 
 
+def test_owned_fixture_reserves_setup_cleanup_requests_writes_and_time(tmp_path):
+    owned = {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "create_body": {"total": 1000}, "id_pointer": "/id"}
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": owned},
+        budgets=manifest()["budgets"] | {"max_requests": 61, "max_write_attempts": 22, "max_seconds": 19},
+    )
+    with pytest.raises(ValidationError, match="fixture deadline"):
+        load_scenario(write_bundle(tmp_path, data))
+    data["budgets"]["max_seconds"] = 20
+    with pytest.raises(ScenarioError, match="request budget"):
+        load_scenario(write_bundle(tmp_path, data))
+    data["budgets"]["max_requests"] = 62
+    assert load_scenario(write_bundle(tmp_path, data)).manifest.fixtures.owned_http.id_pointer == "/id"
+
+
+@pytest.mark.parametrize("delete_path", ["https://other.test/{fixture_id}", "/fixtures/all", "//other.test/{fixture_id}", "/fixtures/{fixture_id}/../all", "/fixtures/%2e%2e/{fixture_id}"])
+def test_owned_fixture_requires_same_origin_scoped_cleanup(tmp_path, delete_path):
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": delete_path, "id_pointer": "/id"}},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22},
+    )
+    with pytest.raises(ValidationError, match="delete_path"):
+        load_scenario(write_bundle(tmp_path, data))
+
+
 def test_final_observation_consumes_its_own_request_budget(tmp_path):
     data = manifest(
         observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},

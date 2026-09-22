@@ -30,6 +30,16 @@ def test_observer_checks_expected_json_pointers_with_bearer_auth(monkeypatch):
     }
 
 
+def test_observer_can_read_only_the_run_owned_fixture():
+    config = FinalObservation(path="/reports/ledger", assertion="ledger_complete", expected={"/total": 1000})
+    def respond(request):
+        assert request.headers["x-litetraffic-fixture"] == "owned-1"
+        return httpx.Response(200, json={"total": 1000})
+
+    result = observe("http://example.test", config, "run-1", transport=httpx.MockTransport(respond), fixture_id="owned-1")
+    assert result["status"] == "pass"
+
+
 def test_observer_missing_token_is_unknown_and_never_calls_target(monkeypatch):
     monkeypatch.delenv("LT_TEST_TOKEN", raising=False)
     config = FinalObservation(

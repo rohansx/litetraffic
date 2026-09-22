@@ -76,7 +76,9 @@ litetraffic diff .litetraffic/runs/<baseline> .litetraffic/runs/<candidate> \
 
 The optional p95 gate requires at least 200 request samples in both runs. Without a gate, LiteTraffic reports latency, HTTP error rate, throughput, and progress without manufacturing a performance verdict. Scenario hash, seed, engine, and resolved schedule must match before performance is graded.
 
-Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, `result.json`, and a self-contained `report.html`. Bundles with a final observer also write `observation.json` containing only the declared expected and observed fields. Fixture preparation and cleanup are still supplied by the caller; this slice verifies known fixture values but does not provision them.
+Each verification writes an owner-restricted directory under `.litetraffic/runs/` containing frozen inputs, raw engine diagnostics, k6 metric JSONL, sequenced assertion events, `result.json`, and a self-contained `report.html`. Bundles with a final observer write `observation.json` containing only the declared expected and observed fields. The optional `fixtures.owned_http` contract creates one run-scoped fixture through a same-origin POST, passes its returned ID to k6 as `LT_FIXTURE_ID`, then deletes that ID after the final observation. Setup and cleanup share the run ID header, reserve two requests, two writes, and ten seconds, and produce `fixture.json`. Failed cleanup makes the verdict an error.
+
+The target must enforce run ownership on its fixture endpoints. LiteTraffic deletes only the ID returned by its create call, including after a k6 crash, timeout, or Ctrl+C. A host crash or `SIGKILL` cannot run cleanup; targets should expire orphaned fixtures with a TTL.
 
 Runs record `finished`, `timed_out`, `cancelled`, or `crashed` independently from the business verdict. Timeout and Ctrl+C terminate the k6 process group on POSIX systems, preserve available evidence, and can never produce a passing verdict. Ctrl+C returns shell status 130 after finalization.
 

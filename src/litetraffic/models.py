@@ -18,9 +18,37 @@ class Actor(StrictModel):
     auth_recipe: str = Field(min_length=1)
 
 
+class OwnedHttpFixture(StrictModel):
+    create_path: str = Field(min_length=1)
+    delete_path: str = Field(min_length=1)
+    id_pointer: str = Field(min_length=1)
+    create_body: dict[str, JsonValue] = Field(default_factory=dict)
+    bearer_token_env: str | None = None
+
+    @model_validator(mode="after")
+    def require_scoped_paths(self) -> "OwnedHttpFixture":
+        if not self.create_path.startswith("/") or self.create_path.startswith("//") or any(char in self.create_path for char in "?#"):
+            raise ValueError("create_path must be a same-origin path")
+        if (
+            not self.delete_path.startswith("/")
+            or self.delete_path.startswith("//")
+            or any(char in self.delete_path for char in "?#%")
+            or self.delete_path.count("{fixture_id}") != 1
+            or not self.delete_path.endswith("/{fixture_id}")
+            or any(part in {".", ".."} for part in self.delete_path.split("/"))
+        ):
+            raise ValueError("delete_path must be a same-origin path ending in /{fixture_id}")
+        if not self.id_pointer.startswith("/"):
+            raise ValueError("id_pointer must be a JSON Pointer")
+        if self.bearer_token_env and not re.fullmatch(r"[A-Z_][A-Z0-9_]*", self.bearer_token_env):
+            raise ValueError("bearer_token_env must name an uppercase environment variable")
+        return self
+
+
 class Fixtures(StrictModel):
     recipe: str = Field(min_length=1)
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
+    owned_http: OwnedHttpFixture | None = None
 
 
 class FinalObservation(StrictModel):
@@ -223,8 +251,11 @@ class ScenarioManifest(StrictModel):
         scheduled_seconds = sum(phase.seconds for phase in self.schedule.resolve(seed=0))
         if scheduled_seconds > self.budgets.max_seconds:
             raise ValueError("scheduled duration exceeds max_seconds budget")
-        if self.observation and scheduled_seconds + 5 > self.budgets.max_seconds:
-            raise ValueError("scheduled duration plus 5-second observation deadline exceeds max_seconds budget")
+        fixture_seconds = 10 if self.fixtures.owned_http else 0
+        if self.fixtures.owned_http and scheduled_seconds + fixture_seconds > self.budgets.max_seconds:
+            raise ValueError("scheduled duration plus 10-second fixture deadline exceeds max_seconds budget")
+        if self.observation and scheduled_seconds + fixture_seconds + 5 > self.budgets.max_seconds:
+            raise ValueError("scheduled duration plus fixture and 5-second observation deadline exceeds max_seconds budget")
         if self.observation and self.observation.assertion not in self.assertions:
             raise ValueError("observation assertion must be declared in assertions")
         return self
