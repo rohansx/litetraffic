@@ -187,8 +187,8 @@ def test_cancelled_verify_returns_shell_interrupt_status(monkeypatch, capsys):
 def test_verify_repeat_emits_a_series_result(monkeypatch, capsys):
     calls = []
 
-    def run_series(target, scenario, output_dir, k6_path, seed, repeats):
-        calls.append((seed, repeats))
+    def run_series(target, scenario, output_dir, k6_path, seed, repeats, same_seed=False):
+        calls.append((seed, repeats, same_seed))
         return {"mode": "repeat", "lifecycle": "finished", "verdict": "fail", "runs": []}
 
     monkeypatch.setattr("litetraffic.cli.repeat_verify", run_series)
@@ -206,8 +206,30 @@ def test_verify_repeat_emits_a_series_result(monkeypatch, capsys):
     ])
 
     assert status == 1
-    assert calls == [(42, 3)]
+    assert calls == [(42, 3, False)]
     assert json.loads(capsys.readouterr().out)["mode"] == "repeat"
+
+
+def test_verify_same_seed_passes_through_to_the_series(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(
+        "litetraffic.cli.repeat_verify",
+        lambda *args, **kwargs: calls.append((args[4:], kwargs))
+        or {"mode": "repeat", "lifecycle": "finished", "verdict": "pass", "runs": []},
+    )
+
+    status = main(["verify", "scenario", "--target", "http://example.test", "--seed", "42",
+                   "--repeat", "5", "--same-seed", "--json"])
+
+    assert status == 0
+    assert calls == [((42, 5), {"same_seed": True})]
+
+
+def test_verify_same_seed_requires_a_repeat(capsys):
+    status = main(["verify", "scenario", "--target", "http://example.test", "--same-seed", "--json"])
+
+    assert status == 3
+    assert "--same-seed requires --repeat" in json.loads(capsys.readouterr().out)["error"]
 
 
 def test_verify_rejects_zero_repetitions(capsys):
@@ -306,7 +328,7 @@ def test_verify_exit_status_distinguishes_inconclusive_and_error(tmp_path, monke
 def test_verify_repeat_maps_aggregate_verdict_to_exit_status(monkeypatch, capsys, verdict, expected_status):
     monkeypatch.setattr(
         "litetraffic.cli.repeat_verify",
-        lambda *args: {"mode": "repeat", "lifecycle": "finished", "verdict": verdict, "runs": []},
+        lambda *args, **kwargs: {"mode": "repeat", "lifecycle": "finished", "verdict": verdict, "runs": []},
     )
 
     status = main(["verify", "scenario", "--target", "http://example.test", "--repeat", "2", "--json"])
@@ -339,7 +361,7 @@ def test_verify_repeat_human_output_is_readable(monkeypatch, capsys):
            "metrics": {"iterations": 2}, "assertions": [], "limitations": [], "report": "report.html"}
     monkeypatch.setattr(
         "litetraffic.cli.repeat_verify",
-        lambda *args: {"mode": "repeat", "lifecycle": "finished", "verdict": "pass", "consistent": True,
+        lambda *args, **kwargs: {"mode": "repeat", "lifecycle": "finished", "verdict": "pass", "consistent": True,
                        "requested_runs": 2, "completed_runs": 1, "runs": [run], "result": "series_x.json"},
     )
 

@@ -36,7 +36,7 @@ Validates the manifest and script path and resolves the schedule. `--seed` defau
 litetraffic verify (SCENARIO | --scenario SCENARIO)
   [--target URL | --e2b-sandbox-id ID --e2b-port PORT]
   [--output-dir PATH] [--k6-path PATH]
-  [--seed INTEGER] [--repeat COUNT] [--json]
+  [--seed INTEGER] [--repeat COUNT [--same-seed]] [--json]
 ```
 
 Exactly one target form is required. URL targets must use HTTP/HTTPS, must not contain URL credentials, and must not be a link-local or cloud-metadata address (for example `169.254.169.254`, `fe80::/10`, or `metadata.google.internal`); such targets exit `3`. Loopback targets such as `localhost` and `127.0.0.1` are allowed. Hostnames are not resolved, so this check covers literal addresses and known metadata names only. k6 runs with `--max-redirects 0`. E2B coordinates must include both sandbox ID and a port from 1 through 65535. Prefer an origin URL; the controller appends declared fixture/observation paths to it.
@@ -47,6 +47,7 @@ Exactly one target form is required. URL targets must use HTTP/HTTPS, must not c
 | `--k6-path` | Find `k6` on `PATH` | Executable; `verify` accepts only v2.2.0 |
 | `--seed` | `0` | Seed used to resolve timing and supplied to the script |
 | `--repeat` | `1` | Positive count; values above 1 run consecutive seeds |
+| `--same-seed` | Off | With `--repeat` of 2 or more, run `--seed` every time instead of consecutive seeds |
 | `--json` | Off | Emit one JSON object to stdout |
 
 One run validates inputs, optionally creates a fixture, runs k6, collects evidence, optionally observes final state, attempts configured cleanup, and writes artifacts. Lifecycle and business verdict are separate fields. Ctrl+C during engine execution finalizes available evidence and exits 130. [Results](results.md) and [safety](safety.md).

@@ -628,6 +628,61 @@ def test_repeat_verify_runs_consecutive_seeds_and_exposes_mixed_results(tmp_path
     assert json.loads((tmp_path / result["result"]).read_text()) == result
 
 
+def test_repeat_verify_same_seed_repeats_one_seed_and_reports_dispersion(tmp_path, monkeypatch):
+    import statistics
+
+    import litetraffic.runner as runner
+
+    calls = []
+    p95s, failed, rps = [10.0, 20.0, 30.0, 40.0, 50.0], [0.0, 0.1, 0.0, 0.2, 0.0], [5.0, 6.0, 7.0, 8.0, 9.0]
+
+    def run_once(target, scenario, output_dir, k6_path, seed):
+        index = len(calls)
+        calls.append(seed)
+        return {
+            "run_id": f"run-{index}",
+            "seed": seed,
+            "verdict": "pass",
+            "lifecycle": "finished",
+            "metrics": {
+                "http_req_duration_ms": {"p95": p95s[index]},
+                "http_req_failed_rate": {"rate": failed[index]},
+                "http_reqs_per_second": rps[index],
+            },
+        }
+
+    monkeypatch.setattr(runner, "verify", run_once)
+
+    result = repeat_verify("http://example.test", Path("scenario"), tmp_path, repeats=5, seed=42, same_seed=True)
+
+    assert calls == [42] * 5
+    assert result["same_seed"] is True
+    for key, values in (("p95_ms", p95s), ("http_req_failed_rate", failed), ("http_reqs_per_second", rps)):
+        assert result["dispersion"][key] == {
+            "min": min(values),
+            "max": max(values),
+            "mean": statistics.mean(values),
+            "stdev": statistics.stdev(values),
+        }
+
+
+def test_repeat_verify_dispersion_skips_runs_without_the_metric(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    runs = iter([{"http_reqs_per_second": 4.0}, {}])
+    monkeypatch.setattr(
+        runner,
+        "verify",
+        lambda *args: {"run_id": "r", "seed": 0, "verdict": "pass", "lifecycle": "finished", "metrics": next(runs)},
+    )
+
+    result = repeat_verify("http://example.test", Path("scenario"), tmp_path, repeats=2)
+
+    assert result["same_seed"] is False
+    assert result["dispersion"]["http_reqs_per_second"] == {"min": 4.0, "max": 4.0, "mean": 4.0, "stdev": None}
+    assert result["dispersion"]["p95_ms"] is None
+
+
 def test_repeat_verify_restricts_the_series_output_dir(tmp_path, monkeypatch):
     import litetraffic.runner as runner
 

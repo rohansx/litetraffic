@@ -47,7 +47,7 @@ print(result["verdict"])  # same dict `litetraffic verify --json` prints
 | Function | CLI equivalent | Returns |
 |---|---|---|
 | `verify(target, scenario, output_dir, k6_path=None, seed=0)` | `verify` | result dict |
-| `repeat_verify(target, scenario, output_dir, k6_path=None, seed=0, repeats=3)` | `verify --repeat N` | series dict |
+| `repeat_verify(target, scenario, output_dir, k6_path=None, seed=0, repeats=3, same_seed=False)` | `verify --repeat N [--same-seed]` | series dict |
 | `compare_runs(baseline_path, candidate_path, max_p95_regression_percent=None)` | `diff` (run directories, not IDs) | comparison dict |
 | `load_scenario(path)` | `inspect` (validation step) | `ScenarioBundle` |
 | `run_doctor(target=None, k6_path=None, output_dir=Path(".litetraffic/runs"))` | `doctor` | `DoctorReport` |
@@ -63,6 +63,7 @@ Functions raise exceptions (`RunnerError`, `ScenarioError`, `ComparisonError`, `
 | `src/litetraffic/models.py` | Manifest schema, profiles, schedule resolution |
 | `src/litetraffic/scenario.py` | Bundle loading and static budget checks |
 | `src/litetraffic/runner.py` | Run lifecycle, evidence, verdict, repeat series |
+| `src/litetraffic/series.py` | Series aggregate verdict and dispersion stats |
 | `src/litetraffic/process.py` | Engine subprocess waits and process-group termination |
 | `src/litetraffic/fixture.py` | Run-owned fixture create/cleanup |
 | `src/litetraffic/observation.py` | Final observation and JSON Pointer lookup |

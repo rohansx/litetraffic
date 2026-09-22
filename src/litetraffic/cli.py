@@ -59,6 +59,7 @@ def _parser() -> argparse.ArgumentParser:
     verify_command.add_argument("--k6-path")
     verify_command.add_argument("--seed", type=int, default=0)
     verify_command.add_argument("--repeat", type=int, default=1)
+    verify_command.add_argument("--same-seed", action="store_true", help="repeat --seed instead of consecutive seeds")
     verify_command.add_argument("--json", action="store_true")
 
     diff_command = commands.add_parser("diff", help="compare compatible run artifacts")
@@ -108,6 +109,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "verify":
             if args.repeat < 1:
                 raise ValueError("repeat must be at least 1")
+            if args.same_seed and args.repeat < 2:
+                raise ValueError("--same-seed requires --repeat of at least 2")
             target = resolve_target(args.target, args.e2b_sandbox_id, args.e2b_port)
             if args.repeat == 1:
                 payload = verify(target, args.scenario, args.output_dir, args.k6_path, args.seed)
@@ -119,6 +122,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.k6_path,
                     args.seed,
                     args.repeat,
+                    same_seed=args.same_seed,
                 )
             _emit(payload, args.json, lambda result: format_verify(result, args.output_dir))
             if payload["lifecycle"] == "cancelled":

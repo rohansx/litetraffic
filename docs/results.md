@@ -51,6 +51,10 @@ Every result also has `notes`, which list what this preview never measures: `per
 
 `--repeat 3 --seed 42` executes seeds 42–44 and writes `series_*.json` alongside the run directories. The summary includes every result, requested/completed counts, aggregate verdict, and whether verdict/lifecycle outcomes were consistent. Cancellation stops the series early.
 
+`--repeat 5 --seed 42 --same-seed` runs seed 42 five times instead, to measure run-to-run noise with the timing held fixed; the summary records `same_seed: true`. `--same-seed` needs `--repeat` of at least 2.
+
+Every summary has `dispersion` with `p95_ms` (from `metrics.http_req_duration_ms.p95`), `http_req_failed_rate` (from `metrics.http_req_failed_rate.rate`), and `http_reqs_per_second`. Each holds `min`, `max`, `mean`, and sample `stdev` over the runs that reported that metric, computed with Python's `statistics` module. `stdev` is `null` when only one run reported the metric, and the entry is `null` when none did.
+
 ## Comparison
 
 `diff` requires equal bundle digest, seed, engine version string, and resolved schedule. Incompatible inputs produce an inconclusive comparison. The bundle digest is the sha256 of the canonical manifest JSON (sorted keys, compact separators, so reformatting whitespace does not change it) plus the sha256 of the script and each file it reaches through relative imports (`./` or `../` specifiers in `import`/`export ... from`, `import()` and `require()`), so editing journey code or a local helper makes runs incompatible. Module imports such as `k6/http` and remote URLs are not hashed. Target environment and fixture equivalence remain the operator's responsibility.
