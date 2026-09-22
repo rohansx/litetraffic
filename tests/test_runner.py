@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from litetraffic.runner import RunnerError, _read_metrics, repeat_verify, verify
+from litetraffic.runner import RunnerError, _read_events, _read_metrics, repeat_verify, verify
 from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
 
@@ -116,7 +116,14 @@ def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
     result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
 
     assert result["verdict"] == "fail"
-    assert result["assertions"] == [{"id": "accepted_orders_persist", "status": "fail", "samples": 1}]
+    assert result["assertions"] == [
+        {
+            "id": "accepted_orders_persist",
+            "status": "fail",
+            "samples": 1,
+            "failures": [{"sequence": 1, "logical_key": None, "expected": None, "actual": None, "detail": None}],
+        }
+    ]
 
 
 def test_verify_fails_when_final_observation_disagrees_with_fixture(tmp_path, monkeypatch):
@@ -580,3 +587,71 @@ def test_verify_still_fails_when_the_target_answers_with_http_500(tmp_path, monk
 
     assert result["verdict"] == "fail"
     assert not any("unreachable" in item for item in result["limitations"])
+
+
+def test_read_events_accepts_optional_evidence_fields_and_rejects_wrong_types(tmp_path):
+    base = assertion("a", False) | {"run_id": "r"}
+    records = [
+        base | {"expected": {"total": 1250}, "actual": [1, None], "detail": "x" * 500, "logical_key": "k1"},
+        base,
+        base | {"detail": "x" * 501},
+        base | {"detail": 5},
+        base | {"logical_key": 7},
+        base | {"logical_key": None},
+    ]
+    path = tmp_path / "console.log"
+    path.write_text("".join(f"LT_EVENT {json.dumps(record)}\n" for record in records))
+
+    events, malformed = _read_events(path, "r")
+
+    assert malformed == 4
+    assert [event["sequence"] for event in events] == [1, 2]
+    assert events[0]["expected"] == {"total": 1250} and events[0]["actual"] == [1, None]
+
+
+def test_verify_records_the_first_three_failing_samples(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario", manifest(assertions=["accepted_orders_persist"]))
+    failing = [
+        assertion("accepted_orders_persist", False)
+        | {"logical_key": f"k{index}", "expected": 1250, "actual": index, "detail": "<b>total</b>"}
+        for index in range(4)
+    ]
+    events = [assertion("accepted_orders_persist"), *failing, assertion("accepted_orders_persist", False)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    row = result["assertions"][0]
+    assert row["status"] == "fail" and row["samples"] == 6
+    assert row["failures"] == [
+        {"sequence": index + 2, "logical_key": f"k{index}", "expected": 1250, "actual": index, "detail": "<b>total</b>"}
+        for index in range(3)
+    ]
+    report = (tmp_path / "runs" / result["run_id"] / "report.html").read_text()
+    assert "<th>Expected</th><th>Actual</th>" in report
+    assert "&lt;b&gt;total&lt;/b&gt;" in report and "<b>total</b>" not in report
+    assert "<td>1250</td><td>2</td>" in report
+
+
+def test_verify_copies_observer_expected_and_actual_into_the_assertion(tmp_path, monkeypatch):
+    data = manifest(
+        assertions=["accepted_orders_persist", "ledger_total"],
+        observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setattr(
+        "litetraffic.runner.observe",
+        lambda *args, **kwargs: {"assertion": "ledger_total", "status": "fail", "expected": {"/total": 1000}, "actual": {"/total": 900}},
+    )
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert result["assertions"] == [
+        {"id": "accepted_orders_persist", "status": "pass", "samples": 20},
+        {"id": "ledger_total", "status": "fail", "samples": 1, "expected": {"/total": 1000}, "actual": {"/total": 900}},
+    ]
+    report = (tmp_path / "runs" / result["run_id"] / "report.html").read_text()
+    assert "<td>{&quot;/total&quot;: 1000}</td><td>{&quot;/total&quot;: 900}</td>" in report

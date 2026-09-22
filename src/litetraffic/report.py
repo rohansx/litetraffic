@@ -1,10 +1,33 @@
 from __future__ import annotations
 
+import json
 from html import escape
 
 
 def _count(value: object) -> str:
     return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+
+def _cell(value: object) -> str:
+    text = "" if value is None else value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+    return f"<td>{escape(text)}</td>"
+
+
+def _failure_tables(assertions: list[dict]) -> str:
+    sections = []
+    for item in assertions:
+        if item["status"] != "fail":
+            continue
+        samples = item.get("failures") or [{"expected": item.get("expected"), "actual": item.get("actual")}]
+        rows = "".join(
+            "<tr>" + "".join(_cell(sample.get(key)) for key in ("sequence", "logical_key", "expected", "actual", "detail")) + "</tr>"
+            for sample in samples
+        )
+        sections.append(
+            f"<h3>{escape(str(item['id']))}</h3><table><thead><tr><th>Sample</th><th>Logical key</th>"
+            f"<th>Expected</th><th>Actual</th><th>Detail</th></tr></thead><tbody>{rows}</tbody></table>"
+        )
+    return f'<section class="card"><h2>Failing samples</h2>{"".join(sections)}</section>' if sections else ""
 
 
 def render_report(result: dict, run: dict) -> str:
@@ -36,6 +59,7 @@ dl{{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}} dt{{font-w
 <dt>HTTP p95</dt><dd>{escape(p95_label)}</dd><dt>HTTP failure rate</dt><dd>{escape(failure_label)}</dd>
 <dt>HTTP throughput</dt><dd>{escape(str(metrics.get('http_reqs_per_second', 'Unavailable')))} req/s</dd></dl></section>
 <section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody>{assertions}</tbody></table></section>
+{_failure_tables(result["assertions"])}
 <section class="card"><h2>Limitations</h2><ul>{limitations}</ul></section>
 </body></html>
 """

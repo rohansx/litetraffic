@@ -88,7 +88,9 @@ function evidence(assertion, passed, logicalKey) {
 }
 ```
 
-Events with a different `run_id`, a non-boolean `passed`, or invalid JSON are ignored and reported as a limitation. An assertion passes only when it has exactly one passing sample per planned journey. Any `false` sample fails it.
+Events may also carry optional diagnostic fields: `expected` and `actual` (any JSON value), `detail` (a string of at most 500 characters), and `logical_key` (a string). They do not change the verdict; the first three failing samples of each assertion are copied into `result.json` and shown in `report.html`. For example, `evidence("order_totals_match", body.total === 1250, key)` could add `expected: 1250, actual: body.total`.
+
+Events with a different `run_id`, a non-boolean `passed`, a non-string `logical_key` or `detail`, a `detail` longer than 500 characters, or invalid JSON are ignored and reported as a limitation. An assertion passes only when it has exactly one passing sample per planned journey. Any `false` sample fails it.
 
 Check the business effect, not just the status code — for example, read the ledger back after a retried payment rather than checking that the payment call returned 200.
 

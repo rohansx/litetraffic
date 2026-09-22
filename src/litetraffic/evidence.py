@@ -4,6 +4,8 @@ import json
 import math
 from pathlib import Path
 
+MAX_DETAIL_CHARS = 500
+MAX_FAILURE_SAMPLES = 3
 
 def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
     events: list[dict] = []
@@ -21,6 +23,9 @@ def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
                 or event.get("run_id") != run_id
                 or not isinstance(event.get("assertion"), str)
                 or not isinstance(event.get("passed"), bool)
+                or not isinstance(event.get("logical_key", ""), str)
+                or not isinstance(event.get("detail", ""), str)
+                or len(event.get("detail", "")) > MAX_DETAIL_CHARS
             ):
                 raise ValueError
         except (AttributeError, json.JSONDecodeError, ValueError):
@@ -28,6 +33,44 @@ def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
             continue
         events.append({"sequence": len(events) + 1, **event})
     return events, malformed
+
+
+def evaluate_assertions(
+    assertion_ids: list[str], events: list[dict], observation: dict | None, planned_journeys: int
+) -> tuple[list[dict], list[str], list[str], bool]:
+    """Summarize each declared assertion; return rows, missing ids, partial labels, and definite failure."""
+    rows, missing, partial = [], [], []
+    definite_failure = False
+    for assertion_id in assertion_ids:
+        if observation and assertion_id == observation["assertion"]:
+            status = observation["status"]
+            if status == "fail":
+                definite_failure = True
+            elif status == "unknown":
+                missing.append(assertion_id)
+            row = {"id": assertion_id, "status": status, "samples": int(status != "unknown")}
+            rows.append(row | {key: observation[key] for key in ("expected", "actual") if key in observation})
+            continue
+        samples = [event for event in events if event["assertion"] == assertion_id]
+        failures = [event for event in samples if not event["passed"]]
+        row = {"id": assertion_id, "samples": len(samples)}
+        if not samples:
+            row["status"] = "unknown"
+            missing.append(assertion_id)
+        elif failures:
+            row["status"] = "fail"
+            row["failures"] = [
+                {key: event.get(key) for key in ("sequence", "logical_key", "expected", "actual", "detail")}
+                for event in failures[:MAX_FAILURE_SAMPLES]
+            ]
+            definite_failure = True
+        elif len(samples) != planned_journeys:
+            row["status"] = "unknown"
+            partial.append(f"{assertion_id} ({len(samples)}/{planned_journeys})")
+        else:
+            row["status"] = "pass"
+        rows.append(row)
+    return rows, missing, partial, definite_failure
 
 
 def _percentile(values: list[float], quantile: float) -> float:

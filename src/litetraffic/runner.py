@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from litetraffic.evidence import _read_events, _read_metrics, target_unreachable
+from litetraffic.evidence import _read_events, _read_metrics, evaluate_assertions, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
 from litetraffic.report import render_report
@@ -232,38 +232,18 @@ def verify(
     metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / elapsed_seconds, 3)
     metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / elapsed_seconds, 3)
 
-    assertions = []
-    missing = []
-    partial = []
-    definite_failure = False
-    for assertion_id in bundle.manifest.assertions:
-        if observation and assertion_id == observation["assertion"]:
-            status = observation["status"]
-            if status == "fail":
-                definite_failure = True
-            elif status == "unknown":
-                missing.append(assertion_id)
-            assertions.append({"id": assertion_id, "status": status, "samples": int(status != "unknown")})
-            continue
-        samples = [event["passed"] for event in events if event["assertion"] == assertion_id]
-        if not samples:
-            status = "unknown"
-            missing.append(assertion_id)
-        elif not all(samples):
-            status = "fail"
-            definite_failure = True
-        elif len(samples) != bundle.manifest.planned_journeys:
-            status = "unknown"
-            partial.append(f"{assertion_id} ({len(samples)}/{bundle.manifest.planned_journeys})")
-        else:
-            status = "pass"
-        assertions.append({"id": assertion_id, "status": status, "samples": len(samples)})
+    assertions, missing, partial, definite_failure = evaluate_assertions(
+        bundle.manifest.assertions, events, observation, bundle.manifest.planned_journeys
+    )
 
     limitations = []
     unreachable = target_unreachable(metrics)
     if unreachable:
         # Failed assertions against a target that never answered say nothing about the application.
-        assertions = [row | {"status": "unknown"} if row["status"] == "fail" else row for row in assertions]
+        assertions = [
+            {"id": row["id"], "status": "unknown", "samples": row["samples"]} if row["status"] == "fail" else row
+            for row in assertions
+        ]
         definite_failure = False
         limitations.append(
             f"target unreachable: all {int(metrics['http_reqs'])} requests failed before an HTTP response"
