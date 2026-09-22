@@ -80,6 +80,10 @@ def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
     assert "accepted_orders_persist" in report
     assert "29.0 ms" in report
     assert "50.0%" in report
+    assert "<dd>20 / 20</dd>" in report
+    assert "<dt>HTTP requests</dt><dd>2</dd>" in report
+    assert "<td>20</td>" in report
+    assert ".0 /" not in report and ".0</dd>" not in report and ".0</td>" not in report
     first_event = (run_dir / "events" / "000001.jsonl").read_text().splitlines()[0]
     assert json.loads(first_event)["sequence"] == 1
 
@@ -354,6 +358,8 @@ def test_owned_fixture_is_cleaned_after_engine_exit(tmp_path, monkeypatch, retur
     result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, returncode=returncode, iterations=1, sleep_seconds=sleep_seconds)))
 
     assert result["lifecycle"] == expected_lifecycle
+    if expected_lifecycle == "timed_out":
+        assert "engine stopped after its 1-second share of the 11-second budget" in result["limitations"]
     assert result["metrics"]["fixture_requests"] == 2
     assert result["metrics"]["total_http_reqs"] == 4
     assert calls == [("create", result["run_id"]), ("delete", result["run_id"], "owned-1")]

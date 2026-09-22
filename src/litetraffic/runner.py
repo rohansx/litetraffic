@@ -162,6 +162,7 @@ def verify(
         stdout, stderr = "", engine_error
     else:
         try:
+            engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - (10 if fixture else 0)
             process = subprocess.Popen(
                 command,
                 cwd=bundle.root,
@@ -172,7 +173,6 @@ def verify(
                 start_new_session=os.name == "posix",
             )
             try:
-                engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - (10 if fixture else 0)
                 stdout, stderr = _communicate(process, timeout=engine_seconds)
                 lifecycle = "finished" if process.returncode == 0 else "crashed"
             except subprocess.TimeoutExpired:
@@ -287,7 +287,9 @@ def verify(
             f"delivered journeys {delivered!r} do not match planned journeys {bundle.manifest.planned_journeys}"
         )
     if lifecycle == "timed_out":
-        limitations.append(f"run exceeded the {bundle.manifest.budgets.max_seconds}-second budget")
+        limitations.append(
+            f"engine stopped after its {engine_seconds}-second share of the {bundle.manifest.budgets.max_seconds}-second budget"
+        )
     elif lifecycle == "cancelled":
         limitations.append("run cancelled by user")
     elif lifecycle == "crashed":

@@ -3,10 +3,14 @@ from __future__ import annotations
 from html import escape
 
 
+def _count(value: object) -> str:
+    return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+
 def render_report(result: dict, run: dict) -> str:
     assertions = "".join(
         f"<tr><td>{escape(str(item['id']))}</td><td>{escape(str(item['status']).upper())}</td>"
-        f"<td>{escape(str(item['samples']))}</td></tr>"
+        f"<td>{escape(_count(item['samples']))}</td></tr>"
         for item in result["assertions"]
     )
     limitations = "".join(f"<li>{escape(str(item))}</li>" for item in result["limitations"]) or "<li>None</li>"
@@ -27,8 +31,8 @@ dl{{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}} dt{{font-w
 <h1>{escape(str(run['scenario']))}</h1>
 <section class="card"><div class="verdict">{escape(str(result['verdict']).upper())}</div>
 <dl><dt>Lifecycle</dt><dd>{escape(str(result['lifecycle']))}</dd><dt>Run</dt><dd>{escape(str(result['run_id']))}</dd>
-<dt>Journeys</dt><dd>{escape(str(metrics.get('iterations', 0)))} / {escape(str(result['planned_journeys']))}</dd>
-<dt>HTTP requests</dt><dd>{escape(str(metrics.get('http_reqs', 0)))}</dd>
+<dt>Journeys</dt><dd>{escape(_count(metrics.get('iterations', 0)))} / {escape(_count(result['planned_journeys']))}</dd>
+<dt>HTTP requests</dt><dd>{escape(_count(metrics.get('http_reqs', 0)))}</dd>
 <dt>HTTP p95</dt><dd>{escape(p95_label)}</dd><dt>HTTP failure rate</dt><dd>{escape(failure_label)}</dd>
 <dt>HTTP throughput</dt><dd>{escape(str(metrics.get('http_reqs_per_second', 'Unavailable')))} req/s</dd></dl></section>
 <section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody>{assertions}</tbody></table></section>
