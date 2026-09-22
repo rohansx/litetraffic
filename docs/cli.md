@@ -55,6 +55,26 @@ Exactly one target form is required. URL targets must use HTTP/HTTPS, must not c
 
 One run validates inputs, optionally creates a fixture, runs k6, collects evidence, optionally observes final state, attempts configured cleanup, and writes artifacts. Lifecycle and business verdict are separate fields. Ctrl+C during engine execution finalizes available evidence and exits 130. [Results](results.md) and [safety](safety.md).
 
+## `up`
+
+```text
+litetraffic up (SCENARIO | --scenario SCENARIO) --target URL [--output-dir DIR]
+  [--k6-path PATH] [--seed N] [--max-slices N] [--json]
+```
+
+Runs a background activity in the foreground: the same bounded run as `verify`, repeated as slices until Ctrl+C or, with `--max-slices N`, after `N` slices. Slice seeds count up from `--seed` (default `0`). Target, scenario and k6 are checked before anything is created; a failure exits `3`. `--max-slices` below 1 exits `3`.
+
+Each activity gets `OUTPUT_DIR/activity_<UTC>_<hex>/` (mode `0700`) holding `activity.json` and one ordinary run directory per slice. `activity.json` is rewritten after every slice and once more when the activity ends:
+
+| Field | Meaning |
+|---|---|
+| `mode` | Always `background` |
+| `status` | `running`, then `completed` (reached `--max-slices`), `stopped` (Ctrl+C, or a slice was cancelled) or `error` (a slice raised; the command exits `3`) |
+| `artifact_dir` | The activity directory |
+| `slices` | Per slice: `run_id`, `seed`, `lifecycle`, `finished_at`, `iterations`, `http_reqs` |
+
+Also recorded: `activity_id`, `scenario`, `scenario_sha256`, `target`, `starting_seed`, `max_slices`, `started_at`, `finished_at`. There is no `verdict` field: slice verdicts stay in each slice's own `result.json`, and a failing slice does not stop the activity or change the exit status. Progress goes to stderr: `activity: PATH` first, one `slice N: RUN_ID LIFECYCLE` line per slice, and `status: STATUS` last. `--json` prints the final `activity.json` content on stdout. Ctrl+C finalizes `activity.json` and exits `0`. Activities are not seen by `diff` or `prune`.
+
 ## `approve`
 
 ```text
@@ -82,7 +102,8 @@ Serves a read-only web page over `--runs-dir` (default `.litetraffic/runs`) on `
 
 | Route | Shows |
 |---|---|
-| `/` | Runs and series, newest first: run ID, kind, scenario, lifecycle, seed, finished time, verdict; plus a form for `/diff` |
+| `/` | Runs, series and `up` activities, newest first: run ID, kind, scenario, lifecycle (an activity's status), seed, finished time, verdict (an activity shows a `background` badge instead); plus a form for `/diff` |
+| `/runs/ACTIVITY_ID` | An activity's `background` badge, status, target, starting seed and slice table; never a verdict |
 | `/runs/RUN_ID` | Verdict, lifecycle, seed, assertion table, failing samples with expected/actual values, metrics, limitations, and a link to `report.html` when present |
 | `/runs/RUN_ID/report.html` | The run's own `report.html` |
 | `/diff?a=BASELINE&b=CANDIDATE` | The `diff` text summary for two run IDs; incompatible runs are `INCONCLUSIVE` |
@@ -116,6 +137,7 @@ The current commands have different exit mappings. Integrations should inspect t
 | `doctor` | Checks succeeded | — | CLI usage error | Failed check/configuration error | — |
 | `inspect` | Valid manifest | — | CLI usage error | Invalid scenario | — |
 | `verify` | `pass` | `fail` | `inconclusive`; also CLI usage error | `error`; also configuration/engine preflight error, missing/mismatched approval or invalid approvals file | Cancelled run |
+| `up` | Activity completed or stopped with Ctrl+C | — | CLI usage error | Configuration/engine preflight error, invalid `--max-slices`, or a slice raised | — |
 | `approve` | Approval recorded | — | CLI usage error | Invalid scenario, target or approvals file | — |
 | `diff` | Comparison `pass` | Comparison `fail` | Inconclusive comparison or CLI usage error | Invalid arguments/artifacts | — |
 | `dashboard` | — | — | CLI usage error | Port cannot be bound | Stopped with Ctrl+C |

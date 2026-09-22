@@ -567,3 +567,46 @@ def test_examples_use_the_bundled_runtime_helper(example, capsys):
     assert 'from "./litetraffic/runtime.js"' in script
     assert "function evidence" not in script and "LT_SCHEDULE_JSON" not in script
     assert main(["inspect", str(scenario), "--json"]) == 0
+
+
+def test_up_loops_slices_and_reports_activity_on_stderr(tmp_path, monkeypatch, capsys):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist", False) for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    k6 = fake_k6(tmp_path, events)
+
+    status = main(["up", "--scenario", str(scenario), "--target", "http://example.test", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--max-slices", "2", "--json"])
+    captured = capsys.readouterr()
+
+    assert status == 0  # a failing slice does not make a background activity fail
+    payload = json.loads(captured.out)
+    assert payload["mode"] == "background" and payload["status"] == "completed"
+    assert "verdict" not in payload and len(payload["slices"]) == 2
+    activity_path = tmp_path / "runs" / payload["activity_id"] / "activity.json"
+    assert f"activity: {activity_path.resolve()}" in captured.err
+    assert "status: completed" in captured.err
+
+
+def test_up_ctrl_c_exits_zero_after_finalizing(tmp_path, monkeypatch, capsys):
+    scenario = write_bundle(tmp_path / "scenario")
+    k6 = fake_k6(tmp_path, [])
+
+    def interrupted(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("litetraffic.activity.verify", interrupted)
+
+    status = main(["up", str(scenario), "--target", "http://example.test", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6)])
+    err = capsys.readouterr().err
+
+    assert status == 0
+    assert "status: stopped" in err
+    saved = json.loads(next((tmp_path / "runs").glob("activity_*/activity.json")).read_text())
+    assert saved["status"] == "stopped" and "verdict" not in saved
+
+
+def test_up_rejects_zero_max_slices(tmp_path, capsys):
+    status = main(["up", str(tmp_path), "--target", "http://example.test", "--max-slices", "0", "--json"])
+
+    assert status == 3
+    assert "max-slices" in json.loads(capsys.readouterr().out)["error"]

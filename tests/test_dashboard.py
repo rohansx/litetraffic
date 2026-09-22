@@ -40,6 +40,17 @@ def runs_dir(tmp_path):
     )
     series = {"series_id": "series_x", "starting_seed": 42, "lifecycle": "finished", "verdict": "pass", "runs": []}
     (root / "series_x.json").write_text(json.dumps(series))
+    (root / "activity_x").mkdir()
+    activity = {
+        "activity_id": "activity_x",
+        "mode": "background",
+        "scenario": "checkout",
+        "status": "stopped",
+        "starting_seed": 5,
+        "finished_at": "2026-01-05T00:00:00+00:00",
+        "slices": [{"run_id": "run_s1", "seed": 5, "lifecycle": "finished", "iterations": 20, "http_reqs": 2}],
+    }
+    (root / "activity_x" / "activity.json").write_text(json.dumps(activity))
     (tmp_path / "secret.txt").write_text("outside")
     return root
 
@@ -125,7 +136,30 @@ def test_api_runs_returns_json(server, runs_dir):
 
     assert status == 200
     assert content_type.startswith("application/json")
-    assert {entry["run_id"] for entry in json.loads(body)} == {"run_a", "run_b", "run_c", "series_x"}
+    entries = {entry["run_id"]: entry for entry in json.loads(body)}
+    assert set(entries) == {"run_a", "run_b", "run_c", "series_x", "activity_x"}
+    assert entries["activity_x"]["kind"] == "activity"
+    assert entries["activity_x"]["verdict"] == "background"
+
+
+def test_index_shows_activity_with_background_badge_not_a_verdict(server):
+    _, _, body = get(server, "/")
+
+    row = next(line for line in body.split("<tr>") if "activity_x" in line)
+    assert '<span class="badge">background</span>' in row
+    assert "stopped" in row
+    for verdict in ("PASS", "FAIL", "INCONCLUSIVE", "UNREADABLE", "ERROR"):
+        assert verdict not in row
+
+
+def test_activity_page_lists_slices_without_a_verdict(server):
+    status, _, body = get(server, "/runs/activity_x")
+
+    assert status == 200
+    assert '<span class="badge">background</span>' in body
+    assert "run_s1" in body and "stopped" in body
+    for verdict in ("PASS", "FAIL", "UNREADABLE"):
+        assert verdict not in body
 
 
 @pytest.mark.parametrize(

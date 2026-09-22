@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Callable, Sequence
 
 from pydantic import ValidationError
 
+from litetraffic.activity import up
 from litetraffic.approval import approve, require_approval
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard import serve
@@ -64,6 +66,15 @@ def _parser() -> argparse.ArgumentParser:
     verify_command.add_argument("--require-approval", action="store_true", help="refuse to run an unapproved digest/origin")
     verify_command.add_argument("--approved-digest", metavar="SHA", help="CI approval: must equal the scenario digest")
     verify_command.add_argument("--json", action="store_true")
+
+    up_command = commands.add_parser("up", help="run repeated bounded slices as a background activity (no verdict)")
+    _add_scenario(up_command)
+    up_command.add_argument("--target", required=True)
+    up_command.add_argument("--output-dir", type=Path, default=Path(".litetraffic/runs"))
+    up_command.add_argument("--k6-path")
+    up_command.add_argument("--seed", type=int, default=0, help="seed of the first slice; each slice adds one")
+    up_command.add_argument("--max-slices", type=int, metavar="N", help="stop after N slices (default: until Ctrl-C)")
+    up_command.add_argument("--json", action="store_true")
 
     approve_command = commands.add_parser("approve", help="bind a scenario digest to a target profile and origin")
     _add_scenario(approve_command)
@@ -126,12 +137,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, args.json, lambda result: [f"{verb}: {path}" for path in result["pruned"]] or ["nothing to prune"])
             return 0
 
-        if args.command in {"inspect", "verify", "approve"}:
+        if args.command in {"inspect", "verify", "approve", "up"}:
             args.scenario = _scenario(args)
 
         if args.command == "approve":
             record = approve(load_scenario(args.scenario).digest, args.target_profile, args.target)
             _emit({"ok": True, **record}, args.json)
+            return 0
+
+        if args.command == "up":
+            def log(message: str) -> None:
+                print(message, file=sys.stderr, flush=True)
+
+            activity = up(args.target, args.scenario, args.output_dir, args.k6_path, args.seed, args.max_slices, log)
+            log(f"status: {activity['status']}")
+            if args.json:
+                _emit(activity, True)
+            # Ctrl-C is the normal way to stop an activity, so a stopped activity exits 0; errors raise (exit 3).
             return 0
 
         if args.command == "verify":

@@ -18,6 +18,7 @@ _STYLE = (
     "body{font:15px system-ui,sans-serif;max-width:1100px;margin:32px auto;padding:0 16px;color:#17211b;background:#f7f8fa}"
     "table{width:100%;border-collapse:collapse;background:white}th,td{padding:8px;text-align:left;border-bottom:1px solid #e5e7eb}"
     "a{color:#0e6b3c}pre{background:white;padding:12px;overflow-x:auto}.verdict{font-size:1.8rem;font-weight:750}"
+    ".badge{padding:2px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;font-size:.85rem}"
 )
 
 
@@ -55,13 +56,20 @@ def _field(result: dict, key: str, kind: type) -> dict | list:
     return value if isinstance(value, kind) else kind()
 
 
+_BADGE = '<span class="badge">background</span>'
+
+
+def _verdict_cell(entry: dict) -> str:
+    return _BADGE if entry["kind"] == "activity" else _text(str(entry["verdict"]).upper())
+
+
 def _index(runs_dir: Path) -> str:
     rows = "".join(
         "<tr><td>"
-        + (f'<a href="/runs/{escape(entry["run_id"])}">{escape(entry["run_id"])}</a>' if entry["kind"] == "run" else _text(entry["run_id"]))
+        + (f'<a href="/runs/{escape(entry["run_id"])}">{escape(entry["run_id"])}</a>' if entry["kind"] in {"run", "activity"} else _text(entry["run_id"]))
         + "</td>"
         + "".join(f"<td>{_text(entry[key])}</td>" for key in ("kind", "scenario", "lifecycle", "seed", "finished_at"))
-        + f"<td>{_text(str(entry['verdict']).upper())}</td></tr>"
+        + f"<td>{_verdict_cell(entry)}</td></tr>"
         for entry in list_runs(runs_dir)
     )
     return _page(
@@ -99,6 +107,22 @@ def _run(path: Path) -> str:
     )
 
 
+def _activity(path: Path) -> str:
+    activity = _read(path / "activity.json")
+    slices = [item for item in _field(activity, "slices", list) if isinstance(item, dict)]
+    rows = "".join(
+        "<tr>" + "".join(f"<td>{_text(item.get(key))}</td>" for key in ("run_id", "seed", "lifecycle", "iterations", "http_reqs", "finished_at")) + "</tr>"
+        for item in slices
+    )
+    return _page(
+        path.name,
+        f"<h1>{_text(activity.get('scenario'))}</h1><p>{_BADGE} status {_text(activity.get('status'))}</p>"
+        f"<p>Activity {escape(path.name)} · target {_text(activity.get('target'))} · starting seed {_text(activity.get('starting_seed'))}</p>"
+        "<h2>Slices</h2><table><thead><tr><th>Run</th><th>Seed</th><th>Lifecycle</th><th>Iterations</th><th>HTTP requests</th>"
+        f"<th>Finished</th></tr></thead><tbody>{rows}</tbody></table>",
+    )
+
+
 def _diff(baseline: Path, candidate: Path) -> str:
     try:
         lines = format_diff(compare_runs(baseline, candidate))
@@ -131,7 +155,7 @@ def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
                     return self._send(200, _diff(*pair))
             if len(parts) in {2, 3} and parts[0] == "runs" and (path := _run_dir(runs_dir, parts[1])):
                 if len(parts) == 2:
-                    return self._send(200, _run(path))
+                    return self._send(200, _activity(path) if (path / "activity.json").is_file() else _run(path))
                 report = (path / "report.html").resolve()
                 if parts[2] == "report.html" and report.parent == path and report.is_file():
                     return self._send(200, report.read_text(encoding="utf-8"))

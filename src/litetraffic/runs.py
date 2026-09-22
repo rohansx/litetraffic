@@ -61,6 +61,13 @@ def _series(path: Path, runs_dir: Path) -> dict:
     )
 
 
+def _activity(path: Path) -> dict:
+    activity = _read(path / "activity.json") or {}
+    # A background activity has a status, never a verdict; "background" is its badge.
+    entry = _entry(path, path.name, "activity", activity, None, lifecycle=activity.get("status"), seed=activity.get("starting_seed"))
+    return {**entry, "verdict": "background"}
+
+
 def _sort_key(entry: dict) -> str:
     stamp = entry["finished_at"]
     if isinstance(stamp, str):
@@ -74,7 +81,7 @@ def list_runs(runs_dir: Path) -> list[dict]:
     if not root.is_dir():
         return []
     entries = [
-        _run(child) if child.is_dir() else _series(child, root)
+        (_activity(child) if (child / "activity.json").is_file() else _run(child)) if child.is_dir() else _series(child, root)
         for child in root.iterdir()
         if child.is_dir() or (child.name.startswith("series_") and child.suffix == ".json")
     ]

@@ -14,6 +14,7 @@ The long-term goal is **users as an API**: give an application a believable, sta
 - Repeated seeds and baseline/candidate comparison with an optional p95 gate
 - Local, reachable HTTP(S), and existing E2B sandbox targets
 - Five conformance examples, each with a correct and a faulty server
+- `up`: a foreground background activity of repeated bounded `verify` slices, reported with `mode=background` and no verdict
 
 ## Next
 
@@ -22,7 +23,7 @@ The long-term goal is **users as an API**: give an application a believable, sta
 ## Later
 
 - Repository discovery and assisted scenario authoring
-- Longer-running population mode with persistent synthetic users
+- Population mode with persistent synthetic users across slices
 - Managed sandbox provisioning
 
 Items under Next and Later are plans, not commitments or shipped features. Open an issue to discuss priorities.
