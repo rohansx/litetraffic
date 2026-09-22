@@ -18,6 +18,7 @@ from litetraffic.scenario import load_scenario
 from litetraffic.target import validate_target
 
 SUPPORTED_K6_VERSION = "v2.2.0"
+K6_THRESHOLDS_FAILED = 99  # k6 exit code: the run completed but a threshold was crossed
 
 
 def _now() -> datetime:
@@ -186,7 +187,7 @@ def verify(
             )
             try:
                 stdout, stderr = _communicate(process, timeout=engine_seconds)
-                lifecycle = "finished" if process.returncode == 0 else "crashed"
+                lifecycle = "finished" if process.returncode in (0, K6_THRESHOLDS_FAILED) else "crashed"
             except subprocess.TimeoutExpired:
                 lifecycle = "timed_out"
                 stdout, stderr = _stop_process(process)
@@ -265,6 +266,9 @@ def verify(
     limitations.extend(f"duplicate evidence for {key}" for key in dict.fromkeys(duplicates))
     if metrics.get("dropped_iterations"):
         limitations.append(f"k6 dropped {int(metrics['dropped_iterations'])} iterations (under-delivered load)")
+    thresholds_breached = lifecycle == "finished" and engine_exit_code == K6_THRESHOLDS_FAILED
+    if thresholds_breached:
+        limitations.append("k6 thresholds breached")
     if malformed_events:
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:
@@ -296,7 +300,7 @@ def verify(
     completeness = "complete" if not limitations else "incomplete"
     if request_budget_exceeded or fixture_error or unreachable:
         verdict = "error"
-    elif definite_failure:
+    elif definite_failure or thresholds_breached:
         verdict = "fail"
     elif lifecycle == "crashed":
         verdict = "error"

@@ -401,6 +401,23 @@ def test_verify_records_an_engine_crash(tmp_path, monkeypatch):
     assert result["lifecycle"] == "crashed"
     assert result["verdict"] == "error"
     assert result["engine_exit_code"] == 7
+    assert "k6 exited with status 7" in result["limitations"]
+
+
+def test_verify_treats_a_k6_threshold_breach_as_a_finished_failing_run(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, returncode=99)))
+
+    assert result["lifecycle"] == "finished"
+    assert result["engine_exit_code"] == 99
+    assert result["limitations"] == ["k6 thresholds breached"]
+    assert result["verdict"] == "fail"
+    assert all(row["status"] == "pass" for row in result["assertions"])
+    run_dir = tmp_path / "runs" / result["run_id"]
+    assert json.loads((run_dir / "run.json").read_text())["lifecycle"] == "finished"
 
 
 def test_verify_finalizes_when_the_user_cancels(tmp_path, monkeypatch):
