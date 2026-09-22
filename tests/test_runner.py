@@ -1041,3 +1041,80 @@ def test_artifact_budget_excludes_the_artifacts_manifest(tmp_path):
 
     assert [entry["path"] for entry in files] == ["events/000001.jsonl", "result.json"]
     assert sum(entry["bytes"] for entry in files) == 5
+
+
+def point(metric: str, value: float, **tags: str) -> str:
+    return json.dumps({"type": "Point", "metric": metric, "data": {"value": value, "tags": tags}})
+
+
+def test_read_metrics_counts_write_requests_and_peak_vus(tmp_path):
+    path = tmp_path / "metrics.jsonl"
+    methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+    lines = [point("http_reqs", 1, method=method) for method in methods]
+    lines += [point("vus_max", 3), point("vus_max", 5), point("vus_max", 4)]
+    path.write_text("\n".join(lines) + "\n")
+
+    metrics, malformed = _read_metrics(path)
+
+    assert malformed == 0
+    assert metrics["http_reqs"] == 7
+    assert metrics["write_attempts"] == 4
+    assert metrics["vus_max"] == 5
+
+
+def test_verify_reports_zero_write_attempts_and_passes_without_writes(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, extra_metric_lines=(point("vus_max", 4),))))
+
+    assert result["verdict"] == "pass"
+    assert result["metrics"]["write_attempts"] == 0
+    assert result["metrics"]["vus_max"] == 4
+
+
+def test_verify_enforces_the_observed_write_budget(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")  # max_write_attempts 20
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    writes = tuple(point("http_reqs", 1, method="POST") for _ in range(21))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, extra_metric_lines=writes)))
+
+    assert result["verdict"] == "error"
+    assert result["metrics"]["write_attempts"] == 21
+    assert "write budget exceeded: 21 > 20" in result["limitations"]
+
+
+def test_write_attempts_include_fixture_create_and_cleanup(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 6, "max_write_attempts": 3},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: {"status": "deleted", "requests": 1})
+    journey_writes = (point("http_reqs", 1, method="POST"), point("http_reqs", 1, method="PUT"))
+
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=1, extra_metric_lines=journey_writes)))
+
+    assert result["metrics"]["write_attempts"] == 4
+    assert result["verdict"] == "error"
+    assert "write budget exceeded: 4 > 3" in result["limitations"]
+
+
+def test_verify_enforces_the_in_flight_budget_from_vus_max(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")  # max_in_flight 4
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, extra_metric_lines=(point("vus_max", 5),))))
+
+    assert result["verdict"] == "error"
+    assert "in-flight budget exceeded: 5 > 4" in result["limitations"]

@@ -7,6 +7,7 @@ from pathlib import Path
 
 MAX_DETAIL_CHARS = 500
 MAX_FAILURE_SAMPLES = 3
+WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
     events: list[dict] = []
@@ -106,6 +107,10 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
                 continue
             if metric in count_metrics:
                 totals[metric] = float(totals.get(metric, 0)) + value
+                if metric == "http_reqs" and (item["data"].get("tags") or {}).get("method") in WRITE_METHODS:
+                    totals["write_attempts"] = int(totals.get("write_attempts", 0) + value)
+            elif metric == "vus_max":
+                totals["vus_max"] = max(int(value), int(totals.get("vus_max", 0)))
             elif metric == "http_req_duration":
                 durations.append(float(value))
             elif metric == "http_req_failed" and 0 <= value <= 1:
@@ -133,6 +138,19 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
         if transport_failures:
             totals["http_req_failed_rate"]["transport"] = transport_failures
     return totals, malformed
+
+
+def budget_overruns(metrics: dict, budgets) -> list[str]:
+    """Run-time budget checks against what k6 and the controller actually did."""
+    overruns = []
+    requests = metrics.get("total_http_reqs", metrics.get("http_reqs", 0))
+    if requests > budgets.max_requests:
+        overruns.append(f"request budget exceeded: {requests} > {budgets.max_requests}")
+    if metrics["write_attempts"] > budgets.max_write_attempts:
+        overruns.append(f"write budget exceeded: {metrics['write_attempts']} > {budgets.max_write_attempts}")
+    if metrics.get("vus_max", 0) > budgets.max_in_flight:
+        overruns.append(f"in-flight budget exceeded: {metrics['vus_max']} > {budgets.max_in_flight}")
+    return overruns
 
 
 def target_unreachable(metrics: dict) -> bool:

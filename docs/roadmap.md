@@ -8,7 +8,7 @@ The long-term goal is **users as an API**: give an application a believable, sta
 
 - `doctor`, `inspect`, `verify`, `diff`
 - Explicit phases and seeded spiky, random-burst, and sustained-burst profiles
-- Declared budgets with static and post-run checks
+- Declared budgets with static and post-run checks, including counted write attempts and k6 `vus_max`
 - Assertion evidence, verdicts, lifecycle, HTML report
 - Run-owned HTTP fixtures and final observations
 - Repeated seeds and baseline/candidate comparison with an optional p95 gate
@@ -17,7 +17,6 @@ The long-term goal is **users as an API**: give an application a believable, sta
 
 ## Next
 
-- Run-time write counting and in-flight enforcement
 - macOS release qualification and a PyPI release
 
 ## Later

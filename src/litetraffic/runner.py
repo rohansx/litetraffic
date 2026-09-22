@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from litetraffic.artifacts import MANIFEST, artifact_files
-from litetraffic.evidence import _read_events, _read_metrics, evaluate_assertions, target_unreachable
+from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture
 from litetraffic.observation import observe
 from litetraffic.process import _communicate, _stop_process
@@ -229,6 +229,8 @@ def verify(
                 fixture["cleanup"] = {"status": "error", "reason": f"fixture cleanup cancelled; fixture {fixture_id} may remain", "requests": 1}
         _write_json(run_dir / "fixture.json", fixture)
         metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
+    # Fixture create (POST) and cleanup (DELETE) are writes; the observer only reads.
+    metrics["write_attempts"] = metrics.get("write_attempts", 0) + metrics.get("fixture_requests", 0)
     if fixture or observation:
         metrics["total_http_reqs"] = float(metrics.get("http_reqs", 0)) + metrics.get("observer_requests", 0) + metrics.get("fixture_requests", 0)
     _record_stage(run_dir, run, "finalizing")
@@ -279,12 +281,8 @@ def verify(
     )
     if fixture_error:
         limitations.append(fixture.get("cleanup", fixture["create"])["reason"])
-    observed_requests = metrics.get("total_http_reqs", metrics.get("http_reqs", 0))
-    request_budget_exceeded = observed_requests > bundle.manifest.budgets.max_requests
-    if request_budget_exceeded:
-        limitations.append(
-            f"request budget exceeded: {observed_requests} > {bundle.manifest.budgets.max_requests}"
-        )
+    overruns = budget_overruns(metrics, bundle.manifest.budgets)
+    limitations.extend(overruns)
     delivered = metrics.get("iterations")
     if delivered != bundle.manifest.planned_journeys:
         limitations.append(
@@ -299,7 +297,7 @@ def verify(
     elif lifecycle == "crashed":
         limitations.append(engine_error or f"k6 exited with status {engine_exit_code}")
     completeness = "complete" if not limitations else "incomplete"
-    if request_budget_exceeded or fixture_error or unreachable:
+    if overruns or fixture_error or unreachable:
         verdict = "error"
     elif definite_failure or thresholds_breached:
         verdict = "fail"

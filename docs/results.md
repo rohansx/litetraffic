@@ -41,6 +41,8 @@ Each entry in `result.json` `assertions` has `id`, `status`, and `samples`. A fa
 
 Engine event or metric lines that cannot be parsed (invalid JSON, a non-object value, or a metric record whose `data` field is present but is not an object) are skipped and reported as an `ignored N malformed event record(s)` or `ignored N malformed metric record(s)` limitation; the run is still finalized and `result.json` is still written.
 
+`metrics.write_attempts` counts write requests (k6 `http_reqs` tagged `POST`, `PUT`, `PATCH` or `DELETE`, plus fixture create and cleanup), and `metrics.vus_max` is the highest k6 `vus_max` point when k6 reports one. Exceeding `max_requests`, `max_write_attempts` or `max_in_flight` adds a `... budget exceeded: N > M` limitation and makes the verdict `error`; see [safety](safety.md).
+
 `result.json` `metrics.http_req_duration_ms` holds `samples`, `average`, `p50`, `p95`, and `max` when k6 supplies durations. `report.html` shows the seed, target, engine version, HTTP avg/p50/p95/max (or `Unavailable`), the latency sample count, HTTP error rate, journeys, and throughput.
 
 `planned_journeys_per_second` is the resolved schedule's admitted journeys divided by its total seconds; compare it with the observed `metrics.iterations_per_second` (iterations divided by the engine window only, from `engine_started_at` to `engine_finished_at` in `run.json`; fixture setup, observation and cleanup are excluded, as they are from `metrics.http_reqs_per_second`, while `metrics.elapsed_seconds` stays the whole run's wall-clock time). When k6 reports a nonzero `dropped_iterations` metric, `limitations` contains `k6 dropped N iterations (under-delivered load)` and the run cannot pass.

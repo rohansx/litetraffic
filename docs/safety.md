@@ -17,8 +17,8 @@ LiteTraffic sends real requests, including writes, to the target you give it. Tr
 |---|---|
 | `max_seconds` | Before the run, the schedule plus fixture/observer deadlines must fit. At run time, k6 is stopped (SIGTERM, then SIGKILL) when its share expires; the run becomes `timed_out` |
 | `max_requests` | Before the run, the worst case from journey maxima must fit. After the run, observed requests are compared, and an overrun makes the verdict `error` |
-| `max_write_attempts` | Static check against declared journey `max_writes` only. Writes are not counted at run time |
-| `max_in_flight` | Passed to the script as `LT_MAX_IN_FLIGHT`; the script must apply it |
+| `max_write_attempts` | Before the run, declared journey `max_writes` plus fixture create/cleanup must fit. After the run, `metrics.write_attempts` counts k6 `http_reqs` points tagged with method `POST`, `PUT`, `PATCH` or `DELETE`, plus the fixture create and cleanup requests; an overrun makes the verdict `error` (`write budget exceeded: N > M`) |
+| `max_in_flight` | Passed to the script as `LT_MAX_IN_FLIGHT`; the script must apply it (the examples use it as `preAllocatedVUs` and `maxVUs`). After the run, the highest k6 `vus_max` point is recorded as `metrics.vus_max`; a value above the budget makes the verdict `error` (`in-flight budget exceeded: N > M`). `vus_max` is the VU capacity k6 allocated, not a count of concurrent requests |
 | `max_artifact_bytes` | Checked after the run; an overrun makes the verdict `error` |
 
 Budgets are a declared envelope, not a sandbox: a script that ignores its declared maxima can still send more traffic before the controller notices. Keep isolation on the target side.
