@@ -232,7 +232,7 @@ def verify(
     metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / elapsed_seconds, 3)
     metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / elapsed_seconds, 3)
 
-    assertions, missing, partial, definite_failure = evaluate_assertions(
+    assertions, missing, partial, duplicates, definite_failure = evaluate_assertions(
         bundle.manifest.assertions, events, observation, bundle.manifest.planned_journeys
     )
 
@@ -252,6 +252,7 @@ def verify(
         limitations.append(f"missing assertion evidence: {', '.join(missing)}")
     if partial:
         limitations.append(f"partial assertion evidence: {', '.join(partial)}")
+    limitations.extend(f"duplicate evidence for {key}" for key in dict.fromkeys(duplicates))
     if malformed_events:
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:

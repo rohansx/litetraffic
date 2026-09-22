@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 from pathlib import Path
 
 MAX_DETAIL_CHARS = 500
@@ -37,9 +38,9 @@ def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
 
 def evaluate_assertions(
     assertion_ids: list[str], events: list[dict], observation: dict | None, planned_journeys: int
-) -> tuple[list[dict], list[str], list[str], bool]:
-    """Summarize each declared assertion; return rows, missing ids, partial labels, and definite failure."""
-    rows, missing, partial = [], [], []
+) -> tuple[list[dict], list[str], list[str], list[str], bool]:
+    """Summarize each declared assertion; return rows, missing ids, partial labels, duplicate keys, definite failure."""
+    rows, missing, partial, duplicates = [], [], [], []
     definite_failure = False
     for assertion_id in assertion_ids:
         if observation and assertion_id == observation["assertion"]:
@@ -64,13 +65,19 @@ def evaluate_assertions(
                 for event in failures[:MAX_FAILURE_SAMPLES]
             ]
             definite_failure = True
+        elif repeated := [
+            key for key, count in Counter(e["logical_key"] for e in samples if "logical_key" in e).items() if count > 1
+        ]:
+            # One journey reporting twice must not stand in for a journey that reported nothing.
+            row["status"] = "unknown"
+            duplicates.extend(repeated)
         elif len(samples) != planned_journeys:
             row["status"] = "unknown"
             partial.append(f"{assertion_id} ({len(samples)}/{planned_journeys})")
         else:
             row["status"] = "pass"
         rows.append(row)
-    return rows, missing, partial, definite_failure
+    return rows, missing, partial, duplicates, definite_failure
 
 
 def _percentile(values: list[float], quantile: float) -> float:

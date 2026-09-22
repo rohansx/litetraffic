@@ -655,3 +655,32 @@ def test_verify_copies_observer_expected_and_actual_into_the_assertion(tmp_path,
     ]
     report = (tmp_path / "runs" / result["run_id"] / "report.html").read_text()
     assert "<td>{&quot;/total&quot;: 1000}</td><td>{&quot;/total&quot;: 900}</td>" in report
+
+
+def two_journey_bundle(tmp_path: Path) -> Path:
+    schedule = {"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 2}]}
+    return write_bundle(tmp_path / "scenario", manifest(schedule=schedule, assertions=["accepted_orders_persist"]))
+
+
+def test_verify_does_not_let_a_duplicate_logical_key_stand_in_for_a_missing_journey(tmp_path, monkeypatch):
+    scenario = two_journey_bundle(tmp_path)
+    events = [assertion("accepted_orders_persist") | {"logical_key": "A"} for _ in range(2)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=2)))
+
+    assert result["assertions"][0]["status"] == "unknown"
+    assert result["verdict"] == "inconclusive"
+    assert "duplicate evidence for A" in result["limitations"]
+
+
+def test_verify_passes_distinct_logical_keys_and_counts_unkeyed_samples(tmp_path, monkeypatch):
+    scenario = two_journey_bundle(tmp_path)
+    keyed = [assertion("accepted_orders_persist") | {"logical_key": key} for key in ("A", "B")]
+    unkeyed = [assertion("accepted_orders_persist") for _ in range(2)]
+    for index, events in enumerate((keyed, unkeyed)):
+        monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+        runs = tmp_path / f"runs{index}"
+        result = verify("http://example.test", scenario, runs, str(fake_k6(tmp_path, events, iterations=2)))
+        assert result["assertions"][0]["status"] == "pass", result["limitations"]
+        assert result["verdict"] == "pass"
