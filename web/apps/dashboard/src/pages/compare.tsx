@@ -85,7 +85,7 @@ function RunPicker({ label, value, runs, onChange }: { label: string; value: str
   const options = (runs ?? []).filter((run) => run.kind === "run");
   if (value && !options.some((run) => run.run_id === value)) options.unshift({ run_id: value, scenario: null } as RunListEntry);
   return (
-    <div className="grid w-full gap-1 sm:w-80">
+    <div className="grid w-full grid-cols-1 gap-1 sm:w-80">
       <span className="text-xs text-muted-foreground">{label}</span>
       <Select value={value || undefined} onValueChange={onChange}>
         <SelectTrigger aria-label={label} className="w-full">
@@ -165,7 +165,7 @@ function ComparisonView({ diff }: { diff: Comparison }) {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className={title}>Correctness</CardTitle>

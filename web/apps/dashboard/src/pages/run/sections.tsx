@@ -13,7 +13,7 @@ const title = "font-display text-lg font-semibold";
 export function Observations({ observation, fixture }: { observation?: Observation; fixture?: Fixture }) {
   const records = observation ? (Array.isArray(observation) ? observation : [observation]) : [];
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       {records.length ? (
         records.map((record, index) => (
           <Card key={`${record.assertion}-${index}`}>
@@ -100,7 +100,7 @@ export function Metrics({ metrics }: { metrics: RunMetrics }) {
   const latency = metrics.http_req_duration_ms ?? {};
   const operations = [...new Set([...Object.keys(metrics.by_operation ?? {}), ...Object.keys(metrics.overlap ?? {})])].sort();
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <Card>
         <CardHeader>
           <CardTitle className={title}>Latency and throughput</CardTitle>
@@ -164,7 +164,7 @@ export function Metrics({ metrics }: { metrics: RunMetrics }) {
 
 export function Limitations({ result }: { result: RunResult }) {
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       {result.limitations.length ? (
         <ul className="grid gap-2" aria-label="Limitations">
           {result.limitations.map((text) => (

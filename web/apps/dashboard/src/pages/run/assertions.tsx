@@ -19,7 +19,7 @@ export function AssertionsTable({ assertions }: { assertions: AssertionResult[] 
 
   const failing = assertions.filter((a) => a.status === "fail").length;
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <p className="text-sm text-muted-foreground">
         {failing ? `${failing} of ${assertions.length} assertions failed.` : `${assertions.length} assertions, none failed.`}
       </p>
