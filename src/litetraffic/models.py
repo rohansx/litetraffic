@@ -307,7 +307,7 @@ class ScenarioManifest(StrictModel):
             self.observations = [self.observation]
         scheduled_seconds = sum(phase.seconds for phase in self.schedule.resolve(seed=0))
         fixture_seconds = self.fixtures.reserved_seconds
-        observation_seconds = 5 * len(self.observations)
+        observation_seconds = sum(observation.reserved_seconds for observation in self.observations)
         needed = scheduled_seconds + ENGINE_SLACK_SECONDS + fixture_seconds + observation_seconds
         if needed > self.budgets.max_seconds:
             raise ValueError(

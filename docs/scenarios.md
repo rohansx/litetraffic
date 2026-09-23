@@ -35,7 +35,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `allowed_origins_env` | no | Uppercase environment variable holding comma-separated extra origins an `origin_env` may resolve to ([below](#origin-from-the-environment)) |
 | `budgets` | yes | `max_seconds`, `max_requests`, `max_write_attempts`, `max_in_flight`, `max_artifact_bytes` |
 
-`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus 2 s for k6 start-up and in-flight journeys, the fixture deadline (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and the observation deadline (5 s per observation) must fit `max_seconds`. The error names each part and the total, e.g. `scheduled duration (12 s) plus engine start/drain (2 s), fixture (48 s) and observation (10 s) deadlines need 72 s, max_seconds is 70`. Each fixture create, fixture cleanup and observation request has a hard 5 s wall-clock deadline covering connect, headers and the full body (a slow or trickling server cannot stretch it), and a response body over 1 MiB is rejected; either failure makes the fixture `error` or the observation `unknown` (`... unavailable: deadline exceeded` / `... unavailable: response body over 1 MiB`).
+`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus 2 s for k6 start-up and in-flight journeys, the fixture deadline (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and the observation deadline (5 s per observation, plus `until.deadline_seconds` rounded up for a [polled](#eventual-observations) one) must fit `max_seconds`; a polled observation counts its most possible attempts against `max_requests`. The error names each part and the total, e.g. `scheduled duration (12 s) plus engine start/drain (2 s), fixture (48 s) and observation (10 s) deadlines need 72 s, max_seconds is 70`. Each fixture create, fixture cleanup and observation request has a hard 5 s wall-clock deadline covering connect, headers and the full body (a slow or trickling server cannot stretch it), and a response body over 1 MiB is rejected; either failure makes the fixture `error` or the observation `unknown` (`... unavailable: deadline exceeded` / `... unavailable: response body over 1 MiB`).
 
 ## Schedules
 
@@ -238,6 +238,23 @@ Check the resulting state once, after all journeys finish:
 
 The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`, which may also name an [`LT_TOKEN_<CLASS>`](#actor-auth) token minted for the run. An unreachable observer yields `unknown`, which prevents a pass; the reason (for example `observer HTTP 503`, `observer bearer token missing` or `observer unavailable: deadline exceeded`) is kept as the assertion's `reason` in `result.json` and printed after it in the `verify` text summary.
 
+### Eventual observations
+
+When the application settles asynchronously (a queue, a projection, a replica), let the observation re-read until it converges:
+
+```json
+"observation": {
+  "path": "/reports/ledger",
+  "assertion": "ledger_matches_fixture",
+  "expected": {"/total": 1000},
+  "until": {"deadline_seconds": 20, "interval_seconds": 1}
+}
+```
+
+The controller repeats the GET every `interval_seconds` (at least 0.5) until every expectation passes or `deadline_seconds` (more than 0, at most 60, and at least `interval_seconds`) have passed; the last attempt is made at the deadline. The observation passes on the first attempt whose checks all pass. Otherwise it is `fail`, with the last reading that returned JSON, only after the deadline; it is `unknown`, with the last reason, only if no attempt got an HTTP 200 JSON response. A missing environment variable or disallowed `origin_env` stops it at once, without a request. The result adds `attempts` (GETs sent) and `elapsed_seconds`, and `observer_requests` counts every attempt.
+
+Each attempt keeps the 5 s request deadline, so `inspect` reserves `deadline_seconds` rounded up plus 5 s of `max_seconds`, and ⌈`deadline_seconds` / `interval_seconds`⌉ + 1 requests of `max_requests`, for the observation. With the example above that is 25 s and 21 requests.
+
 ### Matchers
 
 Each `expected` value is either a literal, compared for equality, or a matcher object with exactly one of these keys:
@@ -280,7 +297,7 @@ To check several things after the run, use `observations` instead of `observatio
 ]
 ```
 
-Each entry has its own `assertion`; every one must be listed in `assertions` and they must be distinct. They run one after another, in order, after k6 finishes; each gets 5 s and one request in the budgets. `observation.json` is then a list with one entry per observation, in order, and each assertion gets its own row in `result.json`. A legacy single `observation` still writes a single object. If k6 did not finish, every observation is `unknown` with reason `engine did not finish`.
+Each entry has its own `assertion`; every one must be listed in `assertions` and they must be distinct. They run one after another, in order, after k6 finishes; each gets 5 s and one request in the budgets (more with [`until`](#eventual-observations)). `observation.json` is then a list with one entry per observation, in order, and each assertion gets its own row in `result.json`. A legacy single `observation` still writes a single object. If k6 did not finish, every observation is `unknown` with reason `engine did not finish`.
 
 ### Observing another origin
 
