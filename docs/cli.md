@@ -102,14 +102,17 @@ Serves a read-only web page over `--runs-dir` (default `.litetraffic/runs`) on `
 
 | Route | Shows |
 |---|---|
-| `/` | Runs, series and `up` activities, newest first: run ID, kind, scenario, lifecycle (an activity's status), seed, finished time, verdict (an activity shows a `background` badge instead); plus a form for `/diff` |
+| `/` | Runs, series and `up` activities, newest first: a selection checkbox (runs only), run ID, kind, scenario (linked to its trend page), lifecycle (an activity's status), seed, finished time, and a verdict badge with the verdict as text (an activity shows a `background` badge instead). Ticking exactly two runs enables **Compare**, which opens `/diff` with the older ticked run as baseline. Filters: `?scenario=NAME`, `?verdict=VERDICT` (`pass`, `fail`, `inconclusive`, `error`, `unreadable`, `background`) and `?seed=N`, combinable; each must match exactly. The table refreshes from `/api/runs` (with the same filters) every 5 seconds without reloading the page, keeping ticked boxes; untick **Auto-refresh** to stop |
 | `/runs/ACTIVITY_ID` | An activity's `background` badge, status, target, starting seed and slice table; never a verdict |
-| `/runs/RUN_ID` | Verdict, lifecycle, seed, assertion table, failing samples with expected/actual values, metrics, limitations, and a link to `report.html` when present |
-| `/runs/RUN_ID/report.html` | The run's own `report.html` |
-| `/diff?a=BASELINE&b=CANDIDATE` | The `diff` text summary for two run IDs; incompatible runs are `INCONCLUSIVE` |
-| `/api/runs` | The run index as JSON |
+| `/runs/RUN_ID` | Verdict badge, lifecycle, seed, limitations, assertion table, failing samples with expected/actual values, an operations table (per-operation samples, p95, failed rate from `metrics.by_operation` and peak in flight from `metrics.overlap`), all metrics, a link to `report.html` when present, and a link to every file in the run directory |
+| `/runs/RUN_ID/PATH` | A file under the run directory (for example `report.html`, `result.json`, `events/000001.jsonl`): `.html` as HTML, `.json` as JSON, anything else as plain text |
+| `/scenarios/NAME` | For runs whose scenario is `NAME`, oldest first: an inline SVG chart of p95 HTTP latency per run with a marker per run coloured by verdict (runs spaced evenly, not on a time scale; runs without a p95 are left off the chart), and a table of run, finished time, seed, verdict and p95. 404 when no run has that scenario |
+| `/diff?a=BASELINE&b=CANDIDATE` | The `diff` text summary for two run IDs; incompatible runs are `INCONCLUSIVE`. `/diff?run=NEWER&run=OLDER` (what **Compare** sends) is the same with the second ID as baseline |
+| `/api/runs` | The run index as JSON; accepts the same `scenario`, `verdict` and `seed` filters as `/` |
 
-Run IDs must be plain subdirectory names of `--runs-dir`; an ID containing `/`, `\`, or `..`, an unknown ID, and any other path return 404. No other files are served. All values are HTML-escaped. A `result.json` field with the wrong type (for example `"metrics": null`), including an assertion's `failures` list and any non-object sample in it, is shown as empty rather than failing the page. Ctrl+C stops the server and exits 130. A port that cannot be bound exits 3.
+Pages follow the system light/dark preference; the **Theme** button switches between them and the choice is kept in the browser's `localStorage` (when storage is unavailable the button still works for the current page). Pages fit a 375px-wide screen, with wide tables scrolling inside their own box, and every control is a native link, button, checkbox, select or input reachable by keyboard.
+
+Run IDs must be plain subdirectory names of `--runs-dir`; an ID containing `/`, `\`, or `..`, an unknown ID, and any other path return 404. A file path under a run must not contain `.` or `..` segments, symlinks are not followed, and nothing outside the run directory is served. All values are HTML-escaped, including scenario names in pages, links and the chart. A `result.json` field with the wrong type (for example `"metrics": null`), including an assertion's `failures` list and any non-object sample in it, is shown as empty rather than failing the page. Ctrl+C stops the server and exits 130. A port that cannot be bound exits 3.
 
 ## `prune`
 

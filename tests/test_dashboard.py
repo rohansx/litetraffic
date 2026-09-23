@@ -30,9 +30,15 @@ def runs_dir(tmp_path):
         }
     ]
     result["limitations"] = ["k6 thresholds breached"]
-    result["metrics"] = result.get("metrics", {}) | {"overlap": {"create_payment": 3}, "unexpected_http_failure_rate": {"samples": 4, "failed": 1, "rate": 0.25}}
+    result["metrics"] = result.get("metrics", {}) | {
+        "overlap": {"create_payment": 3},
+        "by_operation": {"create_payment": {"samples": 5, "p95": 12.5, "failed_rate": 0.2}},
+        "unexpected_http_failure_rate": {"samples": 4, "failed": 1, "rate": 0.25},
+    }
     (run / "result.json").write_text(json.dumps(result))
     (run / "report.html").write_text("<html>the report</html>")
+    (run / "events").mkdir()
+    (run / "events" / "000001.jsonl").write_text('{"event": 1}\n')
     _finish(write_run(root / "run_b", "run_b"), scenario="checkout", finished_at="2026-01-03T00:00:00+00:00")
     _finish(
         write_run(root / "run_c", "run_c", scenario_sha256="other"),
@@ -174,7 +180,11 @@ def test_activity_page_lists_slices_without_a_verdict(server):
         "/runs/run_a%2F..%2F..",
         "/runs/../secret.txt",
         "/runs/run_a/../../secret.txt",
-        "/runs/run_a/run.json",
+        "/runs/run_a/%2E%2E%2F%2E%2E%2Fsecret.txt",
+        "/runs/run_a/missing.json",
+        "/runs/run_a/events",
+        "/scenarios/nope",
+        "/diff?run=run_a",
         "/runs/series_x.json",
         "/runs/missing",
         "/runs/%00",
@@ -259,3 +269,127 @@ def test_default_port_does_not_collide_with_example_servers():
     }
     assert example_ports
     assert _parser().parse_args(["dashboard"]).port not in example_ports
+
+
+MALICIOUS = "%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+
+
+def _rows(body):
+    return [row for row in body.split("<tr") if "<td" in row]
+
+
+def test_index_has_run_checkboxes_and_a_disabled_compare_button(server):
+    _, _, body = get(server, "/")
+
+    assert '<input type="checkbox" name="run" value="run_a"' in body
+    assert 'name="run" value="series_x"' not in body
+    assert 'id="compare" disabled' in body
+    assert "=== 2" in body  # the script enables Compare for exactly two selections
+
+
+def test_diff_from_two_selected_runs_uses_the_older_as_baseline(server):
+    # Rows are newest first, so the form submits the newer run first.
+    status, _, body = get(server, "/diff?run=run_b&run=run_a")
+
+    assert status == 200
+    assert "run_a → run_b" in body
+
+
+@pytest.mark.parametrize(
+    ("query", "present", "absent"),
+    [
+        ("scenario=checkout", {"run_b", "run_c", "activity_x"}, {"run_a"}),
+        ("verdict=fail", {"run_a"}, {"run_b", "run_c", "series_x"}),
+        ("seed=42", {"run_a", "run_b", "series_x"}, {"activity_x"}),
+        ("scenario=checkout&verdict=pass", {"run_b", "run_c"}, {"run_a", "activity_x"}),
+    ],
+)
+def test_index_and_api_filter_by_query(server, query, present, absent):
+    _, _, body = get(server, f"/?{query}")
+    listed = {row.split('href="/runs/')[1].split('"')[0] for row in _rows(body) if 'href="/runs/' in row}
+    listed |= {"series_x"} if "series_x" in "".join(_rows(body)) else set()
+    assert present <= listed and not (absent & listed)
+
+    _, _, api = get(server, f"/api/runs?{query}")
+    ids = {entry["run_id"] for entry in json.loads(api)}
+    assert present <= ids and not (absent & ids)
+
+
+def test_filter_form_keeps_selected_values_escaped(server):
+    _, _, body = get(server, f"/?scenario={MALICIOUS}&seed=%22%3E")
+
+    assert "<script>alert(1)" not in body
+    assert 'value="&quot;&gt;"' in body
+
+
+def test_verdict_badges_carry_text(server):
+    _, _, body = get(server, "/")
+
+    assert '<span class="badge v-fail">FAIL</span>' in body
+    assert '<span class="badge v-pass">PASS</span>' in body
+
+
+def test_index_links_scenarios_to_trend_pages_escaped(server):
+    _, _, body = get(server, "/")
+
+    assert 'href="/scenarios/checkout"' in body
+    assert 'href="/scenarios/%3Cscript%3Ealert%281%29%3C%2Fscript%3E"' in body
+
+
+def test_run_page_shows_per_operation_metrics_and_artifact_links(server):
+    _, _, body = get(server, "/runs/run_a")
+
+    assert '<span class="badge v-fail">FAIL</span>' in body
+    assert "create_payment" in body and "12.5" in body and "0.2" in body
+    for name in ("run.json", "result.json", "report.html", "events/000001.jsonl"):
+        assert f'href="/runs/run_a/{name}"' in body
+
+
+@pytest.mark.parametrize(
+    ("path", "content_type", "text"),
+    [
+        ("/runs/run_a/result.json", "application/json", "report_complete"),
+        ("/runs/run_a/events/000001.jsonl", "text/plain", '"event": 1'),
+    ],
+)
+def test_artifacts_are_served(server, path, content_type, text):
+    status, served_type, body = get(server, path)
+
+    assert status == 200
+    assert served_type.startswith(content_type)
+    assert text in body
+
+
+def test_scenario_trend_page_has_accessible_chart_and_table(server):
+    status, _, body = get(server, "/scenarios/checkout")
+
+    assert status == 200
+    assert '<svg role="img"' in body and "<title" in body and "<desc" in body
+    assert "<polyline" in body and 'class="v-pass"' in body
+    assert body.index("run_b") < body.index("run_c")  # oldest first
+    assert "100" in body and "run_a" not in body
+
+
+def test_scenario_trend_page_escapes_the_scenario_name(server):
+    status, _, body = get(server, f"/scenarios/{MALICIOUS}")
+
+    assert status == 200
+    assert "<script>alert(1)" not in body
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in body
+    assert "run_a" in body
+
+
+def test_pages_support_light_dark_and_a_stored_toggle(server):
+    for path in ("/", "/runs/run_a", "/scenarios/checkout", "/runs/activity_x"):
+        _, _, body = get(server, path)
+        assert 'name="viewport"' in body
+        assert "prefers-color-scheme: dark" in body
+        assert 'id="theme"' in body and "localStorage" in body and "try" in body
+
+
+def test_index_auto_refreshes_from_the_api_and_can_be_disabled(server):
+    _, _, body = get(server, "/")
+
+    assert 'id="autorefresh"' in body
+    assert "/api/runs" in body and "5000" in body
+    assert "textContent" in body  # refreshed rows are built without innerHTML
