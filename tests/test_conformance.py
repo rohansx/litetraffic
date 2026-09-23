@@ -152,10 +152,11 @@ def test_kit_fills_resource_placeholders_in_path_and_body(tmp_path):
             body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
             seen.append((self.command, self.path, json.loads(body) if body else None))
             own = self.command == "GET" and self.path == f"/orgs/org-{self.headers.get('X-Tenant')}"
+            payload = json.dumps({"org": self.path}).encode() if own else b"{}"  # a non-empty read-back state
             self.send_response(200 if own else 403)
-            self.send_header("Content-Length", "2")
+            self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
-            self.wfile.write(b"{}")
+            self.wfile.write(payload)
 
         do_GET = do_POST = do_PUT = _reply
 
@@ -171,7 +172,8 @@ def test_kit_fills_resource_placeholders_in_path_and_body(tmp_path):
         "endpoints": [
             {"method": "GET", "path": "/orgs/{id}", "kind": "read"},
             {"method": "POST", "path": "/positions", "kind": "write", "body": {"organization_id": "{id}", "note": ["{literal}"]}},
-            {"method": "PUT", "path": "/positions/{position}", "kind": "write", "body": {"organization_id": "{id}"}},
+            {"method": "PUT", "path": "/positions/{position}", "kind": "write", "body": {"organization_id": "{id}"},
+             "attack_body": {"organization_id": "{id}", "title": "attack"}},
         ],
         "schedule": {"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
     }
@@ -191,8 +193,9 @@ def test_kit_fills_resource_placeholders_in_path_and_body(tmp_path):
     finally:
         server.shutdown()
     assert json.loads(completed.stdout)["verdict"] == "pass", completed.stdout
-    assert ("POST", "/positions", {"organization_id": "org-b", "note": ["{literal}"]}) in seen  # a writes b's org
-    assert ("PUT", "/positions/pos%20a", {"organization_id": "org-a"}) in seen  # b writes a's position
+    posts = [body for method, path, body in seen if (method, path) == ("POST", "/positions") and body["organization_id"] == "org-b"]
+    assert posts and posts[0]["note"][0].startswith("{literal}-lt-attack-")  # a writes b's org; attacker strings get the suffix
+    assert ("PUT", "/positions/pos%20a", {"organization_id": "org-a", "title": "attack"}) in seen  # b writes a's position
 
 
 def _serve_kit(tmp_path, config, handler) -> dict:
@@ -250,7 +253,7 @@ def test_kit_reads_back_through_the_write_endpoints_read_back(tmp_path, read_bac
         def log_message(self, *args):
             return
 
-    write = {"method": "PUT", "path": "/notes/{id}/meta", "kind": "write", "body": {"m": 1}}
+    write = {"method": "PUT", "path": "/notes/{id}/meta", "kind": "write", "body": {"m": "1"}}
     config = {
         "name": "read-back",
         "identities": [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
@@ -431,10 +434,11 @@ def test_kit_fills_journey_placeholder(tmp_path):
             body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
             seen.append((self.command, self.path, json.loads(body) if body else None))
             own = self.headers.get("X-Tenant") == self.path.split("/")[2]
+            payload = b'{"ok": true}' if own and self.command == "GET" else b"{}"  # a non-empty read-back state
             self.send_response(200 if own and self.command == "GET" else 403)
-            self.send_header("Content-Length", "2")
+            self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
-            self.wfile.write(b"{}")
+            self.wfile.write(payload)
 
         do_GET = do_PUT = _reply
 
@@ -455,4 +459,105 @@ def test_kit_fills_journey_placeholder(tmp_path):
     writes = [(path, body) for method, path, body in seen if method == "PUT"]
     assert len(writes) == 2
     for path, body in writes:
-        assert body["tag"].startswith(result["run_id"]) and path.endswith("/" + quote(body["tag"], safe="")), (path, body)
+        journey = body["tag"].split("-lt-attack-", 1)[0]  # the attacker's generated body suffixes every string
+        assert body["tag"] == f"{journey}-lt-attack-{journey}", body
+        assert journey.startswith(result["run_id"]) and path.endswith("/" + quote(journey, safe="")), (path, body)
+
+
+TWO_TENANTS = [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
+               {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"]}]
+
+
+def _record_handler(values: dict, *, apply_every_put: bool, read_body=None, field="value"):
+    """GET /records/{id} returns {field: ...} to its owner (or `read_body`); PUT stores only body[field], 200 for owners, 403 otherwise."""
+    from http.server import BaseHTTPRequestHandler
+
+    class Handler(BaseHTTPRequestHandler):
+        def _send(self, status, payload):
+            body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            owner = self.path.rsplit("/", 1)[-1]
+            if self.headers.get("X-Tenant") != owner:
+                self._send(403, {})
+            else:
+                self._send(200, {field: values[owner]} if read_body is None else read_body)
+
+        def do_PUT(self):
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+            owner = self.path.rsplit("/", 1)[-1]
+            allowed = self.headers.get("X-Tenant") == owner
+            if allowed or apply_every_put:
+                values[owner] = body[field]
+            self._send(200 if allowed else 403, {})
+
+        def log_message(self, *args):
+            return
+
+    return Handler
+
+
+def test_kit_rejects_head_read_back_at_init(tmp_path):
+    """HEAD read-backs compare two empty bodies, so a 403-but-applied write would pass; init refuses them."""
+    config = {
+        "name": "head-read-back",
+        "identities": TWO_TENANTS,
+        "endpoints": [{"method": "HEAD", "path": "/records/{id}", "kind": "read"},
+                      {"method": "PUT", "path": "/records/{id}", "kind": "write", "body": {"value": "hacked"}}],
+        "schedule": ONE_SECOND,
+    }
+    (tmp_path / "kit.json").write_text(json.dumps(config))
+    generated = subprocess.run([sys.executable, "-m", "litetraffic", "init", "tenant-isolation", "--config", str(tmp_path / "kit.json"),
+                                "--out", str(tmp_path / "kit")], capture_output=True, text=True, timeout=30)
+    assert generated.returncode != 0 and "HEAD" in generated.stdout + generated.stderr, generated.stdout + generated.stderr
+    assert not (tmp_path / "kit").exists()
+
+
+def test_kit_check_own_does_not_neutralize_the_attack(tmp_path):
+    """An idempotent PUT with check_own: the owner writes the body first, so an attacker writing that same body changes nothing."""
+    config = {
+        "name": "check-own",
+        "identities": TWO_TENANTS,
+        "endpoints": [{"method": "GET", "path": "/records/{id}", "kind": "read"},
+                      {"method": "PUT", "path": "/records/{id}", "kind": "write", "body": {"value": "x"}, "check_own": True}],
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, _record_handler({"a": "a0", "b": "b0"}, apply_every_put=True))
+    assert _failed(result) == {"victim_unchanged"}, result
+    assert result["verdict"] == "fail", result
+
+
+def test_kit_check_own_mixed_body_is_not_a_false_pass(tmp_path):
+    """The attacker varies only a string the server ignores, so its applied write re-stores the qty the owner already wrote."""
+    config = {
+        "name": "mixed-body",
+        "identities": TWO_TENANTS,
+        "endpoints": [{"method": "GET", "path": "/records/{id}", "kind": "read"},
+                      {"method": "PUT", "path": "/records/{id}", "kind": "write", "body": {"qty": 5, "note": "n"}, "check_own": True}],
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, _record_handler({"a": 1, "b": 2}, apply_every_put=True, field="qty"))
+    rows = {row["id"]: row["status"] for row in result["assertions"]}
+    assert rows["victim_unchanged"] == "unknown" and result["verdict"] != "pass", result
+
+
+@pytest.mark.parametrize(("read_body", "attack_body"), [(b"", None), ({}, None), ({"value": "evil"}, {"value": "evil"})],
+                         ids=["empty-body", "empty-json", "attack-equals-state"])
+def test_kit_victim_unchanged_is_unknown_when_the_read_back_cannot_show_the_attack(tmp_path, read_body, attack_body):
+    """A secure server, but the read-back cannot reveal a mutation: an empty state, or one the attacker body already matches."""
+    write = {"method": "PUT", "path": "/records/{id}", "kind": "write", "body": {"value": "owner"}}
+    config = {
+        "name": "inconclusive",
+        "identities": TWO_TENANTS,
+        "endpoints": [{"method": "GET", "path": "/records/{id}", "kind": "read"},
+                      write | ({"attack_body": attack_body} if attack_body else {})],
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, _record_handler({"a": "a0", "b": "b0"}, apply_every_put=False, read_body=read_body))
+    rows = {row["id"]: row["status"] for row in result["assertions"]}
+    assert rows["victim_unchanged"] == "unknown", result
+    assert _failed(result) == set() and result["verdict"] == "inconclusive", result
