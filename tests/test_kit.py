@@ -111,3 +111,41 @@ def test_allowed_origins_pass_through_for_observations(tmp_path, capsys):
     manifest = load_scenario(tmp_path / "out").manifest
     assert manifest.allowed_origins == ["http://127.0.0.1:55321"]
     assert manifest.allowed_origins_env == "EXTRA_ORIGINS"
+
+
+def _kit(tmp_path) -> dict:
+    script = (tmp_path / "out" / "journeys.js").read_text()
+    return json.loads(script.split("const KIT = ", 1)[1].split(";\nconst MAX_SAMPLES", 1)[0])
+
+
+READS = [
+    {"method": "GET", "path": "/notes/{id}", "kind": "read"},
+    {"method": "GET", "path": "/notes/{id}/meta", "kind": "read", "name": "meta"},
+]
+
+
+@pytest.mark.parametrize(("read_back", "index"), [(None, 0), (1, 1), ("meta", 1)])
+def test_write_endpoints_pick_their_read_back(tmp_path, capsys, read_back, index):
+    write = {"method": "PUT", "path": "/notes/{id}/meta", "kind": "write", "body": {"m": 1}}
+    if read_back is not None:
+        write["read_back"] = read_back
+    code, result = _init(tmp_path, _config(endpoints=[*READS, write]), capsys)
+    assert code == 0, result
+    assert _kit(tmp_path)["endpoints"][2]["read_back"] == index
+
+
+@pytest.mark.parametrize(
+    ("read_back", "message"),
+    [(5, "read_back 5"), (2, "read_back 2"), ("nope", "read_back 'nope'"), (True, "read_back")],
+)
+def test_read_back_must_name_a_read_endpoint(tmp_path, capsys, read_back, message):
+    write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": {}, "read_back": read_back}
+    code, result = _init(tmp_path, _config(endpoints=[*READS, write]), capsys)
+    assert code == 3 and message in result["error"], result
+
+
+def test_read_back_is_only_for_writes_and_names_are_distinct(tmp_path, capsys):
+    code, result = _init(tmp_path, _config(endpoints=[READS[0] | {"read_back": 0}]), capsys)
+    assert code == 3 and "read_back" in result["error"], result
+    code, result = _init(tmp_path, _config(endpoints=[READS[1], READS[1]]), capsys)
+    assert code == 3 and "distinct" in result["error"], result

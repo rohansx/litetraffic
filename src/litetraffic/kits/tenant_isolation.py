@@ -77,6 +77,7 @@ class Identity(StrictModel):
 
 
 class Endpoint(StrictModel):
+    name: str | None = Field(default=None, min_length=1)  # lets a write's read_back refer to this read
     method: Literal["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
     path: str = Field(min_length=1)
     kind: Literal["read", "write"]
@@ -84,6 +85,8 @@ class Endpoint(StrictModel):
     expected_statuses: list[Status] | None = Field(default=None, min_length=1)  # own-access success statuses
     # Also run the write as the owner. Only for idempotent writes: concurrent journeys otherwise race the read-back compare.
     check_own: bool = False
+    # The read endpoint (index into `endpoints` or its `name`) that reads this write's resource back; default: the first read.
+    read_back: Annotated[int, Field(strict=True)] | str | None = None
 
     @model_validator(mode="after")
     def require_safe_template(self) -> "Endpoint":
@@ -93,8 +96,8 @@ class Endpoint(StrictModel):
             raise ValueError("read endpoints must use GET or HEAD")
         if self.kind == "write" and self.method in {"GET", "HEAD"}:
             raise ValueError("write endpoints must use POST, PUT, PATCH or DELETE")
-        if self.kind == "read" and (self.body is not None or self.check_own):
-            raise ValueError("read endpoints take no body or check_own")
+        if self.kind == "read" and (self.body is not None or self.check_own or self.read_back is not None):
+            raise ValueError("read endpoints take no body, check_own or read_back")
         return self
 
     @property
@@ -120,6 +123,11 @@ class KitConfig(StrictModel):
             raise ValueError(f"identity names must be distinct: {', '.join(names)}")
         if not any(endpoint.kind == "read" for endpoint in self.endpoints):
             raise ValueError("endpoints need at least one read endpoint (the first one reads back victim state)")
+        named = [endpoint.name for endpoint in self.endpoints if endpoint.name]
+        if len(set(named)) != len(named):
+            raise ValueError(f"endpoint names must be distinct: {', '.join(named)}")
+        for endpoint in self.endpoints:
+            self.read_back_index(endpoint)  # raises on a bad reference
         refs = [ref for identity in self.identities for ref in identity.refs]
         keys = set(refs[0])
         if any(set(ref) != keys for ref in refs):
@@ -132,6 +140,16 @@ class KitConfig(StrictModel):
             if not used & keys:
                 raise ValueError(f"{endpoint.method} {endpoint.path} uses no resource placeholder in its path or body")
         return self
+
+    def read_back_index(self, endpoint: Endpoint) -> int:
+        reference = endpoint.read_back
+        if reference is None:
+            return next(i for i, candidate in enumerate(self.endpoints) if candidate.kind == "read")
+        names = {candidate.name: i for i, candidate in enumerate(self.endpoints) if candidate.name}
+        index = names.get(reference) if isinstance(reference, str) else reference
+        if index is None or not 0 <= index < len(self.endpoints) or self.endpoints[index].kind != "read":
+            raise ValueError(f"{endpoint.method} {endpoint.path}: read_back {reference!r} is not a read endpoint")
+        return index
 
 
 def _journey_assertions(config: KitConfig) -> list[str]:
@@ -214,6 +232,7 @@ def build_script(config: KitConfig) -> str:
         ],
         "endpoints": [
             {"method": e.method, "path": e.path, "kind": e.kind, "body": e.body, "statuses": e.statuses, "check_own": e.check_own}
+            | ({"read_back": config.read_back_index(e)} if e.kind == "write" else {})
             for e in config.endpoints
         ],
     }
@@ -281,7 +300,6 @@ function where(identity, endpoint, ref, status) {
 
 export default function tenantIsolation() {
   const failures = Object.fromEntries(KIT.assertions.map((name) => [name, []]));
-  const readBack = KIT.endpoints.find((endpoint) => endpoint.kind === "read");
   KIT.identities.forEach((owner, index) => {
     const attacker = KIT.identities[1 - index];
     for (const ref of owner.resources) {
@@ -296,6 +314,7 @@ export default function tenantIsolation() {
           if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_read_blocked.push(where(attacker, endpoint, ref, cross.status));
           continue;
         }
+        const readBack = KIT.endpoints[endpoint.read_back];
         const before = send(owner, readBack, ref, "own");
         const cross = send(attacker, endpoint, ref, "cross_tenant");
         const after = send(owner, readBack, ref, "own");

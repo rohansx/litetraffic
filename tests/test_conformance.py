@@ -192,3 +192,73 @@ def test_kit_fills_resource_placeholders_in_path_and_body(tmp_path):
     assert json.loads(completed.stdout)["verdict"] == "pass", completed.stdout
     assert ("POST", "/positions", {"organization_id": "org-b", "note": ["{literal}"]}) in seen  # a writes b's org
     assert ("PUT", "/positions/pos%20a", {"organization_id": "org-a"}) in seen  # b writes a's position
+
+
+def _serve_kit(tmp_path, config, handler) -> dict:
+    """Generate the kit bundle from `config`, verify it against `handler`, return the verify JSON."""
+    from http.server import ThreadingHTTPServer
+    from threading import Thread
+
+    (tmp_path / "kit.json").write_text(json.dumps(config))
+    scenario = tmp_path / "kit"
+    generated = subprocess.run([sys.executable, "-m", "litetraffic", "init", "tenant-isolation", "--config", str(tmp_path / "kit.json"),
+                                "--out", str(scenario)], capture_output=True, text=True, timeout=30)
+    assert generated.returncode == 0, generated.stdout + generated.stderr
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-m", "litetraffic", "verify", str(scenario), "--target", f"http://127.0.0.1:{server.server_port}",
+             "--seed", "42", "--output-dir", str(tmp_path / "runs"), "--json"],
+            capture_output=True, text=True, timeout=120,
+        )
+    finally:
+        server.shutdown()
+    return json.loads(completed.stdout)
+
+
+def _failed(result: dict) -> set[str]:
+    return {row["id"] for row in result["assertions"] if row["status"] == "fail"}
+
+
+ONE_SECOND = {"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]}
+
+
+@pytest.mark.parametrize(("read_back", "verdict"), [(None, "pass"), ("meta", "fail")])
+def test_kit_reads_back_through_the_write_endpoints_read_back(tmp_path, read_back, verdict):
+    """The server rejects cross-tenant meta writes but applies them; only a meta read-back sees it."""
+    from http.server import BaseHTTPRequestHandler
+
+    meta = {"a": 0, "b": 0}
+
+    class Handler(BaseHTTPRequestHandler):
+        def _reply(self):
+            self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            parts, caller = self.path.strip("/").split("/"), self.headers.get("X-Tenant")
+            owner = parts[1]
+            if self.command == "PUT":
+                meta[owner] += 1  # applied even when the caller is rejected below
+            body = json.dumps({"meta": meta[owner]} if parts[-1] == "meta" else {"id": owner}).encode()
+            self.send_response(200 if caller == owner else 403)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        do_GET = do_PUT = _reply
+
+        def log_message(self, *args):
+            return
+
+    write = {"method": "PUT", "path": "/notes/{id}/meta", "kind": "write", "body": {"m": 1}}
+    config = {
+        "name": "read-back",
+        "identities": [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
+                       {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"]}],
+        "endpoints": [{"method": "GET", "path": "/notes/{id}", "kind": "read"},
+                      {"method": "GET", "path": "/notes/{id}/meta", "kind": "read", "name": "meta"},
+                      write | ({"read_back": read_back} if read_back else {})],
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, Handler)
+    assert _failed(result) == ({"victim_unchanged"} if verdict == "fail" else set()), result
+    assert result["verdict"] == verdict, result
