@@ -34,6 +34,7 @@ class JwtAuth(StrictModel):
     secret_env: str
     claims: dict[str, JsonValue] = Field(default_factory=dict)
     ttl_seconds: int = Field(gt=0, le=86400)
+    per_identity: bool = False  # mint `count` tokens, ${actor_index} = 0..count-1
 
     @model_validator(mode="after")
     def require_env_and_known_placeholders(self) -> "JwtAuth":

@@ -10,7 +10,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, token_env_name
+from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, secret_values, token_env_name
 from litetraffic.cli import main
 from litetraffic.models import Actor, ScenarioManifest
 from litetraffic.observation import observe
@@ -335,3 +335,79 @@ def test_command_hook_record_is_scrubbed(tmp_path, monkeypatch):
 
     fixture = json.loads((tmp_path / "runs" / result["run_id"] / "fixture.json").read_text())
     assert fixture["setup"]["argv"][-1] == "[redacted]"
+
+
+PER_IDENTITY = AUTH | {"per_identity": True}
+
+
+def test_per_identity_mints_count_tokens_with_distinct_subs():
+    actors = ScenarioManifest.model_validate(manifest(actors=[{"class": "buyer", "count": 3, "auth_recipe": "jwt", "auth": PER_IDENTITY}])).actors
+
+    tokens = mint_tokens(actors, "run_x", {"LT_TEST_JWT_SECRET": SECRET}, now=1000)
+
+    assert set(tokens) == {"LT_TOKEN_BUYER", "LT_TOKENS_BUYER"}
+    minted = json.loads(tokens["LT_TOKENS_BUYER"])
+    assert [_decode(token)[1]["sub"] for token in minted] == ["buyer-0", "buyer-1", "buyer-2"]
+    assert tokens["LT_TOKEN_BUYER"] == minted[0]
+
+
+def test_per_identity_tokens_are_exported_and_all_redacted(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario", manifest(actors=[{"class": "buyer", "count": 3, "auth_recipe": "jwt", "auth": PER_IDENTITY}]))
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("FAKE_K6_ENV", str(tmp_path / "k6-env.json"))
+    monkeypatch.setenv("LT_TEST_JWT_SECRET", SECRET)
+    monkeypatch.setenv("LT_TOKENS_STALE", "[]")
+    k6 = fake_k6(tmp_path, events, echo_env=("LT_TOKENS_BUYER",))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(k6))
+
+    assert result["verdict"] == "pass", result["limitations"]
+    k6_env = json.loads((tmp_path / "k6-env.json").read_text())
+    assert "LT_TOKENS_STALE" not in k6_env
+    minted = json.loads(k6_env["LT_TOKENS_BUYER"])
+    assert len(set(minted)) == 3
+    for path in (tmp_path / "runs").rglob("*"):
+        if path.is_file():
+            text = path.read_text(errors="replace")
+            assert not any(token in text for token in minted), path.name
+
+
+def test_secret_values_scrub_a_lone_non_first_per_identity_token():
+    actors = [Actor.model_validate({"class": "buyer", "count": 3, "auth_recipe": "jwt", "auth": PER_IDENTITY})]
+    tokens = mint_tokens(actors, "run_x", {"LT_TEST_JWT_SECRET": SECRET}, now=1000)
+    second = json.loads(tokens["LT_TOKENS_BUYER"])[1]
+    scenario = ScenarioManifest.model_validate(manifest(actors=[{"class": "buyer", "count": 3, "auth_recipe": "jwt", "auth": PER_IDENTITY}]))
+
+    assert redact(f"Authorization: Bearer {second}", secret_values(scenario, {}, tokens)) == "Authorization: Bearer [redacted]"
+
+
+def test_per_identity_tokens_too_large_for_one_env_var_are_refused():
+    actors = [Actor.model_validate({"class": "buyer", "count": 2000, "auth_recipe": "jwt", "auth": PER_IDENTITY})]
+
+    with pytest.raises(AuthError, match="LT_TOKENS_BUYER.*environment variable limit"):
+        mint_tokens(actors, "run_x", {"LT_TEST_JWT_SECRET": SECRET}, now=1000)
+
+
+@pytest.mark.real_k6
+@pytest.mark.skipif(shutil.which("k6") is None, reason="real k6 not installed")
+def test_runtime_token_for_selects_round_robin(tmp_path):
+    helper = Path(__file__).resolve().parents[1] / "src" / "litetraffic" / "k6" / "runtime.js"
+    (tmp_path / "litetraffic").mkdir()
+    shutil.copy(helper, tmp_path / "litetraffic" / "runtime.js")
+    (tmp_path / "pick.js").write_text(
+        'import * as lt from "./litetraffic/runtime.js";\n'
+        "export default function () {\n"
+        '  console.log(`PICK ${[0, 1, 2, 3, 4].map((i) => lt.tokenFor("tenant-a", i)).join(",")}`);\n'
+        '  console.log(`SINGLE ${lt.tokenFor("guest", 7)}`);\n'
+        '  console.log(`DEFAULT ${lt.tokenFor("tenant-a")}`);\n'
+        "}\n"
+    )
+    env = {"LT_TOKENS_TENANT_A": json.dumps(["t0", "t1", "t2"]), "LT_TOKEN_TENANT_A": "t0", "LT_TOKEN_GUEST": "g"}
+    args = [arg for name, value in env.items() for arg in ("-e", f"{name}={value}")]
+    run = subprocess.run(["k6", "run", "--quiet", "--console-output", "out.log", *args, "pick.js"], cwd=tmp_path, capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, run.stderr
+    log = (tmp_path / "out.log").read_text()
+    assert "PICK t0,t1,t2,t0,t1" in log
+    assert "SINGLE g" in log
+    assert "DEFAULT t0" in log
