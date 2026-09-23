@@ -266,7 +266,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / engine_window, 3)
     metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / engine_window, 3)
 
-    assertions, missing, partial, duplicates, definite_failure = evaluate_assertions(
+    assertions, missing, partial, identity, definite_failure = evaluate_assertions(
         bundle.manifest.assertions, events, observations, bundle.manifest.planned_journeys
     )
 
@@ -286,7 +286,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         limitations.append(f"missing assertion evidence: {', '.join(missing)}")
     if partial:
         limitations.append(f"partial assertion evidence: {', '.join(partial)}")
-    limitations.extend(f"duplicate evidence for {key}" for key in dict.fromkeys(duplicates))
+    limitations.extend(dict.fromkeys(identity))
     if metrics.get("dropped_iterations"):
         limitations.append(f"k6 dropped {int(metrics['dropped_iterations'])} iterations (under-delivered load)")
     thresholds_breached = lifecycle == "finished" and engine_exit_code == K6_THRESHOLDS_FAILED

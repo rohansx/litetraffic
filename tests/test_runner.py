@@ -1,3 +1,4 @@
+import itertools
 import json
 import shutil
 import stat
@@ -65,8 +66,12 @@ def fake_k6(
     return path
 
 
+_journeys = itertools.count()
+
+
 def assertion(name: str, passed: bool = True) -> dict:
-    return {"schema_version": 1, "type": "assertion", "assertion": name, "passed": passed}
+    """One journey's event; each call is a distinct journey, as the bundled k6 helper keys them."""
+    return {"schema_version": 1, "type": "assertion", "assertion": name, "passed": passed, "logical_key": f"j{next(_journeys)}"}
 
 
 def test_verify_writes_complete_pass_evidence(tmp_path, monkeypatch):
@@ -252,7 +257,7 @@ def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
             "id": "accepted_orders_persist",
             "status": "fail",
             "samples": 1,
-            "failures": [{"sequence": 1, "logical_key": None, "expected": None, "actual": None, "detail": None}],
+            "failures": [{"sequence": 1, "logical_key": events[0]["logical_key"], "expected": None, "actual": None, "detail": None}],
         }
     ]
 
@@ -390,6 +395,17 @@ def test_verify_is_inconclusive_when_delivery_differs_from_plan(tmp_path, monkey
 
     assert result["verdict"] == "inconclusive"
     assert any("delivered journeys 19" in limitation for limitation in result["limitations"])
+
+
+def test_verify_never_passes_when_k6_admits_more_journeys_than_planned(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=21)))
+
+    assert result["verdict"] != "pass"
+    assert any(item.startswith("delivered journeys 21") and item.endswith("planned journeys 20") for item in result["limitations"])
 
 
 def test_verify_is_inconclusive_when_some_journeys_lack_assertions(tmp_path, monkeypatch):
@@ -912,17 +928,43 @@ def test_verify_does_not_let_a_duplicate_logical_key_stand_in_for_a_missing_jour
     assert "duplicate evidence for A" in result["limitations"]
 
 
-def test_verify_passes_distinct_logical_keys_and_counts_unkeyed_samples(tmp_path, monkeypatch):
+def test_verify_passes_only_distinct_logical_keys_covering_every_planned_journey(tmp_path, monkeypatch):
     scenario = two_journey_bundle(tmp_path)
-    keyed = [assertion("accepted_orders_persist") | {"logical_key": key} for key in ("A", "B")]
-    unkeyed = [assertion("accepted_orders_persist") for _ in range(2)]
-    for index, events in enumerate((keyed, unkeyed)):
-        monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
-        runs = tmp_path / f"runs{index}"
-        result = verify("http://example.test", scenario, runs, str(fake_k6(tmp_path, events, iterations=2)))
-        assert result["assertions"][0]["status"] == "pass", result["limitations"]
-        assert result["verdict"] == "pass"
+    events = [assertion("accepted_orders_persist") | {"logical_key": key} for key in ("A", "B")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
 
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=2)))
+
+    assert result["assertions"][0]["status"] == "pass", result["limitations"]
+    assert result["verdict"] == "pass"
+
+
+@pytest.mark.parametrize("key", [None, ""])
+def test_verify_does_not_pass_evidence_without_journey_identity(tmp_path, monkeypatch, key):
+    scenario = two_journey_bundle(tmp_path)
+    unkeyed = {k: v for k, v in assertion("accepted_orders_persist").items() if k != "logical_key"}
+    events = [unkeyed if key is None else unkeyed | {"logical_key": key} for _ in range(2)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=2)))
+
+    assert result["assertions"][0]["status"] == "unknown"
+    assert result["verdict"] == "inconclusive"
+    assert "evidence without journey identity for accepted_orders_persist" in result["limitations"]
+
+
+@pytest.mark.parametrize(
+    ("keys", "status"),
+    [((None, None), "unknown"), (("A", "A"), "unknown"), (("A", "B"), "pass"), (("A", None), "unknown"), (("A",), "unknown")],
+)
+def test_evaluate_assertions_requires_one_unique_key_per_planned_journey(keys, status):
+    from litetraffic.evidence import evaluate_assertions
+
+    events = [
+        {"assertion": "a", "passed": True} | ({} if key is None else {"logical_key": key}) for key in keys
+    ]
+    rows = evaluate_assertions(["a"], events, [], 2)[0]
+    assert rows[0]["status"] == status
 
 
 @pytest.mark.parametrize("fixture_setup_seconds", [0, 10])

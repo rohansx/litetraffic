@@ -17,11 +17,13 @@ export function options() {
       stages.push({ target: phase.rate, duration: "0s" });
       rate = phase.rate;
     }
-    // k6 excludes an admission exactly on the final duration boundary. The
-    // extra millisecond makes an integer rate x duration plan deliver its final
-    // journey without materially changing the requested rate.
-    stages.push({ target: rate, duration: `${phase.seconds * 1000 + 1}ms` });
+    stages.push({ target: rate, duration: `${phase.seconds}s` });
   }
+  // k6 admits journey n when the arrival integral reaches n, so the last
+  // planned journey lands exactly on the schedule's end and races the executor
+  // stop. A 500ms tail at 1 journey/s adds half a journey: the last planned
+  // admission gets 500ms of headroom and the next one (integral n+1) never comes.
+  stages.push({ target: 1, duration: "0s" }, { target: 1, duration: "500ms" });
   return {
     scenarios: {
       traffic: {
