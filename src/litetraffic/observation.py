@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import time
 from collections.abc import Mapping, Sequence
 
 import httpx
@@ -10,6 +12,57 @@ from litetraffic.models import FinalObservation, as_matcher, resolve_expected
 from litetraffic.target import normalize_origin
 
 MAX_ACTUAL_BYTES = 2048
+REQUEST_DEADLINE_SECONDS = 5.0  # total wall clock per fixture/observer request: connect + headers + full body
+MAX_BODY_BYTES = 1 << 20
+
+
+class DeadlineExceeded(Exception):
+    pass
+
+
+class BodyTooLarge(ValueError):
+    pass
+
+
+def failure(exc: BaseException) -> str:
+    """Short reason for a failed bounded_request: 'deadline exceeded', the body-cap message, or the exception name."""
+    if isinstance(exc, DeadlineExceeded):
+        return "deadline exceeded"
+    return str(exc) if isinstance(exc, BodyTooLarge) else type(exc).__name__
+
+
+def bounded_request(
+    method: str, url: str, headers: dict[str, str], transport: httpx.BaseTransport | None = None, body: object = None
+) -> tuple[int, bytes]:
+    """One request under REQUEST_DEADLINE_SECONDS of wall clock with a MAX_BODY_BYTES cap; returns (status, body)."""
+    deadline = time.monotonic() + REQUEST_DEADLINE_SECONDS
+    outcome: list = []
+
+    def work() -> None:
+        try:
+            with httpx.Client(transport=transport, timeout=5, follow_redirects=False) as client:
+                with client.stream(method, url, headers=headers, json=body) as response:
+                    content = bytearray()
+                    for chunk in response.iter_bytes():
+                        content += chunk
+                        if len(content) > MAX_BODY_BYTES:
+                            raise BodyTooLarge("response body over 1 MiB")
+                        if time.monotonic() > deadline:
+                            raise DeadlineExceeded
+                    outcome.append((response.status_code, bytes(content)))
+        except Exception as exc:
+            outcome.append(exc)
+
+    # ponytail: httpx timeouts are per read, so a trickling peer is cut off by join(); a worker stuck
+    # mid-headers is abandoned (daemon) until its own 5 s read timeout or the peer closes.
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(max(0.0, deadline - time.monotonic()))
+    if not outcome:
+        raise DeadlineExceeded
+    if isinstance(outcome[0], Exception):
+        raise outcome[0]
+    return outcome[0]
 TRUNCATED = "...[truncated]"
 # Reasons given before any request is sent; every other outcome sent exactly one GET.
 PRE_REQUEST = ("observer bearer token", "observer header env", "observer origin env", "observer allowed_origins_env")
@@ -135,13 +188,12 @@ def observe(
         headers[header] = value
 
     try:
-        with httpx.Client(transport=transport, timeout=5, follow_redirects=False) as client:
-            response = client.get(origin + config.path, headers=headers)
-        if response.status_code != 200:
-            return {"assertion": config.assertion, "status": "unknown", "reason": f"observer HTTP {response.status_code}"}
-        document = response.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        return {"assertion": config.assertion, "status": "unknown", "reason": f"observer unavailable: {type(exc).__name__}"}
+        status, content = bounded_request("GET", origin + config.path, headers, transport)
+        if status != 200:
+            return {"assertion": config.assertion, "status": "unknown", "reason": f"observer HTTP {status}"}
+        document = json.loads(content)
+    except (httpx.HTTPError, ValueError, DeadlineExceeded) as exc:
+        return {"assertion": config.assertion, "status": "unknown", "reason": f"observer unavailable: {failure(exc)}"}
 
     expected_values = resolve_expected(config.expected, variables or {})
     actual, missing, checks = {}, [], {}

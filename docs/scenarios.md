@@ -35,7 +35,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `allowed_origins_env` | no | Uppercase environment variable holding comma-separated extra origins an `origin_env` may resolve to ([below](#origin-from-the-environment)) |
 | `budgets` | yes | `max_seconds`, `max_requests`, `max_write_attempts`, `max_in_flight`, `max_artifact_bytes` |
 
-`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and observation (5 s per observation) deadlines must fit `max_seconds`.
+`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and observation (5 s per observation) deadlines must fit `max_seconds`. Each fixture create, fixture cleanup and observation request has a hard 5 s wall-clock deadline covering connect, headers and the full body (a slow or trickling server cannot stretch it), and a response body over 1 MiB is rejected; either failure makes the fixture `error` or the observation `unknown` (`... unavailable: deadline exceeded` / `... unavailable: response body over 1 MiB`).
 
 ## Schedules
 
@@ -233,7 +233,7 @@ Check the resulting state once, after all journeys finish:
 }
 ```
 
-The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`, which may also name an [`LT_TOKEN_<CLASS>`](#actor-auth) token minted for the run. An unreachable observer yields `unknown`, which prevents a pass; the reason (for example `observer HTTP 503` or `observer bearer token missing`) is kept as the assertion's `reason` in `result.json` and printed after it in the `verify` text summary.
+The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`, which may also name an [`LT_TOKEN_<CLASS>`](#actor-auth) token minted for the run. An unreachable observer yields `unknown`, which prevents a pass; the reason (for example `observer HTTP 503`, `observer bearer token missing` or `observer unavailable: deadline exceeded`) is kept as the assertion's `reason` in `result.json` and printed after it in the `verify` text summary.
 
 ### Matchers
 
