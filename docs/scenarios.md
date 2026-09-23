@@ -244,7 +244,7 @@ An object is treated as a matcher only when all its keys are matcher keys; any o
 
 ### Plan-aware expected values
 
-A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is an expression, evaluated before the comparison. `EXPR` may use non-negative integer literals, `+`, `-` (binary or unary), `*`, parentheses, and only the names `planned_journeys` (the manifest's planned journey count) and `seed` (the run's `--seed`). It is parsed by a small dedicated parser, never Python `eval`. Any other name, operator or number form (for example `/`, `**`, `1.5`, `run_id`) fails manifest validation, so `inspect` rejects it. Strings that only contain `${` elsewhere, and values nested inside literal objects or arrays, stay literal.
+A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is an expression, evaluated before the comparison. `EXPR` may use non-negative integer literals written with ASCII digits `0-9`, `+`, `-` (binary or unary), `*`, parentheses, and only the names `planned_journeys` (the manifest's planned journey count) and `seed` (the run's `--seed`). It is parsed by a small dedicated parser, never Python `eval`. Any other name, operator or number form (for example `/`, `**`, `1.5`, `run_id`) fails manifest validation, so `inspect` rejects it. So does a whole `"${EXPR}"` string longer than 200 characters, or one nesting parentheses and unary minuses more than 32 deep. Strings that only contain `${` elsewhere, and values nested inside literal objects or arrays, stay literal.
 
 ```json
 "expected": {"/balance": "${planned_journeys * 100}", "/orders": {"gte": "${planned_journeys - 1}"}}

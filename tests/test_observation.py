@@ -226,3 +226,31 @@ def test_observation_without_expressions_records_no_expressions():
 def test_invalid_expected_expressions_are_rejected(value):
     with pytest.raises(ValidationError, match="expression"):
         FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": value})
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("${" + "(" * 33 + "1" + ")" * 33 + "}", "nests deeper than 32"),
+        ("${" + "(" * 1000 + "1" + ")" * 1000 + "}", "longer than 200"),
+        ("${" + "-" * 150 + "1}", "nests deeper than 32"),
+        ("${" + "1+" * 100 + "1}", "longer than 200"),
+        ("${٣}", "expression"),
+        ("${planned_journeys + １}", "expression"),
+    ],
+)
+def test_oversized_deep_or_non_ascii_expressions_are_rejected(value, message):
+    with pytest.raises(ValidationError, match=message):
+        FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": value})
+
+
+def test_expressions_at_the_limits_are_accepted():
+    deep = "${" + "(" * 32 + "1" + ")" * 32 + "}"
+    FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": deep, "/m": "${" + "1+" * 98 + "1}"})
+
+
+def test_observe_with_expression_and_no_variables_raises_a_clear_value_error():
+    config = FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": "${planned_journeys}"})
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"n": 1}))
+    with pytest.raises(ValueError, match="no value for 'planned_journeys'"):
+        observe("http://example.test", config, "run-1", transport=transport)

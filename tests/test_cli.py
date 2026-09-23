@@ -661,6 +661,12 @@ def test_inspect_rejects_unknown_expression_names(tmp_path, capsys):
     assert "run_id" in json.loads(capsys.readouterr().out)["error"]
 
 
+def test_inspect_rejects_deeply_nested_expressions_with_exit_3(tmp_path, capsys):
+    data = _expression_manifest({"/total": "${" + "(" * 60 + "1" + ")" * 60 + "}"})
+    assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 3
+    assert "expression" in json.loads(capsys.readouterr().out)["error"]
+
+
 def test_verify_passes_plan_variables_to_the_observer(tmp_path, monkeypatch, capsys):
     import litetraffic.runner as runner
 
