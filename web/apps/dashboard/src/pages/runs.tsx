@@ -184,7 +184,7 @@ function RunsTable({ runs, selected, onToggle }: { runs: RunListEntry[]; selecte
               <span className="sr-only">Select</span>
             </TableHead>
             <TableHead>Run</TableHead>
-            <TableHead>Scenario</TableHead>
+            <TableHead className="hidden md:table-cell">Scenario</TableHead>
             <TableHead>Verdict</TableHead>
             <TableHead>Lifecycle</TableHead>
             <TableHead className="text-right">Seed</TableHead>
@@ -214,8 +214,10 @@ function RunsTable({ runs, selected, onToggle }: { runs: RunListEntry[]; selecte
                     </Link>
                   )}
                   {run.kind !== "run" && <span className="ml-2 font-sans text-muted-foreground">{run.kind}</span>}
+                  {/* ponytail: phones drop the Scenario column so the verdict stays on screen; the name moves here. */}
+                  <div className="mt-0.5 font-sans text-muted-foreground md:hidden">{run.scenario ?? "Unknown scenario"}</div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   {run.scenario ? (
                     <Link to={`/scenarios/${encodeURIComponent(run.scenario)}`} className="hover:underline focus-visible:underline">
                       {run.scenario}

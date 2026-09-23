@@ -57,7 +57,7 @@ export function AssertionsTable({ assertions }: { assertions: AssertionResult[] 
                         </Button>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{assertion.id}</TableCell>
+                    <TableCell className="font-mono text-xs whitespace-normal break-all">{assertion.id}</TableCell>
                     <TableCell>
                       <VerdictBadge verdict={assertion.status} />
                     </TableCell>
