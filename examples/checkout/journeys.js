@@ -33,7 +33,11 @@ export default function checkout() {
   lt.evidence(
     "accepted_orders_persist",
     [200, 201].includes(created.status) && [200, 201].includes(retried.status) && observed.status === 200,
+    {
+      expected: { create: [200, 201], retry: [200, 201], observe: 200 },
+      actual: { create: created.status, retry: retried.status, observe: observed.status },
+    },
   );
-  lt.evidence("one_effect_per_payment", body.effects === 1);
-  lt.evidence("order_totals_match", body.total === 1250);
+  lt.evidence("one_effect_per_payment", body.effects === 1, { expected: 1, actual: body.effects ?? null });
+  lt.evidence("order_totals_match", body.total === 1250, { expected: 1250, actual: body.total ?? null });
 }

@@ -23,7 +23,13 @@ export default function readOwnAndProbeOther() {
   } catch (_) {
     // Parse failures become positive-access assertion failures.
   }
-  lt.evidence("tenant_a_reads_own", tenantA.status === 200 && valueA === "alpha");
-  lt.evidence("tenant_b_reads_own", tenantB.status === 200 && valueB === "beta");
-  lt.evidence("cross_tenant_blocked", crossTenant.status === 403);
+  lt.evidence("tenant_a_reads_own", tenantA.status === 200 && valueA === "alpha", {
+    expected: { status: 200, value: "alpha" },
+    actual: { status: tenantA.status, value: valueA },
+  });
+  lt.evidence("tenant_b_reads_own", tenantB.status === 200 && valueB === "beta", {
+    expected: { status: 200, value: "beta" },
+    actual: { status: tenantB.status, value: valueB },
+  });
+  lt.evidence("cross_tenant_blocked", crossTenant.status === 403, { expected: 403, actual: crossTenant.status });
 }

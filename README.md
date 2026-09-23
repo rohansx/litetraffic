@@ -67,7 +67,11 @@ litetraffic verify examples/checkout \
 
 Expected result: `verdict: "pass"`, 12 completed journeys, and 36 HTTP requests. Each run is saved under `.litetraffic/runs/<run_id>/`; open its `report.html` to read the evidence.
 
-To see a real failure, stop the demo server with Ctrl+C and restart it with `--wrong-duplicate`. Run the same verification again. The HTTP calls still succeed, but the duplicate payment effect produces `verdict: "fail"`.
+To see a real failure, stop the demo server with Ctrl+C and restart it with `--wrong-duplicate`. Run the same verification again. The HTTP calls still succeed, but the duplicate payment effect produces `verdict: "fail"`, and each failed `one_effect_per_payment` sample records the expected and actual effect count:
+
+```json
+{"actual": 2, "detail": null, "expected": 1, "logical_key": "<run_id>-traffic-0", "sequence": 2}
+```
 
 The [quickstart](docs/quickstart.md) covers reports, repeated seeds, comparisons, and all five examples. The demo server is intentionally small and is not a production service.
 

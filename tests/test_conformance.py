@@ -101,3 +101,6 @@ def test_example_conformance(tmp_path, example, flags, expected):
     assert completed.stdout, f"verify produced no output: {completed.stderr}"
     result = json.loads(completed.stdout)
     assert result["verdict"] == expected, completed.stdout
+    if flags == ["--wrong-duplicate"]:
+        row = next(row for row in result["assertions"] if row["id"] == "one_effect_per_payment")
+        assert {"expected": 1, "actual": 2}.items() <= row["failures"][0].items(), row

@@ -27,17 +27,30 @@ export default function reserve() {
   } catch (_) {
     // Failed parsing is captured by reservation_responses_valid.
   }
-  lt.evidence("inventory_never_negative", observed.status === 200 && state.remaining >= 0);
+  const observedState = { status: observed.status, remaining: state.remaining ?? null };
+  lt.evidence("inventory_never_negative", observed.status === 200 && state.remaining >= 0, {
+    expected: { status: 200, remaining: ">= 0" },
+    actual: observedState,
+  });
   lt.evidence(
     "accepted_reservations_within_capacity",
     observed.status === 200 && state.accepted_count <= state.capacity,
+    {
+      expected: { status: 200, accepted_count: "<= capacity" },
+      actual: { status: observed.status, accepted_count: state.accepted_count ?? null, capacity: state.capacity ?? null },
+    },
   );
   lt.evidence(
     "rejections_require_empty_inventory",
     outcomes.length === 4 && outcomes.every((outcome) => outcome.accepted || outcome.remaining === 0),
+    {
+      expected: "4 outcomes; each accepted or remaining 0",
+      actual: outcomes.map((outcome) => ({ accepted: outcome.accepted ?? null, remaining: outcome.remaining ?? null })),
+    },
   );
   lt.evidence(
     "reservation_responses_valid",
     outcomes.length === 4 && responses.every((response) => [200, 201].includes(response.status)),
+    { expected: "4 JSON responses with status 200 or 201", actual: responses.map((response) => response.status) },
   );
 }

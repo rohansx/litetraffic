@@ -41,6 +41,14 @@ python examples/checkout/server.py --port 8765 --wrong-duplicate
 
 Run the same verification in terminal B. Expect `fail`, shell exit 1, and failed `one_effect_per_payment` evidence. This is an intended failure: responses can be HTTP 200 while the business effect is wrong.
 
+Every example assertion records what it expected and what it saw. In the `--json` output, the `one_effect_per_payment` entry in `assertions` lists up to three failed journeys, each like:
+
+```json
+{"actual": 2, "detail": null, "expected": 1, "logical_key": "<run_id>-traffic-0", "sequence": 2}
+```
+
+The run's `report.html` shows the same expected and actual values in its failure table.
+
 ## 4. Compare two runs
 
 Replace the placeholders with the `run_id` values printed above:
