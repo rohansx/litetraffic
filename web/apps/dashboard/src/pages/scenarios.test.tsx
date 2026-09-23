@@ -23,6 +23,8 @@ test("trend page has a data table with every point, newest first", async () => {
   expect(within(rows[0]!).getByRole("link", { name: "run_20260923T065626Z_2502f5dd" })).toBeInTheDocument();
   expect(within(rows[0]!).getByText("17.1 ms")).toBeInTheDocument();
   expect(within(rows[0]!).getByText("Fail")).toBeInTheDocument();
+  // Verdict and p95 lead so a 390px screen shows them; the long run id is what scrolls sideways.
+  expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Verdict", "p95", "Run", "Finished"]);
   expect(screen.getByRole("link", { name: "View runs" })).toHaveAttribute("href", `/runs?scenario=${NAME}`);
 });
 

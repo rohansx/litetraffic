@@ -185,10 +185,10 @@ function RunsTable({ runs, selected, onToggle }: { runs: RunListEntry[]; selecte
             </TableHead>
             <TableHead>Run</TableHead>
             <TableHead className="hidden md:table-cell">Scenario</TableHead>
-            <TableHead>Verdict</TableHead>
-            <TableHead>Lifecycle</TableHead>
-            <TableHead className="text-right">Seed</TableHead>
-            <TableHead>Finished</TableHead>
+            <TableHead className="hidden md:table-cell">Verdict</TableHead>
+            <TableHead className="hidden md:table-cell">Lifecycle</TableHead>
+            <TableHead className="hidden text-right md:table-cell">Seed</TableHead>
+            <TableHead className="hidden md:table-cell">Finished</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -214,8 +214,12 @@ function RunsTable({ runs, selected, onToggle }: { runs: RunListEntry[]; selecte
                     </Link>
                   )}
                   {run.kind !== "run" && <span className="ml-2 font-sans text-muted-foreground">{run.kind}</span>}
-                  {/* ponytail: phones drop the Scenario column so the verdict stays on screen; the name moves here. */}
-                  <div className="mt-0.5 font-sans text-muted-foreground md:hidden">{run.scenario ?? "Unknown scenario"}</div>
+                  {/* ponytail: phones keep only this cell; scenario, verdict and age stack here so nothing is clipped. */}
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-muted-foreground md:hidden">
+                    <VerdictBadge verdict={run.verdict} />
+                    <span>{run.scenario ?? "Unknown scenario"}</span>
+                    <span title={formatDateTime(run.finished_at)}>{formatRelative(run.finished_at)}</span>
+                  </div>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
                   {run.scenario ? (
@@ -226,12 +230,12 @@ function RunsTable({ runs, selected, onToggle }: { runs: RunListEntry[]; selecte
                     <span className="text-muted-foreground">Unknown</span>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <VerdictBadge verdict={run.verdict} />
                 </TableCell>
-                <TableCell className="text-muted-foreground">{run.lifecycle?.replace("_", " ") ?? "Unknown"}</TableCell>
-                <TableCell className="text-right tabular-nums">{run.seed ?? "n/a"}</TableCell>
-                <TableCell className="text-muted-foreground" title={formatDateTime(run.finished_at)}>
+                <TableCell className="hidden text-muted-foreground md:table-cell">{run.lifecycle?.replace("_", " ") ?? "Unknown"}</TableCell>
+                <TableCell className="hidden text-right tabular-nums md:table-cell">{run.seed ?? "n/a"}</TableCell>
+                <TableCell className="hidden text-muted-foreground md:table-cell" title={formatDateTime(run.finished_at)}>
                   {formatRelative(run.finished_at)}
                 </TableCell>
               </TableRow>

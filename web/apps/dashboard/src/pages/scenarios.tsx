@@ -161,25 +161,25 @@ export function ScenarioPage() {
               <Table aria-label="Trend data">
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Verdict</TableHead>
+                    <TableHead className="text-right">p95</TableHead>
                     <TableHead>Run</TableHead>
                     <TableHead>Finished</TableHead>
-                    <TableHead className="text-right">p95</TableHead>
-                    <TableHead>Verdict</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {[...data].reverse().map((point) => (
                     <TableRow key={point.run_id}>
+                      <TableCell>
+                        <VerdictBadge verdict={point.verdict} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{formatMs(point.p95)}</TableCell>
                       <TableCell className="font-mono text-xs">
                         <Link to={`/runs/${encodeURIComponent(point.run_id)}`} className="hover:underline focus-visible:underline">
                           {point.run_id}
                         </Link>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{formatDateTime(point.finished_at)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatMs(point.p95)}</TableCell>
-                      <TableCell>
-                        <VerdictBadge verdict={point.verdict} />
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

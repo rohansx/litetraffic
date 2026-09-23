@@ -34,7 +34,19 @@ test("filters by search text and seed", async () => {
 test("filters by verdict and scenario from the URL", async () => {
   renderApp("/runs?verdict=fail&scenario=acme-tenant-isolation-v2");
   await screen.findByText("3 of 16 shown");
-  for (const row of dataRows()) expect(within(row).getByText("Fail")).toBeInTheDocument();
+  for (const row of dataRows()) expect(within(row).getAllByText("Fail").length).toBeGreaterThan(0);
+});
+
+test("phones get the verdict inside the run cell and drop the wide columns", async () => {
+  renderApp("/runs");
+  await screen.findByText("16 of 16 shown");
+  // A 390px screen cannot fit run id + verdict + lifecycle + seed + finished; the verdict column was clipped off screen.
+  for (const name of ["Verdict", "Lifecycle", "Seed", "Finished"]) {
+    expect(screen.getByRole("columnheader", { name })).toHaveClass("hidden", "md:table-cell");
+  }
+  const runCell = within(dataRows()[0]!).getAllByRole("cell")[1]!;
+  const phoneLine = runCell.querySelector(".md\\:hidden")!;
+  expect(phoneLine).toHaveTextContent(/Fail|Pass|Inconclusive|Error|Activity/);
 });
 
 test("filters by verdict with the select", async () => {
