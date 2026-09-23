@@ -16,6 +16,8 @@ def _finite_number(value: object) -> bool:
 def _load_run(path: Path) -> tuple[dict, dict]:
     root = Path(path).resolve()
     try:
+        if (root / "run.json").is_symlink() or (root / "result.json").is_symlink():
+            raise OSError("run artifacts must not be symlinks")
         run = json.loads((root / "run.json").read_text(encoding="utf-8"))
         result = json.loads((root / "result.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:

@@ -13,7 +13,14 @@ class RunNotFoundError(ValueError):
     """A run reference names neither an existing directory nor a run ID."""
 
 
-def _read(path: Path) -> dict | None:
+def _real_file(path: Path) -> bool:
+    # Metadata is only ever read from regular files, never through a symlink out of the runs dir.
+    return path.is_file() and not path.is_symlink()
+
+
+def read_json(path: Path) -> dict | None:
+    if not _real_file(path):
+        return None
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -38,17 +45,19 @@ def _entry(path: Path, run_id: str, kind: str, data: dict, verdict: object, **fi
 
 
 def _run(path: Path) -> dict:
-    run, result = _read(path / "run.json") or {}, _read(path / "result.json") or {}
+    run, result = read_json(path / "run.json") or {}, read_json(path / "result.json") or {}
     data = {**run, **result}
     return _entry(path, path.name, "run", data, result.get("verdict"))
 
 
 def _series(path: Path, runs_dir: Path) -> dict:
-    series = _read(path) or {}
+    series = read_json(path) or {}
     runs = series.get("runs") if isinstance(series.get("runs"), list) else []
     first = runs[0] if runs and isinstance(runs[0], dict) else {}
     last = runs[-1] if runs and isinstance(runs[-1], dict) else {}
-    scenario = (_read(runs_dir / str(first.get("run_id", "")) / "run.json") or {}).get("scenario") if first else None
+    run_id = first.get("run_id")
+    plain = isinstance(run_id, str) and run_id not in {"", ".", ".."} and Path(run_id).name == run_id and not (runs_dir / run_id).is_symlink()
+    scenario = (read_json(runs_dir / run_id / "run.json") or {}).get("scenario") if plain else None
     return _entry(
         path,
         path.stem,
@@ -62,7 +71,7 @@ def _series(path: Path, runs_dir: Path) -> dict:
 
 
 def _activity(path: Path) -> dict:
-    activity = _read(path / "activity.json") or {}
+    activity = read_json(path / "activity.json") or {}
     # A background activity has a status, never a verdict; "background" is its badge.
     entry = _entry(path, path.name, "activity", activity, None, lifecycle=activity.get("status"), seed=activity.get("starting_seed"))
     return {**entry, "verdict": "background"}
@@ -84,9 +93,9 @@ def list_runs(runs_dir: Path) -> list[dict]:
     if not root.is_dir():
         return []
     entries = [
-        (_activity(child) if (child / "activity.json").is_file() else _run(child)) if child.is_dir() else _series(child, root)
+        (_activity(child) if _real_file(child / "activity.json") else _run(child)) if child.is_dir() else _series(child, root)
         for child in root.iterdir()
-        if child.is_dir() or (child.name.startswith("series_") and child.suffix == ".json")
+        if not child.is_symlink() and (child.is_dir() or (child.name.startswith("series_") and child.suffix == ".json"))
     ]
     return sorted(entries, key=_sort_key, reverse=True)
 
@@ -95,7 +104,7 @@ def resolve(ref: str, runs_dir: Path) -> Path:
     if ref and Path(ref).is_dir():
         return Path(ref).resolve()
     candidate = Path(runs_dir) / ref
-    if ref and Path(ref).name == ref and ref not in {".", ".."} and candidate.is_dir():
+    if ref and Path(ref).name == ref and ref not in {".", ".."} and candidate.is_dir() and not candidate.is_symlink():
         return candidate.resolve()
     raise RunNotFoundError(f"no run directory or run ID {ref!r} in {Path(runs_dir).resolve()}")
 
@@ -132,7 +141,7 @@ def prune(
     candidates = [
         _run(child)
         for child in root.iterdir()
-        if child.is_dir() and not child.is_symlink() and (child / "run.json").is_file()
+        if child.is_dir() and not child.is_symlink() and _real_file(child / "run.json")
     ]
     candidates.sort(key=_finished, reverse=True)
     cutoff = None

@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from litetraffic import dashboard_pages as pages
-from litetraffic.runs import list_runs
+from litetraffic.runs import _real_file, list_runs
 
 HOST = "127.0.0.1"
 _LOOPBACK_NAMES = ("127.0.0.1", "localhost", "[::1]")
@@ -21,6 +21,8 @@ def _run_dir(runs_dir: Path, run_id: str | None) -> Path | None:
     if not run_id or "/" in run_id or "\\" in run_id or ".." in run_id or run_id.startswith(".") or "\x00" in run_id:
         return None
     root = runs_dir.resolve()
+    if (root / run_id).is_symlink():
+        return None
     path = (root / run_id).resolve()
     return path if path.parent == root and path.is_dir() else None
 
@@ -96,7 +98,7 @@ def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
                 return self._send(200, body)
             if len(parts) >= 2 and parts[0] == "runs" and (path := _run_dir(runs_dir, parts[1])):
                 if len(parts) == 2:
-                    return self._send(200, pages.activity(path) if (path / "activity.json").is_file() else pages.run(path))
+                    return self._send(200, pages.activity(path) if _real_file(path / "activity.json") else pages.run(path))
                 if artifact := _artifact(path, parts[2:]):
                     kind = _TYPES.get(artifact.suffix, "text/plain")
                     return self._send(200, artifact.read_bytes(), f"{kind}; charset=utf-8")
