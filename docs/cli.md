@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-All scenario arguments are **directory paths** containing `manifest.json` and the named script. `inspect`, `verify`, and `approve` take the scenario either positionally or as `--scenario DIR`; the two spellings are equivalent, and giving both or neither exits `3`. Run `litetraffic COMMAND --help` for the installed version's syntax. The following describes `0.1.0.dev0`.
+All scenario arguments are **directory paths** containing `manifest.json` and the named script. `inspect`, `verify`, `up`, and `approve` take the scenario either positionally or as `--scenario DIR`; the two spellings are equivalent, and giving both or neither exits `3`. Run `litetraffic COMMAND --help` for the installed version's syntax. The following describes `0.1.0.dev0`.
 
 ## `doctor`
 

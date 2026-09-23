@@ -8,9 +8,10 @@ LiteTraffic sends real requests, including writes, to the target you give it. Tr
 
 - **Scenarios are trusted code.** The journey script runs in k6 with your environment variables and network access. Review scripts as you would any test code. Do not run scenarios from untrusted sources.
 - **Target only what you own.** Use a local app, an isolated preview, or a sandbox. Do not aim writes at production or shared data unless the scenario only touches run-owned fixtures.
-- **No metadata or link-local targets.** `verify` and `doctor` reject targets whose host is a literal link-local address (including `169.254.169.254` and `fe80::/10`) or a known cloud-metadata name, and k6 runs with `--max-redirects 0`. Hostnames are not resolved, so a DNS name that points at such an address is not caught.
+- **No metadata or link-local targets.** `verify` and `doctor` reject targets, and manifest validation rejects `allowed_origins` entries and an observation `origin`, whose host is a literal link-local address (including `169.254.169.254` and `fe80::/10`) or a known cloud-metadata name, and k6 runs with `--max-redirects 0`. Hostnames are not resolved, so a DNS name that points at such an address is not caught.
+- **A second origin is opt-in.** An observation reads the target unless it sets an `origin` that the manifest lists in `allowed_origins`; the run and fixture headers, the observer's `bearer_token_env` token as `Authorization: Bearer`, and any `headers_env` values are sent to that origin.
 - **Command fixtures run on the controller host.** `fixtures.command` setup and teardown execute as your user, in the scenario directory, with your environment, and without a shell. Review them like the script; `inspect` shows the exact argv.
-- **Secrets stay outside bundles.** Target URLs with embedded credentials are rejected. Fixture and observer tokens are referenced by environment-variable name. The whole caller environment is passed to k6, so run with only the credentials the scenario needs.
+- **Secrets stay outside bundles.** Target URLs with embedded credentials are rejected. Fixture and observer tokens, observation `headers_env` values, and actor `auth` signing keys are referenced by environment-variable name; `inspect` lists the names under `secret_env` without reading them. Minted `LT_TOKEN_*` JWTs and their signing keys are replaced with `[redacted]` in the k6 logs LiteTraffic keeps. The whole caller environment is passed to k6, so run with only the credentials the scenario needs.
 
 ## What budgets enforce
 

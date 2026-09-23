@@ -17,7 +17,10 @@ Use it while changing an API, from a coding-agent harness, or in CI. Your applic
 - Runs stateful k6 journeys with identities, response chaining, retries, and declared business assertions.
 - Resolves explicit phases or seeded **spiky**, **random-burst**, and **sustained-burst** traffic profiles.
 - Checks declared request, write, and duration budgets before running; after the run, checks requests, writes, k6 `vus_max` against the concurrency budget, and artifact size, and reconciles delivered journeys and collected evidence.
-- Supports optional run-owned fixture creation/cleanup and a final same-origin HTTP observer.
+- Sets up run state with run-owned HTTP fixtures, `fixtures.command` setup/teardown commands, or a per-journey `fixtures.pool`.
+- Mints an HS256 JWT per actor class from an actor's `auth` recipe.
+- Checks final state with one HTTP observation: equality or `eq`/`gte`/`lte`/`len`/`exists` matchers, expected values written as `${planned_journeys}` expressions, and an optional second origin listed in `allowed_origins`.
+- Reports peak in-flight requests per operation and holds back a pass when a journey's `min_overlap` was not reached; `expected_statuses` separates intended HTTP rejections from unexpected failures.
 - Preserves run metadata, the manifest, metrics, assertion events, diagnostics, and a readable report.
 - Repeats across consecutive (or the same) seeds and compares compatible baseline/candidate runs, with an optional p95 regression gate.
 - Targets localhost, reachable HTTP/HTTPS previews, or an existing E2B sandbox's application port.
@@ -91,7 +94,7 @@ The bundled scenarios exercise specific demonstration APIs. Changing `--target` 
 
 Secrets stay in environment variables: a manifest names them (`secret_env`, `bearer_token_env`, `headers_env`) and never holds a value. For HS256 JWT auth, an actor's `auth` recipe makes the controller sign a token per actor class from the named secret and pass it to k6 as `LT_TOKEN_<CLASS>`; the token and secret are replaced with `[redacted]` in the k6 logs LiteTraffic keeps. See [actor auth](docs/scenarios.md#actor-auth).
 
-Scenarios are executable, trusted code. Manifest budgets are not a sandbox for arbitrary JavaScript; target-side ownership and isolation still matter. The scenario digest covers the manifest, the script, and its relative imports, but the files are recorded by hash, not copied, so preserve the reviewed scripts separately. [Safety and current limitations](docs/safety.md).
+Scenarios are executable, trusted code. Manifest budgets are not a sandbox for arbitrary JavaScript; target-side ownership and isolation still matter. The scenario digest covers the manifest, the script, its relative imports, and any `fixtures.pool` file, but the files are recorded by hash, not copied, so preserve the reviewed scripts separately. [Safety and current limitations](docs/safety.md).
 
 ## Documentation
 

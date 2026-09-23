@@ -269,7 +269,7 @@ To read state from a second service, such as PostgREST in front of the database,
 
 - `origin` must be an absolute http(s) URL without credentials; link-local and cloud metadata addresses are rejected, as for targets. A trailing slash is ignored. An origin not listed in `allowed_origins` fails validation. Without `origin`, the observation reads the target.
 - `headers_env` maps header names to uppercase environment variable names. Values are read at run time and sent only on the observation request; they are never written to artifacts. A missing or empty variable makes the observation `unknown` with reason `observer header env NAME missing` and no request is sent. `inspect` lists the variable names under `secret_env`.
-- The run and fixture headers are sent to the other origin too.
+- The run and fixture headers, the `bearer_token_env` token (as `Authorization: Bearer`) and the `headers_env` values are all sent to the other origin.
 
 ## Validating a new scenario
 
