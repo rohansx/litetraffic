@@ -115,6 +115,7 @@ class KitConfig(StrictModel):
     allowed_origins: list[str] = Field(default_factory=list)  # copied into the manifest for observation origins
     allowed_origins_env: str | None = None
     max_in_flight: int = Field(default=6, gt=0)
+    unauthenticated_probe: bool = False  # also read every resource with no credentials; must be rejected
 
     @model_validator(mode="after")
     def require_distinct_identities_and_a_read(self) -> "KitConfig":
@@ -156,6 +157,8 @@ def _journey_assertions(config: KitConfig) -> list[str]:
     names = ["own_access", "cross_tenant_read_blocked"]
     if any(endpoint.kind == "write" for endpoint in config.endpoints):
         names += ["cross_tenant_write_blocked", "victim_unchanged"]
+    if config.unauthenticated_probe:
+        names.append("unauthenticated_rejected")
     return names
 
 
@@ -165,12 +168,17 @@ def _journey(config: KitConfig) -> dict:
     writes = sum(endpoint.kind == "write" for endpoint in config.endpoints)
     own_writes = sum(endpoint.check_own for endpoint in config.endpoints)
     own_statuses = {status for endpoint in config.endpoints for status in endpoint.statuses}
+    anonymous_reads = reads if config.unauthenticated_probe else 0
+    expected = {"own": sorted(own_statuses), "cross_tenant": REJECTED_STATUSES}
+    if config.unauthenticated_probe:
+        expected["unauthenticated"] = REJECTED_STATUSES
     return {
         "name": "tenant-isolation",
-        # own reads (+ own writes), cross-tenant reads, and per cross-tenant write: read before, write, read after
-        "max_requests": resources * (reads + own_writes + reads + 3 * writes),
+        # own reads (+ own writes), cross-tenant reads, per cross-tenant write: read before, write, read after,
+        # and the optional anonymous reads
+        "max_requests": resources * (reads + own_writes + reads + 3 * writes + anonymous_reads),
         "max_writes": resources * (own_writes + writes),
-        "expected_statuses": {"own": sorted(own_statuses), "cross_tenant": REJECTED_STATUSES},
+        "expected_statuses": expected,
     }
 
 
@@ -259,6 +267,7 @@ import * as lt from "./litetraffic/runtime.js";
 
 const KIT = __KIT__;
 const MAX_SAMPLES = 3;
+const ANONYMOUS = { name: "unauthenticated", headers: {}, token_env: null };
 const PLACEHOLDER = /\\{([A-Za-z_][A-Za-z0-9_]*)\\}/g;
 
 export const options = lt.options();
@@ -312,6 +321,10 @@ export default function tenantIsolation() {
         if (endpoint.kind === "read") {
           const cross = send(attacker, endpoint, ref, "cross_tenant");
           if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_read_blocked.push(where(attacker, endpoint, ref, cross.status));
+          if (failures.unauthenticated_rejected) {
+            const anonymous = send(ANONYMOUS, endpoint, ref, "unauthenticated");
+            if (!KIT.rejected.includes(anonymous.status)) failures.unauthenticated_rejected.push(where(ANONYMOUS, endpoint, ref, anonymous.status));
+          }
           continue;
         }
         const readBack = KIT.endpoints[endpoint.read_back];
@@ -330,6 +343,7 @@ export default function tenantIsolation() {
     own_access: "every owner request returns one of its endpoint's statuses",
     cross_tenant_read_blocked: KIT.rejected,
     cross_tenant_write_blocked: KIT.rejected,
+    unauthenticated_rejected: KIT.rejected,
     victim_unchanged: "the owner's read-back is identical before and after each cross-tenant write",
   };
   for (const [assertion, failed] of Object.entries(failures)) {

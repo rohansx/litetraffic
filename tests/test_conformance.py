@@ -262,3 +262,32 @@ def test_kit_reads_back_through_the_write_endpoints_read_back(tmp_path, read_bac
     result = _serve_kit(tmp_path, config, Handler)
     assert _failed(result) == ({"victim_unchanged"} if verdict == "fail" else set()), result
     assert result["verdict"] == verdict, result
+
+
+@pytest.mark.parametrize(("anonymous_allowed", "verdict"), [(False, "pass"), (True, "fail")])
+def test_kit_unauthenticated_probe(tmp_path, anonymous_allowed, verdict):
+    from http.server import BaseHTTPRequestHandler
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            caller = self.headers.get("X-Tenant")
+            ok = caller == self.path.rsplit("/", 1)[-1] or (caller is None and anonymous_allowed)
+            self.send_response(200 if ok else 401 if caller is None else 403)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            return
+
+    config = {
+        "name": "anonymous",
+        "identities": [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
+                       {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"]}],
+        "endpoints": [{"method": "GET", "path": "/notes/{id}", "kind": "read"}],
+        "unauthenticated_probe": True,
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, Handler)
+    assert _failed(result) == ({"unauthenticated_rejected"} if anonymous_allowed else set()), result
+    assert result["verdict"] == verdict, result

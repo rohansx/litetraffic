@@ -149,3 +149,14 @@ def test_read_back_is_only_for_writes_and_names_are_distinct(tmp_path, capsys):
     assert code == 3 and "read_back" in result["error"], result
     code, result = _init(tmp_path, _config(endpoints=[READS[1], READS[1]]), capsys)
     assert code == 3 and "distinct" in result["error"], result
+
+
+def test_unauthenticated_probe_adds_an_assertion_and_its_requests(tmp_path, capsys):
+    code, result = _init(tmp_path, _config(unauthenticated_probe=True), capsys)
+    assert code == 0, result
+    manifest = load_scenario(tmp_path / "out").manifest
+    assert "unauthenticated_rejected" in manifest.assertions
+    assert manifest.journeys[0].max_requests == 15 + 3  # one anonymous read per resource and read endpoint
+    assert manifest.journeys[0].expected_statuses["unauthenticated"] == [401, 403, 404]
+    code, result = _init(tmp_path, _config(), capsys)
+    assert "unauthenticated_rejected" not in load_scenario(tmp_path / "out").manifest.assertions
