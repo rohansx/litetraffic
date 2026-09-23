@@ -14,13 +14,12 @@ _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 def origin(target: str) -> str:
     """Normalize a target URL to scheme://host[:port], dropping path and default port."""
-    parts = urlsplit(target)
+    parts = urlsplit(validate_target(target))  # canonical host; rejects link-local/metadata hosts
     scheme = parts.scheme.lower()
     if scheme not in _DEFAULT_PORTS or not parts.hostname:
         raise ValueError(f"target must be an http(s) URL with a host: {target!r}")
     if parts.username or parts.password:
         raise ValueError("target must not contain URL credentials")
-    validate_target(target)  # rejects link-local/metadata hosts
     host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
     port = parts.port  # raises ValueError for an invalid port
     return f"{scheme}://{host}" + (f":{port}" if port not in (None, _DEFAULT_PORTS[scheme]) else "")

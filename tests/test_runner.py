@@ -1057,6 +1057,23 @@ def test_cancel_during_observe_still_cleans_up_the_fixture(tmp_path, monkeypatch
     assert ledger["status"] == "unknown"
 
 
+def test_verify_sends_all_traffic_to_the_canonical_target(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = owned_fixture_observed_bundle(tmp_path)
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps([assertion("accepted_orders_persist")]))
+    monkeypatch.setenv("FAKE_K6_ENV", str(tmp_path / "env.json"))
+    targets = []
+    monkeypatch.setattr(runner, "create_fixture", lambda target, *args: targets.append(target) or {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda target, *args: targets.append(target) or {"status": "deleted", "requests": 1})
+    monkeypatch.setattr(runner, "observe", lambda target, *args, **kwargs: targets.append(target) or {"assertion": "ledger_total", "status": "pass"})
+
+    runner.verify("http://app。example。test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [], iterations=1)))
+
+    assert json.loads((tmp_path / "env.json").read_text())["LT_TARGET"] == "http://app.example.test"
+    assert targets == ["http://app.example.test"] * 3
+
+
 def test_cancel_during_fixture_cleanup_is_an_error(tmp_path, monkeypatch):
     import litetraffic.runner as runner
 
