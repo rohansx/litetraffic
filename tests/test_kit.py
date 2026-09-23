@@ -200,3 +200,12 @@ def test_journey_is_not_a_resource_key(tmp_path, capsys):
     assert code == 3 and "journey" in result["error"], result
     code, result = _init(tmp_path, _config(endpoints=[{"method": "GET", "path": "/j", "kind": "read"} | {"journey_in_path": True, "path": "/j/{journey}"}]), capsys)
     assert code == 3 and "no resource placeholder" in result["error"], result
+
+
+def test_script_isolates_cookie_jars(tmp_path, capsys):
+    code, result = _init(tmp_path, _config(unauthenticated_probe=True), capsys)
+    assert code == 0, result
+    script = (tmp_path / "out" / "journeys.js").read_text()
+    assert "jar: identity.jar" in script  # every request names its jar; none falls back to k6's shared VU jar
+    assert "KIT.identities.map((identity) => ({ ...identity, jar: new http.CookieJar() }))" in script
+    assert "send({ ...ANONYMOUS, jar: new http.CookieJar() }, " in script and "send(ANONYMOUS," not in script

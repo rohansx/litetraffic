@@ -50,13 +50,13 @@ Config fields:
 | `max_in_flight` | no | Default `6` |
 | `unauthenticated_probe` | no | `true` adds the `unauthenticated_rejected` assertion (below). Default `false` |
 
-Each journey, for each identity as owner and each owned id:
+Each journey gives each identity its own fresh cookie jar, so a session cookie the server sets for one identity is never sent with the other identity's requests (or carried into the next journey). Then, for each identity as owner and each owned id:
 
 - `own_access`: the owner reads the resource through every read endpoint (and writes with `check_own: true` writes) and gets one of the endpoint's `expected_statuses`.
 - `cross_tenant_read_blocked`: the other identity reads it and gets `401`, `403` or `404`.
 - `cross_tenant_write_blocked` (only with write endpoints): the other identity writes it and gets `401`, `403` or `404`.
 - `victim_unchanged` (only with write endpoints): the owner reads the resource back (through the write's `read_back`) before and after each cross-tenant write; the statuses and bodies must match (`deepEqual`). This catches a server that answers `403` but applies the write anyway.
-- `unauthenticated_rejected` (only with `unauthenticated_probe: true`): each read endpoint is also requested with no credentials at all (no bearer token and none of the identity's `headers`), tagged `operation: unauthenticated`, and must get `401`, `403` or `404`.
+- `unauthenticated_rejected` (only with `unauthenticated_probe: true`): each read endpoint is also requested with no credentials at all (no bearer token, none of the identity's `headers` and no cookies: each probe uses a fresh, empty cookie jar), tagged `operation: unauthenticated`, and must get `401`, `403` or `404`.
 
 Requests are tagged `operation: own` or `cross_tenant`, and the journey declares those tags' `expected_statuses`, so rejected probes do not count as unexpected HTTP failures. The generator computes `journeys[].max_requests`/`max_writes` and all budgets from the config; generation is deterministic, so the same config gives the same digest. Evidence carries identity, method, path template, id and statuses, never response bodies.
 

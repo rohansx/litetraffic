@@ -294,6 +294,87 @@ def test_kit_unauthenticated_probe(tmp_path, anonymous_allowed, verdict):
     assert result["verdict"] == verdict, result
 
 
+@pytest.mark.parametrize(("anonymous_allowed", "verdict"), [(False, "pass"), (True, "fail")])
+def test_kit_isolates_cookies_per_identity_and_for_anonymous_probes(tmp_path, anonymous_allowed, verdict):
+    """The server falls back to a session cookie it sets whenever X-Tenant is present; a shared jar would mask anonymous leaks."""
+    from http.server import BaseHTTPRequestHandler
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            header, cookie = self.headers.get("X-Tenant"), self.headers.get("Cookie")
+            caller = header or (cookie.removeprefix("session=") if cookie else None)
+            ok = caller == self.path.rsplit("/", 1)[-1] or (caller is None and anonymous_allowed)
+            self.send_response(200 if ok else 401 if caller is None else 403)
+            if header:
+                self.send_header("Set-Cookie", f"session={header}; Path=/")
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            return
+
+    config = {
+        "name": "cookies",
+        "identities": [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
+                       {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"]}],
+        "endpoints": [{"method": "GET", "path": "/notes/{id}", "kind": "read"}],
+        "unauthenticated_probe": True,
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, Handler)
+    assert _failed(result) == ({"unauthenticated_rejected"} if anonymous_allowed else set()), result
+    assert result["verdict"] == verdict, result
+
+
+def test_kit_gives_each_identity_a_fresh_jar_every_journey(tmp_path):
+    """A cookie-first server: the session cookie wins over X-Tenant, and a cookie from another journey is refused.
+
+    A jar shared between identities makes b act as a; a jar kept across journeys sends a stale session.
+    """
+    from http.server import BaseHTTPRequestHandler
+    from itertools import count
+
+    sessions, tokens, journeys = {}, count(), set()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            _, _, owner, journey = self.path.split("/")
+            journeys.add(journey)
+            cookie = self.headers.get("Cookie", "").removeprefix("session=")
+            header = self.headers.get("X-Tenant")
+            if cookie:
+                caller, issued_for = sessions[cookie]
+                status = 409 if issued_for != journey else 200 if caller == owner else 403
+            else:
+                status = 401 if header is None else 200 if header == owner else 403
+            self.send_response(status)
+            if header and not cookie:
+                token = str(next(tokens))
+                sessions[token] = (header, journey)
+                self.send_header("Set-Cookie", f"session={token}; Path=/")
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            return
+
+    config = {
+        "name": "cookie-first",
+        "identities": [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
+                       {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"]}],
+        "endpoints": [{"method": "GET", "path": "/notes/{id}/{journey}", "kind": "read", "journey_in_path": True}],
+        "unauthenticated_probe": True,
+        "max_in_flight": 1,  # one VU runs every journey, so a jar that outlived its journey would be reused
+        "schedule": {"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 2, "rate": 3}]},
+    }
+    result = _serve_kit(tmp_path, config, Handler)
+    assert len(journeys) > 1, journeys  # several journeys ran
+    assert _failed(result) == set(), result
+    assert result["verdict"] == "pass", result
+
+
 def test_kit_fills_journey_placeholder(tmp_path):
     """`{journey}` becomes lt.journeyKey(): in body strings always, in a path only with journey_in_path."""
     from http.server import BaseHTTPRequestHandler

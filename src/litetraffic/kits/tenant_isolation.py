@@ -304,7 +304,7 @@ function send(identity, endpoint, ref, operation) {
   }
   const pathValues = endpoint.journey_in_path ? { ...ref, journey: lt.journeyKey() } : ref;
   const url = __ENV.LT_TARGET + fill(endpoint.path, pathValues, encodeURIComponent);
-  return http.request(endpoint.method, url, body, { headers, tags: { operation } });
+  return http.request(endpoint.method, url, body, { headers, tags: { operation }, jar: identity.jar });
 }
 
 function content(response) {
@@ -322,8 +322,10 @@ function where(identity, endpoint, ref, status) {
 
 export default function tenantIsolation() {
   const failures = Object.fromEntries(KIT.assertions.map((name) => [name, []]));
-  KIT.identities.forEach((owner, index) => {
-    const attacker = KIT.identities[1 - index];
+  // One cookie jar per identity per journey, never k6's shared VU jar: a session cookie set for one identity must not ride along on another's requests.
+  const identities = KIT.identities.map((identity) => ({ ...identity, jar: new http.CookieJar() }));
+  identities.forEach((owner, index) => {
+    const attacker = identities[1 - index];
     for (const ref of owner.resources) {
       for (const endpoint of KIT.endpoints) {
         if (endpoint.kind === "write" && !endpoint.check_own) continue;
@@ -335,7 +337,7 @@ export default function tenantIsolation() {
           const cross = send(attacker, endpoint, ref, "cross_tenant");
           if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_read_blocked.push(where(attacker, endpoint, ref, cross.status));
           if (failures.unauthenticated_rejected) {
-            const anonymous = send(ANONYMOUS, endpoint, ref, "unauthenticated");
+            const anonymous = send({ ...ANONYMOUS, jar: new http.CookieJar() }, endpoint, ref, "unauthenticated");  // an empty jar: no cookies at all
             if (!KIT.rejected.includes(anonymous.status)) failures.unauthenticated_rejected.push(where(ANONYMOUS, endpoint, ref, anonymous.status));
           }
           continue;
