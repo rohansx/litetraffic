@@ -152,7 +152,7 @@ def test_kit_fills_resource_placeholders_in_path_and_body(tmp_path):
             body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
             seen.append((self.command, self.path, json.loads(body) if body else None))
             own = self.command == "GET" and self.path == f"/orgs/org-{self.headers.get('X-Tenant')}"
-            payload = json.dumps({"org": self.path}).encode() if own else b"{}"  # a non-empty read-back state
+            payload = json.dumps({"organization_id": self.path}).encode() if own else b"{}"  # a read-back state the attack could show
             self.send_response(200 if own else 403)
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -228,9 +228,12 @@ def _failed(result: dict) -> set[str]:
 ONE_SECOND = {"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]}
 
 
-@pytest.mark.parametrize(("read_back", "verdict"), [(None, "pass"), ("meta", "fail")])
+@pytest.mark.parametrize(("read_back", "verdict"), [(None, "inconclusive"), ("meta", "fail")])
 def test_kit_reads_back_through_the_write_endpoints_read_back(tmp_path, read_back, verdict):
-    """The server rejects cross-tenant meta writes but applies them; only a meta read-back sees it."""
+    """The server rejects cross-tenant meta writes but applies them; only a meta read-back sees it.
+
+    The default read-back ({"id": ...}) has none of the attacker's fields, so it cannot show the write: unknown, never pass.
+    """
     from http.server import BaseHTTPRequestHandler
 
     meta = {"a": 0, "b": 0}
@@ -434,7 +437,7 @@ def test_kit_fills_journey_placeholder(tmp_path):
             body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
             seen.append((self.command, self.path, json.loads(body) if body else None))
             own = self.headers.get("X-Tenant") == self.path.split("/")[2]
-            payload = b'{"ok": true}' if own and self.command == "GET" else b"{}"  # a non-empty read-back state
+            payload = b'{"tag": "untouched"}' if own and self.command == "GET" else b"{}"  # a read-back state the attack could show
             self.send_response(200 if own and self.command == "GET" else 403)
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -468,8 +471,9 @@ TWO_TENANTS = [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
                {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"]}]
 
 
-def _record_handler(values: dict, *, apply_every_put: bool, read_body=None, field="value"):
-    """GET /records/{id} returns {field: ...} to its owner (or `read_body`); PUT stores only body[field], 200 for owners, 403 otherwise."""
+def _record_handler(values: dict, *, apply_every_put: bool, read_body=None, field="value", wrap=None):
+    """GET /records/{id} returns {field: ...} (inside {wrap: ...} when set) to its owner, or `read_body`;
+    PUT stores only body[field], 200 for owners, 403 otherwise."""
     from http.server import BaseHTTPRequestHandler
 
     class Handler(BaseHTTPRequestHandler):
@@ -485,7 +489,8 @@ def _record_handler(values: dict, *, apply_every_put: bool, read_body=None, fiel
             if self.headers.get("X-Tenant") != owner:
                 self._send(403, {})
             else:
-                self._send(200, {field: values[owner]} if read_body is None else read_body)
+                state = {field: values[owner]}
+                self._send(200, read_body if read_body is not None else {wrap: state} if wrap else state)
 
         def do_PUT(self):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
@@ -531,8 +536,13 @@ def test_kit_check_own_does_not_neutralize_the_attack(tmp_path):
     assert result["verdict"] == "fail", result
 
 
-def test_kit_check_own_mixed_body_is_not_a_false_pass(tmp_path):
-    """The attacker varies only a string the server ignores, so its applied write re-stores the qty the owner already wrote."""
+@pytest.mark.parametrize("wrap", [None, "record"], ids=["flat-read-back", "wrapped-read-back"])
+def test_kit_check_own_mixed_body_is_not_a_false_pass(tmp_path, wrap):
+    """The owner body {"qty": 5, "note": "n"}: the server stores only qty and applies every PUT, including the attacker's.
+
+    An attacker body varying only the ignored string re-stores qty=5, so the read-back could never show the attack;
+    the generated attacker body must change qty too, so the applied cross-tenant write fails victim_unchanged.
+    """
     config = {
         "name": "mixed-body",
         "identities": TWO_TENANTS,
@@ -540,13 +550,14 @@ def test_kit_check_own_mixed_body_is_not_a_false_pass(tmp_path):
                       {"method": "PUT", "path": "/records/{id}", "kind": "write", "body": {"qty": 5, "note": "n"}, "check_own": True}],
         "schedule": ONE_SECOND,
     }
-    result = _serve_kit(tmp_path, config, _record_handler({"a": 1, "b": 2}, apply_every_put=True, field="qty"))
+    result = _serve_kit(tmp_path, config, _record_handler({"a": 1, "b": 2}, apply_every_put=True, field="qty", wrap=wrap))
     rows = {row["id"]: row["status"] for row in result["assertions"]}
-    assert rows["victim_unchanged"] == "unknown" and result["verdict"] != "pass", result
+    assert rows["victim_unchanged"] == "fail" and result["verdict"] == "fail", result
 
 
-@pytest.mark.parametrize(("read_body", "attack_body"), [(b"", None), ({}, None), ({"value": "evil"}, {"value": "evil"})],
-                         ids=["empty-body", "empty-json", "attack-equals-state"])
+@pytest.mark.parametrize(("read_body", "attack_body"), [(b"", None), ({}, None), ({"value": "evil"}, {"value": "evil"}),
+                                                   ({"other": 1}, None), ({"value": "evil", "n": 1}, {"value": "evil", "extra": 2})],
+                         ids=["empty-body", "empty-json", "attack-equals-state", "no-attacker-key-in-state", "shared-keys-equal"])
 def test_kit_victim_unchanged_is_unknown_when_the_read_back_cannot_show_the_attack(tmp_path, read_body, attack_body):
     """A secure server, but the read-back cannot reveal a mutation: an empty state, or one the attacker body already matches."""
     write = {"method": "PUT", "path": "/records/{id}", "kind": "write", "body": {"value": "owner"}}

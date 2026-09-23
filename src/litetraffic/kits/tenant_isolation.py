@@ -48,17 +48,22 @@ def _strings(value: JsonValue):
 
 
 def _attack_body(value: JsonValue, keys: set[str]) -> JsonValue:
-    """`value` with every string suffixed, so the attacker never writes what a check_own owner just wrote.
+    """`value` with every scalar changed, so no field the attacker writes equals what a check_own owner just wrote.
 
-    Strings naming a resource key are left alone: they address the victim's resource, and changing them would aim elsewhere.
+    Strings are suffixed, numbers incremented, booleans negated and nulls replaced by a marker string. Strings naming a
+    resource key are left alone: they address the victim's resource, and changing them would aim elsewhere.
     """
     if isinstance(value, str):
         return value if set(PLACEHOLDER.findall(value)) & keys else value + ATTACK_SUFFIX
+    if isinstance(value, bool):  # before int: bool is an int subclass
+        return not value
+    if isinstance(value, (int, float)):
+        return value + 1
+    if value is None:
+        return ATTACK_SUFFIX.lstrip("-")
     if isinstance(value, list):
         return [_attack_body(item, keys) for item in value]
-    if isinstance(value, dict):
-        return {key: _attack_body(item, keys) for key, item in value.items()}
-    return value
+    return {key: _attack_body(item, keys) for key, item in value.items()}
 
 
 class Identity(StrictModel):
@@ -156,6 +161,10 @@ class KitConfig(StrictModel):
         generated = set(_journey_assertions(self))
         if clash := [o.assertion for o in self.observations if o.assertion in generated]:
             raise ValueError(f"observation assertion {clash[0]!r} collides with a generated assertion")
+        first, second = (identity.markers for identity in self.identities)
+        if overlap := next(((a, b) for a in first for b in second if a in b or b in a), None):
+            raise ValueError(f"markers {overlap[0]!r} and {overlap[1]!r} overlap: one identity's marker is inside the other's, "
+                             "so its own data would read as a leak")
         refs = [ref for identity in self.identities for ref in identity.refs]
         keys = set(refs[0])
         if any(set(ref) != keys for ref in refs):
@@ -174,13 +183,15 @@ class KitConfig(StrictModel):
             # A bodyless write with no owner run (a plain DELETE) has no owner payload to pre-match.
             bodyless = endpoint.body is None and not endpoint.check_own and "attack_body" not in endpoint.model_fields_set
             if endpoint.kind == "write" and not bodyless and self.attack_body(endpoint) == endpoint.body:
-                raise ValueError(f"{endpoint.method} {endpoint.path}: the attacker body equals the owner body (no string to vary); "
+                raise ValueError(f"{endpoint.method} {endpoint.path}: the attacker body equals the owner body (no value to vary); "
                                  "set attack_body to a payload the owner never writes")
         return self
 
     def attack_body(self, endpoint: Endpoint) -> JsonValue:
         if "attack_body" in endpoint.model_fields_set:
             return endpoint.attack_body
+        if endpoint.body is None:  # no body at all, not a null field: the attacker sends none either
+            return None
         return _attack_body(endpoint.body, set(self.identities[0].refs[0]))
 
     def read_back_index(self, endpoint: Endpoint) -> int:
@@ -274,7 +285,7 @@ def build_manifest(config: KitConfig, raw: dict) -> dict:
     }
     if observations:
         manifest["observations"] = observations
-    token_envs = [identity.token_env for identity in config.identities if identity.token_env]
+    token_envs = list(dict.fromkeys(identity.token_env for identity in config.identities if identity.token_env))
     if token_envs:
         manifest["secret_env"] = token_envs
     manifest |= origins
@@ -357,13 +368,11 @@ function fillBody(template, ref) {
   return fill(template, { ...ref, journey: lt.journeyKey() }, (text) => text);
 }
 
-// True when every field of `part` already holds that value in `state`: writing `part` could not change it.
-// True when `state` cannot show `part` being written: every key of `part` that the state also has (at least one)
-// already holds `part`'s value. Keys the state lacks (fields the server ignores) cannot reveal the write either.
+// True when `state` cannot show `part` being written: every key of `part` that the state also has already holds
+// `part`'s value, or the state has none of them. Keys the state lacks (fields the server ignores) cannot reveal the write.
 function holds(state, part) {
   if (part && typeof part === "object" && !Array.isArray(part) && state && typeof state === "object" && !Array.isArray(state)) {
-    const shared = Object.keys(part).filter((key) => key in state);
-    return shared.length > 0 && shared.every((key) => holds(state[key], part[key]));
+    return Object.keys(part).filter((key) => key in state).every((key) => holds(state[key], part[key]));
   }
   return lt.deepEqual(state, part);
 }

@@ -265,7 +265,7 @@ def test_named_head_read_back_is_rejected_even_with_a_get_read(tmp_path, capsys)
 
 
 def test_bodyless_write_without_check_own_needs_no_attack_body(tmp_path, capsys):
-    """A plain cross-tenant DELETE sends no body; with no owner write there is nothing for the attacker to pre-match."""
+    """A plain cross-tenant DELETE sends no body; with no owner write the attacker body cannot repeat an owner payload."""
     delete = {"method": "DELETE", "path": "/notes/{id}", "kind": "write"}
     code, result = _init(tmp_path, _config(endpoints=[READS[0], delete]), capsys)
     assert code == 0, result
@@ -281,18 +281,40 @@ def test_default_read_back_is_the_first_get_read(tmp_path, capsys):
 
 
 def test_attacker_body_differs_from_the_owner_body(tmp_path, capsys):
-    """Every string is suffixed so a check_own owner write never pre-writes the attacker's payload; resource placeholders stay put."""
-    body = {"text": "x", "tags": ["a", {"deep": "b"}], "n": 1, "note": "{id}", "tag": "t-{journey}"}
+    """Every generated field except a resource placeholder differs from what a check_own owner just wrote.
+
+    Strings are suffixed, numbers incremented, booleans negated and nulls replaced, at any depth; resource placeholders stay put.
+    """
+    body = {"text": "x", "tags": ["a", {"deep": "b", "on": True}], "n": 1, "price": 2.5, "off": False, "gone": None,
+            "note": "{id}", "tag": "t-{journey}"}
     write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": body, "check_own": True}
     code, result = _init(tmp_path, _config(endpoints=[READS[0], write]), capsys)
     assert code == 0, result
     suffix = "-lt-attack-{journey}"
     assert _kit(tmp_path)["endpoints"][1]["attack_body"] == {
-        "text": "x" + suffix, "tags": ["a" + suffix, {"deep": "b" + suffix}], "n": 1, "note": "{id}", "tag": "t-{journey}" + suffix,
+        "text": "x" + suffix, "tags": ["a" + suffix, {"deep": "b" + suffix, "on": False}], "n": 2, "price": 3.5, "off": True,
+        "gone": "lt-attack-{journey}", "note": "{id}", "tag": "t-{journey}" + suffix,
     }
 
 
-@pytest.mark.parametrize("body,check_own", [(None, True), ({"n": 1}, False), ({"note": "{id}"}, False), ({}, False)])
+def test_markers_must_not_overlap_the_other_identitys_markers(tmp_path, capsys):
+    """A marker equal to, or inside, another identity's marker would flag that identity's own data as a leak."""
+    identities = _config()["identities"]
+    for alice, bob in [(["org-1"], ["org-1"]), (["org-1"], ["x-org-12"]), (["x-org-12"], ["org-1"])]:
+        code, result = _init(tmp_path, _config(identities=[identities[0] | {"markers": alice}, identities[1] | {"markers": bob}]), capsys)
+        assert code == 3 and "marker" in result["error"], (alice, bob, result)
+    code, result = _init(tmp_path, _config(identities=[identities[0] | {"markers": ["org-1", "org-1"]}, identities[1] | {"markers": ["org-2"]}]), capsys)
+    assert code == 0, result
+
+
+def test_shared_token_env_is_declared_once(tmp_path, capsys):
+    identities = [{"name": name, "token_env": "SHARED_TOKEN", "headers": {"X-Tenant": name}, "resources": [name]} for name in ("a", "b")]
+    code, result = _init(tmp_path, _config(identities=identities), capsys)
+    assert code == 0, result
+    assert load_scenario(tmp_path / "out").manifest.secret_env == ["SHARED_TOKEN"]
+
+
+@pytest.mark.parametrize("body,check_own", [(None, True), ({"note": "{id}"}, False), ({}, False)])
 def test_writes_without_a_distinct_attacker_body_need_attack_body(tmp_path, capsys, body, check_own):
     write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": body, "check_own": check_own}
     code, result = _init(tmp_path, _config(endpoints=[READS[0], write]), capsys)
