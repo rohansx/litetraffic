@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 MAX_DETAIL_CHARS = 500
@@ -114,14 +115,19 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
                 totals["vus_max"] = max(int(value), int(totals.get("vus_max", 0)))
             elif metric == "http_req_duration":
                 durations.append(float(value))
-                _operation(operations, item)["durations"].append(float(value))
+                bucket = _operation(operations, item)
+                bucket["durations"].append(float(value))
+                if isinstance(stamp := item["data"].get("time"), str):
+                    # k6 stamps the point when the response completes, so the request spans [end - duration, end].
+                    end = datetime.fromisoformat(stamp).timestamp() * 1000
+                    bucket["spans"].append((end - value, end))
             elif metric == "http_req_failed" and 0 <= value <= 1:
                 tags = item["data"].get("tags") or {}
                 _operation(operations, item)["failed"].append(float(value))
                 # k6 tags requests that never got an HTTP response with status "0"; 4xx/5xx also carry an error_code.
                 transport_failures += value == 1 and tags.get("status") == "0"
                 failed.append(float(value))
-        except (AttributeError, KeyError, json.JSONDecodeError, TypeError):
+        except (AttributeError, KeyError, json.JSONDecodeError, TypeError, ValueError):
             malformed += 1
     if durations:
         totals["http_req_duration_ms"] = {
@@ -149,14 +155,41 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
             }
             for name, values in operations.items()
         }
+        if overlap := {name: _peak_overlap(values["spans"]) for name, values in operations.items() if values["spans"]}:
+            totals["overlap"] = overlap
     return totals, malformed
+
+
+def _peak_overlap(spans: list[tuple[float, float]]) -> int:
+    """Most requests open at one instant; a request ending exactly as another starts does not overlap it."""
+    # Ends (-1) sort before starts (+1) at the same instant.
+    edges = sorted([(start, 1) for start, _ in spans] + [(end, -1) for _, end in spans])
+    open_now = peak = 0
+    for _, delta in edges:
+        open_now += delta
+        peak = max(peak, open_now)
+    return peak
+
+
+def overlap_shortfalls(metrics: dict, journeys) -> list[str]:
+    """Declared min_overlap that the run never reached: the concurrency the scenario relies on did not happen."""
+    observed = metrics.get("overlap", {})
+    required: dict[str, int] = {}
+    for journey in journeys:
+        for operation, minimum in journey.min_overlap.items():
+            required[operation] = max(minimum, required.get(operation, 0))
+    return [
+        f"concurrency not achieved for {operation}: observed {observed.get(operation, 0)} < {minimum}"
+        for operation, minimum in required.items()
+        if observed.get(operation, 0) < minimum
+    ]
 
 
 def _operation(operations: dict[str, dict[str, list[float]]], item: dict) -> dict[str, list[float]]:
     """Bucket for the point's k6 `operation` tag; untagged requests share `_untagged`."""
     name = (item["data"].get("tags") or {}).get("operation")
     key = name if isinstance(name, str) and name else "_untagged"
-    return operations.setdefault(key, {"durations": [], "failed": []})
+    return operations.setdefault(key, {"durations": [], "failed": [], "spans": []})
 
 
 def budget_overruns(metrics: dict, budgets) -> list[str]:

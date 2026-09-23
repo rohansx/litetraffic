@@ -184,6 +184,8 @@ class Journey(StrictModel):
     name: str = Field(min_length=1)
     max_requests: int = Field(gt=0)
     max_writes: int = Field(ge=0)
+    # operation tag -> requests that must be observed in flight together for the run to count
+    min_overlap: dict[Annotated[str, Field(min_length=1)], Annotated[int, Field(gt=0)]] = Field(default_factory=dict)
 
 
 class Phase(StrictModel):

@@ -43,6 +43,9 @@ def render_report(result: dict, run: dict) -> str:
         f"<dt>HTTP {label}</dt><dd>{escape(f'{durations[key]} ms' if key in durations else 'Unavailable')}</dd>"
         for label, key in (("avg", "average"), ("p50", "p50"), ("p95", "p95"), ("max", "max"))
     )
+    overlap = "".join(
+        f"<tr><td>{escape(str(name))}</td><td>{escape(str(peak))}</td></tr>" for name, peak in sorted(metrics.get("overlap", {}).items())
+    ) or '<tr><td colspan="2">No timed request samples</td></tr>'
     notes = "".join(f"<li>{escape(str(item))}</li>" for item in result.get("notes", []))
     failure_rate = metrics.get("http_req_failed_rate", {}).get("rate")
     failure_label = f"{failure_rate * 100:.1f}%" if failure_rate is not None else "Unavailable"
@@ -65,6 +68,7 @@ dl{{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}} dt{{font-w
 {latency}<dt>Latency samples</dt><dd>{escape(_count(durations.get('samples', 0)))}</dd><dt>HTTP failure rate</dt><dd>{escape(failure_label)}</dd>
 <dt>HTTP throughput</dt><dd>{escape(str(metrics.get('http_reqs_per_second', 'Unavailable')))} req/s</dd></dl></section>
 <section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody>{assertions}</tbody></table></section>
+<section class="card"><h2>Concurrency</h2><table><thead><tr><th>Operation</th><th>Peak requests in flight</th></tr></thead><tbody>{overlap}</tbody></table></section>
 {_failure_tables(result["assertions"])}
 <section class="card"><h2>Limitations</h2><ul>{limitations}</ul></section>
 <section class="card"><h2>Notes</h2><ul>{notes or "<li>None</li>"}</ul></section>

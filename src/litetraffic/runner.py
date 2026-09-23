@@ -11,7 +11,7 @@ from pathlib import Path
 from litetraffic.artifacts import MANIFEST, artifact_files
 from litetraffic.auth import AuthError, mint_tokens, redact, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
-from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, target_unreachable
+from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
 from litetraffic.observation import observe
 from litetraffic.process import _communicate, _stop_process
@@ -272,6 +272,7 @@ def verify(
     thresholds_breached = lifecycle == "finished" and engine_exit_code == K6_THRESHOLDS_FAILED
     if thresholds_breached:
         limitations.append("k6 thresholds breached")
+    limitations.extend(overlap_shortfalls(metrics, bundle.manifest.journeys))
     if malformed_events:
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:

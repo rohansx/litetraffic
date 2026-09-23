@@ -1279,3 +1279,76 @@ def test_pool_item_under_real_k6(tmp_path):
     ]
     past = "fixture pool has no item for journey 3 (pool size 3)"
     assert sorted(event["detail"] for event in events) == [f"{item}|{past}" for item in "abc"]
+
+
+def timed(operation: str, end: str, duration_ms: float) -> str:
+    # k6 stamps an http_req_duration point when the request finishes.
+    return json.dumps(
+        {"type": "Point", "metric": "http_req_duration", "data": {"time": f"2026-01-01T00:00:{end}Z", "value": duration_ms, "tags": {"operation": operation}}}
+    )
+
+
+def test_read_metrics_records_peak_in_flight_overlap_per_operation(tmp_path):
+    path = tmp_path / "metrics.jsonl"
+    lines = [
+        # create: [0.0,1.0] [0.5,1.5] [0.9,1.2] overlap 3; [1.5,2.0] only touches the second one
+        timed("create", "01.000000000", 1000), timed("create", "01.500000000", 1000),
+        timed("create", "01.200000000", 300), timed("create", "02.000000000", 500),
+        # read: back to back, never overlapping
+        timed("read", "01.000", 1000), timed("read", "02.000", 1000),
+        point("http_req_duration", 5, operation="untimed"),
+    ]
+    path.write_text("\n".join(lines) + "\n")
+
+    metrics, malformed = _read_metrics(path)
+
+    assert malformed == 0
+    assert metrics["overlap"] == {"create": 3, "read": 1}
+
+
+def test_read_metrics_omits_overlap_without_timestamps(tmp_path):
+    path = tmp_path / "metrics.jsonl"
+    path.write_text(point("http_req_duration", 5, operation="create") + "\n")
+
+    metrics, _ = _read_metrics(path)
+
+    assert "overlap" not in metrics
+
+
+def _overlap_bundle(tmp_path, minimum: dict) -> Path:
+    data = manifest(journeys=[{"name": "purchase", "max_requests": 3, "max_writes": 1, "min_overlap": minimum}])
+    return write_bundle(tmp_path / "scenario", data)
+
+
+def test_verify_is_inconclusive_when_declared_overlap_is_not_observed(tmp_path, monkeypatch):
+    scenario = _overlap_bundle(tmp_path, {"create": 2, "refund": 2})
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    sequential = (timed("create", "01.000", 1000), timed("create", "02.000", 1000))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, extra_metric_lines=sequential)))
+
+    assert result["metrics"]["overlap"] == {"create": 1}
+    assert result["verdict"] == "inconclusive"
+    assert "concurrency not achieved for create: observed 1 < 2" in result["limitations"]
+    assert "concurrency not achieved for refund: observed 0 < 2" in result["limitations"]
+    report = (tmp_path / "runs" / result["run_id"] / "report.html").read_text()
+    assert "Concurrency" in report and "<td>create</td><td>1</td>" in report
+
+
+def test_verify_passes_when_declared_overlap_is_observed(tmp_path, monkeypatch):
+    scenario = _overlap_bundle(tmp_path, {"create": 2})
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    overlapping = (timed("create", "01.000", 1000), timed("create", "01.500", 1000))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, extra_metric_lines=overlapping)))
+
+    assert result["metrics"]["overlap"] == {"create": 2}
+    assert result["verdict"] == "pass"
+
+
+@pytest.mark.parametrize("minimum", [{"create": 0}, {"": 2}])
+def test_min_overlap_rejects_invalid_declarations(tmp_path, minimum):
+    with pytest.raises(Exception, match="min_overlap"):
+        load_scenario(_overlap_bundle(tmp_path, minimum))

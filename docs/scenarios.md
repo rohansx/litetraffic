@@ -25,7 +25,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `fixtures.owned_http` | no | Run-owned HTTP fixture the controller creates and deletes ([below](#run-owned-fixtures)) |
 | `fixtures.command` | no | Setup and teardown commands run on the controller host ([below](#command-fixtures)); cannot be combined with `owned_http` |
 | `fixtures.pool` | no | Bundle-relative JSON array file with one item per journey ([below](#fixture-pool)) |
-| `journeys` | yes | `[{"name", "max_requests", "max_writes"}]` per-journey maxima used for budget checks |
+| `journeys` | yes | `[{"name", "max_requests", "max_writes", "min_overlap"?}]` per-journey maxima used for budget checks; optional `min_overlap` maps a k6 `operation` tag to the minimum number of those requests that must be observed in flight at once, positive integers; when several journeys name the same operation the largest minimum applies (see [results](results.md)) |
 | `schedule` | yes | `unit: "journeys_per_second"` plus exactly one of `phases` or `profile` |
 | `assertions` | yes | Assertion IDs that must receive evidence for a pass |
 | `observer` | yes | Descriptive label for how the effect is observed |

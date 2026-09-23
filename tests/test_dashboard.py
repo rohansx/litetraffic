@@ -30,6 +30,7 @@ def runs_dir(tmp_path):
         }
     ]
     result["limitations"] = ["k6 thresholds breached"]
+    result["metrics"] = result.get("metrics", {}) | {"overlap": {"create_payment": 3}}
     (run / "result.json").write_text(json.dumps(result))
     (run / "report.html").write_text("<html>the report</html>")
     _finish(write_run(root / "run_b", "run_b"), scenario="checkout", finished_at="2026-01-03T00:00:00+00:00")
@@ -104,6 +105,7 @@ def test_run_page_shows_verdict_assertions_metrics_limitations_and_report_link(s
     assert "FAIL" in body
     assert "report_complete" in body and "pending" in body and "done" in body
     assert "http_reqs_per_second" in body
+    assert "overlap" in body and "create_payment" in body
     assert "k6 thresholds breached" in body
     assert 'href="/runs/run_a/report.html"' in body
     assert "<script>alert(1)" not in body
