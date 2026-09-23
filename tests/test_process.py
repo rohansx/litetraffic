@@ -62,7 +62,7 @@ def test_a_timed_out_k6_whose_group_survives_is_a_limitation(tmp_path, monkeypat
 
     data = manifest(
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 1, "max_requests": 3, "max_write_attempts": 1},
+        budgets=manifest()["budgets"] | {"max_seconds": 3, "max_requests": 3, "max_write_attempts": 1},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     monkeypatch.setenv("FAKE_K6_EVENTS", "[]")

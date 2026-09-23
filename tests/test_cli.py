@@ -552,7 +552,7 @@ def test_inspect_shows_command_fixture_inputs(tmp_path, capsys):
 
 def test_inspect_lists_hashed_command_files(tmp_path, capsys):
     command = {"setup": ["python3", "setup.py"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 2}
-    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 22})
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 24})
     path = write_bundle(tmp_path, data)
     (path / "setup.py").write_text("print(1)\n")
 

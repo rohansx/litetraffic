@@ -516,7 +516,7 @@ def test_command_fixture_inputs_are_hashed_into_the_digest(tmp_path):
 def test_command_argv_files_inside_the_bundle_are_hashed_into_the_digest(tmp_path):
     command = {"setup": ["python3", "setup.py", "/etc/hosts", "../outside.py", "missing.py"], "teardown": ["python3", "setup.py"], "timeout_seconds": 5}
     (tmp_path / "outside.py").write_text("print(0)\n")
-    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 28})
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 30})
     path = write_bundle(tmp_path / "bundle", data)
     (path / "setup.py").write_text("print(1)\n")
     bundle = load_scenario(path)

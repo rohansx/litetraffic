@@ -303,7 +303,7 @@ def test_fixture_bearer_token_is_scrubbed_from_fixture_json(tmp_path, monkeypatc
     token = "fixture-token-789"
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id", "bearer_token_env": "LT_TEST_FIXTURE_TOKEN"}},
-        budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22, "max_seconds": 22},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist") for _ in range(20)]
@@ -324,7 +324,7 @@ def test_command_hook_record_is_scrubbed(tmp_path, monkeypatch):
     data = manifest(
         actors=_actors(),
         fixtures={"recipe": "seeded", "command": {"setup": [*py("pass"), SECRET], "teardown": py("pass"), "timeout_seconds": 2}},
-        budgets=manifest()["budgets"] | {"max_seconds": 22},
+        budgets=manifest()["budgets"] | {"max_seconds": 24},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist") for _ in range(20)]

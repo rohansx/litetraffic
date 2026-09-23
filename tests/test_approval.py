@@ -162,7 +162,7 @@ def test_malformed_approvals_file_exits_3(workspace, capsys, content, command):
 
 def test_editing_a_command_fixture_script_after_approval_invalidates_it(workspace, capsys):
     command = {"setup": ["python3", "setup.py"], "teardown": ["python3", "setup.py"], "timeout_seconds": 5}
-    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 28})
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 30})
     scenario = write_bundle(workspace / "traffic", data)
     (scenario / "setup.py").write_text("print(1)\n")
     approve(scenario)
