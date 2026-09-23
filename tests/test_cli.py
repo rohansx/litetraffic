@@ -502,7 +502,7 @@ def test_inspect_without_owned_fixture_or_observation(tmp_path, capsys):
 
 def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
     command = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 2}
-    data = manifest(fixtures={"recipe": "seeded", "command": command})
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 22})
 
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
     first = json.loads(capsys.readouterr().out)

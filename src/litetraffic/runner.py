@@ -17,7 +17,6 @@ from litetraffic.observation import observe
 from litetraffic.process import _communicate, _stop_process
 from litetraffic.report import render_report
 from litetraffic.scenario import ScenarioError, load_scenario, staged
-from litetraffic.series import aggregate_verdict, dispersion
 
 K6_THRESHOLDS_FAILED = 99  # k6 exit code: the run completed but a threshold was crossed
 
@@ -66,6 +65,15 @@ def verify(
     k6_path: str | None = None,
     seed: int = 0,
 ) -> dict:
+    owed: dict = {}  # fixture teardown/cleanup not yet run; runs even when the run raises
+    try:
+        return _verify(target, scenario, output_dir, k6_path, seed, owed)
+    finally:
+        for release in list(owed.values()):
+            release()
+
+
+def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, seed: int, owed: dict) -> dict:
     target = _target(target)
     bundle = load_scenario(Path(scenario))
     executable, engine_version = _engine(k6_path)
@@ -123,6 +131,9 @@ def verify(
     fixture = hooks = None
     commands = bundle.manifest.fixtures.command
     if commands and lifecycle == "running":
+        owed["teardown"] = lambda: run_fixture_command(
+            "teardown", commands.teardown, bundle.root, hook_environment, commands.timeout_seconds, secrets
+        )
         setup, setup_stdout = run_fixture_command("setup", commands.setup, bundle.root, hook_environment, commands.timeout_seconds, secrets)
         hooks = {"setup": setup}
         if fixture_json(setup_stdout):
@@ -146,6 +157,7 @@ def verify(
             lifecycle = "cancelled"
         if fixture["create"]["status"] == "created":
             environment["LT_FIXTURE_ID"] = fixture["create"]["fixture_id"]
+            owed["cleanup"] = lambda: cleanup_fixture(target, bundle.manifest.fixtures.owned_http, run_id, fixture["create"]["fixture_id"])
         elif lifecycle != "cancelled":
             lifecycle = "crashed"
             engine_error = fixture["create"]["reason"]
@@ -219,7 +231,7 @@ def verify(
         if fixture["create"]["status"] == "created":
             fixture_id = fixture["create"]["fixture_id"]
             try:
-                fixture["cleanup"] = cleanup_fixture(target, bundle.manifest.fixtures.owned_http, run_id, fixture_id)
+                fixture["cleanup"] = owed.pop("cleanup")()
             except KeyboardInterrupt:
                 lifecycle = "cancelled"
                 fixture["cleanup"] = {"status": "error", "reason": f"fixture cleanup cancelled; fixture {fixture_id} may remain", "requests": 1}
@@ -227,7 +239,7 @@ def verify(
         metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
     if hooks:
         # Teardown runs whatever happened before it, including a failed or cancelled setup.
-        hooks["teardown"], _ = run_fixture_command("teardown", commands.teardown, bundle.root, hook_environment, commands.timeout_seconds, secrets)
+        hooks["teardown"], _ = owed.pop("teardown")()
         if hooks["teardown"]["status"] == "cancelled":
             lifecycle = "cancelled"
             hooks["teardown"].update(status="error", reason="fixture teardown cancelled; fixture state may remain")
@@ -356,45 +368,3 @@ def verify(
     _restrict(run_dir)
     return result
 
-
-def repeat_verify(
-    target: str,
-    scenario: Path,
-    output_dir: Path,
-    k6_path: str | None = None,
-    seed: int = 0,
-    repeats: int = 3,
-    same_seed: bool = False,
-) -> dict:
-    if repeats < 2:
-        raise RunnerError("repeats must be at least 2")
-
-    runs = []
-    for current_seed in [seed] * repeats if same_seed else range(seed, seed + repeats):
-        result = verify(target, scenario, output_dir, k6_path, current_seed)
-        runs.append(result)
-        if result["lifecycle"] == "cancelled":
-            break
-
-    series_id = f"series_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
-    result_path = f"{series_id}.json"
-    summary = {
-        "schema_version": 1,
-        "series_id": series_id,
-        "mode": "repeat",
-        "starting_seed": seed,
-        "same_seed": same_seed,
-        "requested_runs": repeats,
-        "completed_runs": len(runs),
-        "lifecycle": "cancelled" if runs[-1]["lifecycle"] == "cancelled" else "finished",
-        "verdict": aggregate_verdict(runs),
-        "consistent": len({(run["verdict"], run["lifecycle"]) for run in runs}) == 1,
-        "dispersion": dispersion(runs),
-        "runs": runs,
-        "result": result_path,
-    }
-    output_path = Path(output_dir).resolve()
-    output_path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    output_path.chmod(0o700)
-    _write_json(output_path / result_path, summary)
-    return summary

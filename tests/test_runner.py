@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from litetraffic.runner import RunnerError, _read_events, _read_metrics, repeat_verify, verify
+from litetraffic.runner import RunnerError, _read_events, _read_metrics, verify
+from litetraffic.series import repeat_verify
 from litetraffic.human import format_verify
 from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
@@ -1379,3 +1380,24 @@ def test_restrict_never_follows_symlinks_out_of_the_run_dir(tmp_path):
     assert stat.S_IMODE(outside_dir.stat().st_mode) == 0o755
     assert stat.S_IMODE((run_dir / "result.json").stat().st_mode) == 0o600
     assert stat.S_IMODE((run_dir / "events").stat().st_mode) == 0o700
+
+
+def test_fixture_cleanup_runs_when_an_artifact_write_fails(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    scenario = owned_fixture_observed_bundle(tmp_path)
+    cleaned = []
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: cleaned.append(args[-1]) or {"status": "deleted", "requests": 1})
+
+    write_text = runner._write_text
+
+    def failing(path, text):
+        if path.name == "engine.stdout.log":
+            raise OSError("disk full")
+        write_text(path, text)
+
+    monkeypatch.setattr(runner, "_write_text", failing)
+    with pytest.raises(OSError, match="disk full"):
+        runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [], iterations=1)))
+    assert cleaned == ["owned-1"]

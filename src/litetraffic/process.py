@@ -6,6 +6,8 @@ import os
 import signal
 import subprocess
 
+STOP_GRACE_SECONDS = 4  # _stop_process waits 2 s after SIGTERM, then 2 s after SIGKILL
+
 
 def _communicate(process: subprocess.Popen[str], timeout: float) -> tuple[str, str]:
     return process.communicate(timeout=timeout)

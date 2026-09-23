@@ -62,8 +62,8 @@ Functions raise exceptions (`RunnerError`, `ScenarioError`, `ComparisonError`, `
 | `src/litetraffic/cli.py` | Argument parsing, JSON/text output, exit codes |
 | `src/litetraffic/models.py` | Manifest schema, profiles, schedule resolution |
 | `src/litetraffic/scenario.py` | Bundle loading and static budget checks |
-| `src/litetraffic/runner.py` | Run lifecycle, evidence, verdict, repeat series |
-| `src/litetraffic/series.py` | Series aggregate verdict and dispersion stats |
+| `src/litetraffic/runner.py` | Run lifecycle, evidence, verdict |
+| `src/litetraffic/series.py` | Repeat series (`repeat_verify`), aggregate verdict and dispersion stats |
 | `src/litetraffic/process.py` | Engine subprocess waits and process-group termination |
 | `src/litetraffic/fixture.py` | Run-owned fixture create/cleanup |
 | `src/litetraffic/observation.py` | Final observation and JSON Pointer lookup |

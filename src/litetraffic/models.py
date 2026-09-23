@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, mo
 
 from litetraffic.auth import token_env_name
 from litetraffic.expression import NAMES, evaluate, is_expression
+from litetraffic.process import STOP_GRACE_SECONDS
 from litetraffic.target import validate_target
 
 
@@ -105,8 +106,8 @@ class Fixtures(StrictModel):
     @property
     def reserved_seconds(self) -> int:
         """Seconds of max_seconds held back from k6 for fixture setup and cleanup."""
-        if self.command:
-            return 2 * self.command.timeout_seconds
+        if self.command:  # setup and teardown may each run to their timeout and then be stopped
+            return 2 * (self.command.timeout_seconds + STOP_GRACE_SECONDS)
         return 10 if self.owned_http else 0
 
 

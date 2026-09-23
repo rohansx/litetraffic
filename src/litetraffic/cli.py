@@ -16,7 +16,8 @@ from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
 from litetraffic.models import resolve_expected
 from litetraffic.human import format_diff, format_inspect, format_verify
-from litetraffic.runner import RunnerError, repeat_verify, verify
+from litetraffic.runner import RunnerError, verify
+from litetraffic.series import repeat_verify
 from litetraffic.runs import prune, resolve
 from litetraffic.scenario import ScenarioError, load_scenario
 

@@ -65,11 +65,12 @@ def test_owned_fixture_reserves_setup_cleanup_requests_writes_and_time(tmp_path)
 COMMAND = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 5}
 
 
-def test_command_fixture_reserves_setup_and_teardown_timeouts(tmp_path):
-    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND}, budgets=manifest()["budgets"] | {"max_seconds": 19})
-    with pytest.raises(ValidationError, match="10-second fixture deadline"):
+def test_command_fixture_reserves_setup_and_teardown_timeouts_plus_stop_grace(tmp_path):
+    # 10 s schedule + 2 x (5 s timeout + 4 s SIGTERM/SIGKILL grace)
+    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND}, budgets=manifest()["budgets"] | {"max_seconds": 27})
+    with pytest.raises(ValidationError, match="18-second fixture deadline"):
         load_scenario(write_bundle(tmp_path, data))
-    data["budgets"]["max_seconds"] = 20
+    data["budgets"]["max_seconds"] = 28
     command = load_scenario(write_bundle(tmp_path, data)).manifest.fixtures.command
     assert command.setup == ["psql", "-f", "seed.sql"]
     assert command.cwd == "bundle"

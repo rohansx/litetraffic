@@ -3,7 +3,9 @@ import sys
 
 import pytest
 
+import litetraffic.fixture as fixture_module
 import litetraffic.runner as runner
+from litetraffic.cli import main
 from test_runner import assertion, fake_k6
 from test_scenario import manifest, write_bundle
 
@@ -27,7 +29,7 @@ def command_bundle(tmp_path, setup, teardown, timeout_seconds=2):
     data = manifest(
         fixtures={"recipe": "seeded", "command": {"setup": setup, "teardown": teardown, "timeout_seconds": timeout_seconds}},
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 1 + 2 * timeout_seconds},
+        budgets=manifest()["budgets"] | {"max_seconds": 1 + 2 * (timeout_seconds + 4)},
     )
     return write_bundle(tmp_path / "scenario", data)
 
@@ -95,7 +97,7 @@ def test_teardown_runs_after_any_engine_exit(tmp_path, monkeypatch, returncode, 
     assert (scenario / "teardown.json").exists()
     assert fixture["teardown"]["exit_code"] == 0
     if sleep_seconds:
-        assert "engine stopped after its 1-second share of the 5-second budget" in result["limitations"]
+        assert "engine stopped after its 1-second share of the 13-second budget" in result["limitations"]
 
 
 def test_teardown_runs_when_user_cancels(tmp_path, monkeypatch):
@@ -181,3 +183,42 @@ def test_setup_pool_conflicts_with_a_pool_file(tmp_path, monkeypatch):
     result, _ = run(tmp_path, monkeypatch, scenario)
     assert result["verdict"] == "error"
     assert "fixture pool is set by both fixtures.pool and the setup output" in result["limitations"]
+
+
+def cli_verify(tmp_path, scenario):
+    k6 = fake_k6(tmp_path, [assertion("accepted_orders_persist")], iterations=1)
+    return main(["verify", str(scenario), "--target", TARGET, "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--json"])
+
+
+def test_teardown_runs_when_an_artifact_write_fails(tmp_path, monkeypatch, capsys):
+    scenario = command_bundle(tmp_path, py("pass"), record("teardown"))
+    write_text = runner._write_text
+
+    def failing(path, text):
+        if path.name == "engine.stdout.log":
+            raise OSError("disk full")
+        write_text(path, text)
+
+    monkeypatch.setattr(runner, "_write_text", failing)
+    assert cli_verify(tmp_path, scenario) == 3
+    assert "disk full" in json.loads(capsys.readouterr().out)["error"]
+    assert (scenario / "teardown.json").exists()
+
+
+def test_cancel_during_setup_skips_k6_and_still_tears_down(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FAKE_K6_ENV", str(tmp_path / "k6-env.json"))
+    scenario = command_bundle(tmp_path, py("import time; time.sleep(10)"), record("teardown"))
+    communicate = fixture_module._communicate
+    calls = []
+
+    def interrupt_setup(process, timeout):
+        calls.append(process)
+        if len(calls) == 1:
+            raise KeyboardInterrupt
+        return communicate(process, timeout)
+
+    monkeypatch.setattr(fixture_module, "_communicate", interrupt_setup)
+    assert cli_verify(tmp_path, scenario) == 130
+    assert json.loads(capsys.readouterr().out)["lifecycle"] == "cancelled"
+    assert not (tmp_path / "k6-env.json").exists()
+    assert (scenario / "teardown.json").exists()
