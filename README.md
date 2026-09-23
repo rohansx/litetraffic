@@ -92,7 +92,7 @@ The [quickstart](docs/quickstart.md) covers reports, repeated seeds, comparisons
 
 The bundled scenarios exercise specific demonstration APIs. Changing `--target` alone does not adapt them to a different app. Review the [scenario authoring guide](docs/scenarios.md) and implement the journeys, test authentication, data setup, and business expectations your application requires.
 
-Secrets stay in environment variables: a manifest names them (`secret_env`, `bearer_token_env`, `headers_env`) and never holds a value. For HS256 JWT auth, an actor's `auth` recipe makes the controller sign a token per actor class from the named secret and pass it to k6 as `LT_TOKEN_<CLASS>`; the token and secret are replaced with `[redacted]` in the k6 logs LiteTraffic keeps. See [actor auth](docs/scenarios.md#actor-auth).
+Secrets stay in environment variables: a manifest names them (`secret_env`, `bearer_token_env`, `headers_env`) and never holds a value. For HS256 JWT auth, an actor's `auth` recipe makes the controller sign a token per actor class from the named secret and pass it to k6 as `LT_TOKEN_<CLASS>`; every declared credential value and minted token is replaced with `[redacted]` in the artifacts LiteTraffic keeps and in `verify --json`; values shorter than 8 characters are not scrubbed (short signing keys are refused). See [actor auth](docs/scenarios.md#actor-auth).
 
 Scenarios are executable, trusted code. Manifest budgets are not a sandbox for arbitrary JavaScript; target-side ownership and isolation still matter. The scenario digest covers the manifest, the script, its relative imports, and any `fixtures.pool` file, but the files are recorded by hash, not copied, so preserve the reviewed scripts separately. [Safety and current limitations](docs/safety.md).
 

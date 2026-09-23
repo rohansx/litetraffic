@@ -62,14 +62,42 @@ def mint_tokens(actors: Iterable, run_id: str, environ: Mapping[str, str], now: 
     return tokens
 
 
-def secret_values(actors: Iterable, environ: Mapping[str, str], tokens: Mapping[str, str]) -> list[str]:
-    """Every token and signing secret value, for scrubbing engine output before it is kept."""
-    secrets = {environ.get(actor.auth.secret_env, "") for actor in actors if actor.auth} | set(tokens.values())
+def secret_env_names(manifest) -> set[str]:
+    """Every environment variable a manifest declares as a credential: signing keys, bearer tokens and headers."""
+    owned, observations = manifest.fixtures.owned_http, manifest.observations
+    return (
+        {ref for ref in (owned and owned.bearer_token_env, *(item.bearer_token_env for item in observations)) if ref}
+        | {env for item in observations for env in item.headers_env.values()}
+        | {actor.auth.secret_env for actor in manifest.actors if actor.auth}
+    )
+
+
+def secret_values(manifest, environ: Mapping[str, str], tokens: Mapping[str, str]) -> list[str]:
+    """Every declared credential value and minted token, longest first, for scrubbing anything that is kept."""
+    secrets = {environ.get(name, "") for name in secret_env_names(manifest)} | set(tokens.values())
     return sorted(filter(None, secrets), key=len, reverse=True)
 
 
+# Go's encoding/json (k6's metrics output) also escapes these; other \\uXXXX spellings are left to redact_value on decoded JSON.
+GO_JSON_ESCAPES = str.maketrans({char: f"\\u{ord(char):04x}" for char in "<>&\u2028\u2029"})
+
+
 def redact(text: str, secrets: Iterable[str]) -> str:
+    """Scrub raw text: each secret literally and as it appears inside a JSON string (Python ASCII-escaped or not, or Go's encoding/json)."""
     for secret in secrets:
         if len(secret) >= MIN_SECRET_LENGTH:
-            text = text.replace(secret, REDACTED)
+            raw = json.dumps(secret, ensure_ascii=False)[1:-1]
+            for form in (secret, json.dumps(secret)[1:-1], raw, raw.translate(GO_JSON_ESCAPES)):
+                text = text.replace(form, REDACTED)
     return text
+
+
+def redact_value(value, secrets: Iterable[str]):
+    """A copy of decoded JSON with every string (keys included) scrubbed; escaping cannot hide a secret here."""
+    if isinstance(value, str):
+        return redact(value, secrets)
+    if isinstance(value, dict):
+        return {redact_value(key, secrets): redact_value(item, secrets) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_value(item, secrets) for item in value]
+    return value
