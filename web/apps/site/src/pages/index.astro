@@ -1,19 +1,183 @@
 ---
-// ponytail: placeholder that proves the shared tokens load; the site agent ports site/ here.
 import Base from "../layouts/Base.astro";
+import DashboardMock from "../components/DashboardMock.astro";
+import Mechanics from "../components/Mechanics.astro";
+import Details from "../components/Details.astro";
+import { button, card, h2, label, lead, wrap } from "../lib/ui";
+
+const logo = "M4 17h4v11H4zm7-9h4v20h-4zm7 5h4v15h-4zm7-9h4v24h-4z";
+const bars = [25, 25, 26, 24, 30, 34, 55, 81, 92, 72, 43, 31, 25, 26, 25, 25];
+const nav = [
+  ["#mechanics", "How it works"],
+  ["#isolation", "Tenant isolation"],
+  ["#dashboard", "Evidence"],
+  ["#commands", "Commands"],
+];
+const repo = "https://github.com/rohansx/litetraffic";
 ---
 <Base
   title="LiteTraffic — Users as an API"
   description="LiteTraffic runs stateful synthetic users against a running app on a seeded schedule, checks the business effects they leave behind, and keeps the evidence."
 >
-  <header class="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-5 border-b px-4">
-    <a class="flex items-center gap-2 font-display text-lg font-bold" href="/" aria-label="LiteTraffic home">
-      <svg class="size-7 fill-foreground" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h4v11H4zm7-9h4v20h-4zm7 5h4v15h-4zm7-9h4v24h-4z"></path></svg>
-      <span>LiteTraffic</span>
+  <header class={`${wrap} flex min-h-17 items-center justify-between gap-5 border-b sm:min-h-20`}>
+    <a class="flex items-center gap-2.5 font-display text-xl font-bold whitespace-nowrap" href="#main" aria-label="LiteTraffic home">
+      <svg class="size-7 fill-foreground" viewBox="0 0 32 32" aria-hidden="true"><path d={logo}></path></svg><span>LiteTraffic</span>
     </a>
-    <a class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" href="https://github.com/rohansx/litetraffic">GitHub</a>
+    <nav class="flex items-center gap-4 text-sm font-semibold lg:gap-7" aria-label="Main navigation">
+      {nav.map(([href, text]) => <a class="text-muted-foreground hover:text-foreground max-lg:hidden" href={href}>{text}</a>)}
+      <a class="rounded-md border border-foreground px-3 py-2 max-sm:text-xs" href="#start">Get started</a>
+      <button
+        id="theme-toggle"
+        type="button"
+        class="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        aria-label="Dark mode"
+        aria-pressed="false"
+      >
+        <svg class="size-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path class="fill-current stroke-none" d="M12 3a9 9 0 0 1 0 18z"></path></svg>
+      </button>
+    </nav>
   </header>
-  <main class="mx-auto max-w-6xl px-4 py-16">
-    <h1 class="font-display text-6xl font-extrabold">Users<br />as an API.</h1>
+
+  <main id="main">
+    <section class={`${wrap} grid items-center gap-14 py-16 sm:py-24 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16 lg:py-28`} aria-labelledby="hero-title">
+      <div>
+        <p class="mb-7 inline-flex items-center gap-2.5 rounded-full border bg-card px-3 py-1 text-sm font-semibold text-muted-foreground">
+          <span class="size-2 rounded-full bg-brand ring-1 ring-foreground" aria-hidden="true"></span> Open developer preview, 0.1.0.dev0
+        </p>
+        <h1 id="hero-title" class="text-[clamp(4.5rem,18vw,6rem)] leading-[0.88] font-bold sm:text-[clamp(5rem,8.3vw,7.875rem)]">Users<br />as an API.</h1>
+        <p class="mt-8 max-w-[540px] text-xl leading-normal sm:text-[1.4rem]">Give a running app a population of stateful synthetic users. Replay what they do under bounded traffic. Check whether the right business effects survive.</p>
+        <div class="mt-8 flex flex-wrap items-center gap-6">
+          <a class={button} href="#start">Run a scenario</a>
+          <a class="border-b border-foreground pb-0.5 text-sm font-semibold" href="#dashboard">See the evidence</a>
+        </div>
+        <p class="mt-7 text-xs text-muted-foreground">Localhost, CI preview, or an existing E2B sandbox. No hosted account.</p>
+      </div>
+
+      <div
+        class="min-w-0 overflow-hidden rounded-xl border bg-sidebar text-foreground shadow-sm scheme-dark"
+        role="img"
+        aria-label="Illustrative checkout run: 12 buyers, cart to order to payment to retry, a seeded burst over 90 seconds, and a passing check of one ledger effect per payment"
+      >
+        <div class="flex min-h-15 items-center justify-between gap-2.5 border-b px-4 sm:px-6">
+          <span class="font-display font-bold">checkout / scenario 01</span><span class="text-xs text-muted-foreground">illustrative run</span>
+        </div>
+        <div class="grid min-h-19 grid-cols-[70px_1fr_auto] items-center gap-2 border-b px-4 sm:grid-cols-[100px_1fr_auto] sm:gap-4 sm:px-6">
+          <span class="text-xs text-muted-foreground">Population</span>
+          <div class="flex pl-2" aria-hidden="true">
+            {["B", "B", "B", "+9"].map((a, i) => (
+              <i class:list={["-ml-2 grid size-7.5 place-items-center rounded-full border-2 border-sidebar text-[11px] not-italic", i === 3 ? "bg-secondary" : "bg-chart-3 text-brand-foreground"]}>{a}</i>
+            ))}
+          </div>
+          <strong class="text-sm font-semibold">12 buyers</strong>
+        </div>
+        <div class="grid min-h-19 items-center gap-2 border-b px-4 py-3 sm:grid-cols-[100px_1fr] sm:gap-4 sm:px-6">
+          <span class="text-xs text-muted-foreground">Journey</span>
+          <div class="flex items-center gap-1 text-xs">
+            {["cart", "order", "pay", "retry"].map((step, i) => (
+              <>
+                {i > 0 && <b class="h-px min-w-1 flex-1 bg-muted-foreground"></b>}
+                <span class="rounded-md border px-2 py-1.5 whitespace-nowrap">{step}</span>
+              </>
+            ))}
+          </div>
+        </div>
+        <div class="border-b px-4 py-6 sm:px-6">
+          <div class="flex justify-between text-xs text-muted-foreground tabular-nums"><span>Seed 42, journeys / second</span><span>90 seconds</span></div>
+          <div class="mt-5 flex h-25 items-end gap-1 border-b" aria-hidden="true">
+            {bars.map((h) => <i class="flex-1 rounded-t-sm bg-brand" style={`height:${h}%`}></i>)}
+          </div>
+          <div class="mt-2 flex justify-between text-xs text-muted-foreground"><span>baseline</span><span>burst</span><span>recovery</span></div>
+        </div>
+        <div class="flex min-h-22 items-center gap-3 px-4 sm:px-6">
+          <span class="grid size-8 place-items-center rounded-md bg-brand font-bold text-brand-foreground" aria-hidden="true">✓</span>
+          <span><small class="block text-[11px] text-muted-foreground">Business assertion</small><strong class="block text-sm font-semibold">One ledger effect per payment</strong></span>
+          <b class="ml-auto rounded-md bg-pass-muted px-2 py-0.5 text-xs text-pass">PASS</b>
+        </div>
+      </div>
+    </section>
+
+    <div class="border-y bg-card">
+      <div class={`${wrap} grid text-sm font-semibold sm:grid-cols-3`}>
+        {["Believable users", "Controlled pressure", "Proof of effect"].map((t) => (
+          <span class="flex items-center gap-2.5 border-b py-4 last:border-b-0 sm:border-r sm:border-b-0 sm:px-5 sm:py-6 sm:first:pl-0 sm:last:border-r-0">
+            <i class="size-2 rounded-full bg-brand ring-1 ring-foreground" aria-hidden="true"></i>{t}
+          </span>
+        ))}
+      </div>
+    </div>
+
+    <section class={`${wrap} grid items-center gap-14 py-20 sm:py-28 lg:grid-cols-[1fr_0.9fr] lg:gap-24 lg:py-36`} id="mechanics">
+      <div>
+        <p class={label}>Why this exists</p>
+        <h2 class={h2}>A response is only half the story.</h2>
+        <p class={lead}>Load tests count responses. A real user carries state across requests, retries an action, and expects the system to leave the right result behind. LiteTraffic tests that complete chain.</p>
+      </div>
+      <div class={`${card} p-6`} aria-label="Example of a fast but incorrect checkout response">
+        <div class="flex justify-between gap-3 border-b pb-5 text-sm">
+          <span class="text-muted-foreground">What a load test sees</span>
+          <strong class="text-right tabular-nums">HTTP 200 <small class="mt-1 block text-xs font-normal text-muted-foreground">31 ms</small></strong>
+        </div>
+        <div class="flex justify-between gap-3 border-b py-5 text-sm">
+          <span class="text-muted-foreground">What the customer gets</span>
+          <strong class="text-right text-fail tabular-nums">2 charges <small class="mt-1 block text-xs font-normal text-muted-foreground">for 1 payment</small></strong>
+        </div>
+        <p class="mt-5 text-sm font-semibold">A fast response can still be a failed checkout.</p>
+      </div>
+    </section>
+
+    <Mechanics />
+
+    <section class={`${wrap} grid items-center gap-12 py-20 sm:py-28 lg:grid-cols-[0.72fr_1.28fr] lg:gap-14 lg:py-36`} id="dashboard" aria-labelledby="dashboard-title">
+      <div>
+        <p class={label}>Local dashboard</p>
+        <h2 id="dashboard-title" class={h2}>Read the failure, not a log.</h2>
+        <p class="mt-6 text-base leading-relaxed text-muted-foreground">When a check fails, the run keeps the first failing samples with what the scenario expected and what the app actually did. <code>litetraffic dashboard</code> lists every run on your machine, filters them by scenario, verdict and seed, compares any two you tick, and charts p95 latency per scenario.</p>
+        <ul class="mt-8 divide-y border-y text-sm">
+          <li class="py-3">Binds to 127.0.0.1 only, with no host option. Requests with any other <code>Host</code> header are refused.</li>
+          <li class="py-3">Read-only. It serves run artifacts and never contacts a target.</li>
+          <li class="py-3">Follows your light or dark setting, and fits a phone screen.</li>
+          <li class="py-3">Python standard library. Nothing else to install.</li>
+        </ul>
+      </div>
+      <DashboardMock />
+    </section>
+
+    <Details />
   </main>
+
+  <footer class={`${wrap} grid gap-3 py-8 text-xs sm:flex sm:min-h-32 sm:items-center sm:justify-between sm:gap-6`}>
+    <a class="flex items-center gap-2.5 font-display text-xl font-bold" href="#main">
+      <svg class="size-7 fill-foreground" viewBox="0 0 32 32" aria-hidden="true"><path d={logo}></path></svg><span>LiteTraffic</span>
+    </a>
+    <p class="text-muted-foreground">Users as an API. Evidence as the result. MIT licensed.</p>
+    <div class="flex gap-6">
+      <a class="border-b pb-0.5" href={repo}>GitHub</a>
+      <a class="border-b pb-0.5" href={`${repo}/tree/main/docs`}>Documentation</a>
+      <a class="border-b pb-0.5" href={`${repo}/blob/main/docs/cli.md`}>CLI reference</a>
+    </div>
+  </footer>
 </Base>
+
+<script>
+  // Theme toggle: saves an explicit light/dark choice; with none saved the tokens follow the OS.
+  const root = document.documentElement;
+  const toggle = document.getElementById("theme-toggle")!;
+  const os = matchMedia("(prefers-color-scheme: dark)");
+  const isDark = () => root.classList.contains("dark") || (!root.classList.contains("light") && os.matches);
+  const sync = () => {
+    toggle.setAttribute("aria-pressed", String(isDark()));
+  };
+  toggle.addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    root.classList.remove("light", "dark");
+    root.classList.add(next);
+    try {
+      localStorage.setItem("litetraffic-theme", next);
+    } catch (_) {
+      /* The choice still applies for this visit. */
+    }
+    sync();
+  });
+  os.addEventListener("change", sync);
+  sync();
+</script>

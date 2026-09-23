@@ -14,8 +14,19 @@ const { title, description } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <title>{title}</title>
+    <!-- Apply a saved theme before first paint; with none saved, tokens follow the OS setting. -->
+    <script is:inline>
+      try {
+        const saved = localStorage.getItem("litetraffic-theme");
+        if (saved === "light" || saved === "dark") document.documentElement.classList.add(saved);
+      } catch (_) {}
+    </script>
   </head>
   <body class="min-h-svh">
+    <a
+      class="fixed top-2 left-2 z-50 -translate-y-[150%] rounded-md bg-brand px-3.5 py-2.5 text-sm font-semibold text-brand-foreground focus:translate-y-0"
+      href="#main">Skip to content</a
+    >
     <slot />
   </body>
 </html>
