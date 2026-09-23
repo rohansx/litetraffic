@@ -397,6 +397,17 @@ def test_verify_is_inconclusive_when_delivery_differs_from_plan(tmp_path, monkey
     assert any("delivered journeys 19" in limitation for limitation in result["limitations"])
 
 
+def test_verify_never_passes_when_k6_admits_more_journeys_than_planned(tmp_path, monkeypatch):
+    scenario = write_bundle(tmp_path / "scenario")
+    events = [assertion("accepted_orders_persist")]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, iterations=21)))
+
+    assert result["verdict"] != "pass"
+    assert any(item.startswith("delivered journeys 21") and item.endswith("planned journeys 20") for item in result["limitations"])
+
+
 def test_verify_is_inconclusive_when_some_journeys_lack_assertions(tmp_path, monkeypatch):
     scenario = write_bundle(tmp_path / "scenario")
     events = [assertion("accepted_orders_persist") for _ in range(19)]

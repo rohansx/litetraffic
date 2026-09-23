@@ -35,7 +35,7 @@ The negative targets still returned valid HTTP responses. Their failures came fr
 
 ## Scheduling finding
 
-Separate back-to-back `constant-arrival-rate` scenarios produced 14 iterations for a 12-journey plan because admissions occurred at phase boundaries. A single `ramping-arrival-rate` scenario produced 11 when the total integral ended exactly on the final boundary. The reviewed script now represents each constant segment as a ramping stage and adds one millisecond per stage, yielding the declared 12 admissions without materially changing the requested rates. LiteTraffic treats any future delivered/planned mismatch as `inconclusive`.
+Separate back-to-back `constant-arrival-rate` scenarios produced 14 iterations for a 12-journey plan because admissions occurred at phase boundaries. A single `ramping-arrival-rate` scenario produced 11 when the total integral ended exactly on the final boundary. k6 admits journey n when the arrival integral reaches n, so the last planned journey lands exactly on the final boundary and races the executor stop. An earlier fix added one millisecond per stage, which over-admitted at high rates (2,001 journeys for a 1-second, 2,000/s plan). The bundled runtime now keeps each phase at its exact duration and appends one 500 ms tail at 1 journey/s: that adds half a journey to the integral, so the final planned admission gets 500 ms of headroom and no extra journey is ever reached. `tests/test_k6_schedule.py` checks exact admission under real k6 for single- and multi-phase schedules at 1, 7, 100 and 2,000 journeys/s, including zero-rate phases. LiteTraffic treats any future delivered/planned mismatch as `inconclusive`.
 
 ## Proven boundary
 
