@@ -86,9 +86,21 @@ Argv = list[Annotated[str, Field(min_length=1)]]
 class CommandFixture(StrictModel):
     setup: Argv = Field(min_length=1)
     teardown: Argv = Field(min_length=1)
-    timeout_seconds: int = Field(gt=0, le=60)
+    timeout_seconds: int | None = Field(default=None, gt=0, le=60)  # default for both stages
+    setup_timeout_seconds: int | None = Field(default=None, gt=0, le=60)
+    teardown_timeout_seconds: int | None = Field(default=None, gt=0, le=60)
     cwd: Literal["bundle"] = "bundle"
     inputs: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)  # bundle-relative files hashed into the digest
+
+    @model_validator(mode="after")
+    def default_stage_timeouts(self) -> "CommandFixture":
+        for stage in ("setup", "teardown"):
+            field = f"{stage}_timeout_seconds"
+            if getattr(self, field) is None:
+                if self.timeout_seconds is None:
+                    raise ValueError(f"{field} or timeout_seconds is required")
+                setattr(self, field, self.timeout_seconds)
+        return self
 
 
 class Fixtures(StrictModel):
@@ -108,7 +120,7 @@ class Fixtures(StrictModel):
     def reserved_seconds(self) -> int:
         """Seconds of max_seconds held back from k6 for fixture setup and cleanup."""
         if self.command:  # setup and teardown may each run to their timeout and then be stopped
-            return 2 * (self.command.timeout_seconds + STOP_GRACE_SECONDS)
+            return self.command.setup_timeout_seconds + self.command.teardown_timeout_seconds + 2 * STOP_GRACE_SECONDS
         return 10 if self.owned_http else 0
 
 

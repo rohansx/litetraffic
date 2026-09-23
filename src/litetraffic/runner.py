@@ -182,9 +182,9 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     commands = bundle.manifest.fixtures.command
     if commands and lifecycle == "running":
         owed["teardown"] = lambda: run_fixture_command(
-            "teardown", commands.teardown, bundle.root, hook_environment, commands.timeout_seconds, secrets
+            "teardown", commands.teardown, bundle.root, hook_environment, commands.teardown_timeout_seconds, secrets
         )
-        setup, setup_stdout = run_fixture_command("setup", commands.setup, bundle.root, hook_environment, commands.timeout_seconds, secrets)
+        setup, setup_stdout = run_fixture_command("setup", commands.setup, bundle.root, hook_environment, commands.setup_timeout_seconds, secrets)
         hooks = {"setup": setup}
         if fixture_json(setup_stdout):
             environment["LT_FIXTURE_JSON"] = hook_environment["LT_FIXTURE_JSON"] = fixture_json(setup_stdout)

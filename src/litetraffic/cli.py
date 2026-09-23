@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 
 from pydantic import ValidationError
 
+from litetraffic import __version__
 from litetraffic.activity import up
 from litetraffic.approval import approve, require_approval
 from litetraffic.auth import secret_env_names
@@ -43,6 +44,7 @@ def _scenario(args: argparse.Namespace) -> Path:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="litetraffic")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
 
     doctor = commands.add_parser("doctor", help="check local prerequisites and target reachability")
@@ -230,11 +232,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             # Names only: the environment is never read here.
             "secret_env": sorted(secret_env_names(manifest)),
             "observer": manifest.observer,
+            "allowed_origins_env": manifest.allowed_origins_env,  # names only, like secret_env
             # observation_path/observation_expected describe the first observation; `observations` lists every one.
             "observation_path": observation and observation.path,
             "observation_expected": observation and resolve_expected(observation.expected, plan),
             "observations": [
-                {"assertion": item.assertion, "path": item.path, "expected": resolve_expected(item.expected, plan)} for item in observations
+                {"assertion": item.assertion, "path": item.path, "origin_env": item.origin_env, "expected": resolve_expected(item.expected, plan)}
+                for item in observations
             ],
         }
         _emit(payload, args.json, format_inspect)

@@ -222,3 +222,21 @@ def test_cancel_during_setup_skips_k6_and_still_tears_down(tmp_path, monkeypatch
     assert json.loads(capsys.readouterr().out)["lifecycle"] == "cancelled"
     assert not (tmp_path / "k6-env.json").exists()
     assert (scenario / "teardown.json").exists()
+
+
+def test_setup_and_teardown_use_their_own_timeouts(tmp_path, monkeypatch):
+    calls = []
+    real = runner.run_fixture_command
+
+    def spy(stage, argv, cwd, env, timeout, secrets=()):
+        calls.append((stage, timeout))
+        return real(stage, argv, cwd, env, timeout, secrets)
+
+    monkeypatch.setattr(runner, "run_fixture_command", spy)
+    data = manifest(
+        fixtures={"recipe": "seeded", "command": {"setup": py("pass"), "teardown": py("pass"), "setup_timeout_seconds": 3, "teardown_timeout_seconds": 1}},
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+        budgets=manifest()["budgets"] | {"max_seconds": 1 + 2 + 3 + 4 + 1 + 4},
+    )
+    run(tmp_path, monkeypatch, write_bundle(tmp_path / "scenario", data))
+    assert calls == [("setup", 3), ("teardown", 1)]

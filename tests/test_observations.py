@@ -223,8 +223,8 @@ def test_inspect_lists_every_observation(tmp_path, capsys):
     assert output["maximum_observation_requests"] == 2
     assert output["secret_env"] == ["A_TOKEN", "B_KEY"]
     assert output["observations"] == [
-        {"assertion": "a", "path": "/a", "expected": {"/n": 1}},
-        {"assertion": "b", "path": "/b", "expected": {"/n": 20}},
+        {"assertion": "a", "path": "/a", "origin_env": None, "expected": {"/n": 1}},
+        {"assertion": "b", "path": "/b", "origin_env": None, "expected": {"/n": 20}},
     ]
     assert main(["inspect", str(tmp_path)]) == 0
     assert "observation b expected: {\"/n\": 20}" in capsys.readouterr().out

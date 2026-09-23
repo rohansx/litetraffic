@@ -81,4 +81,7 @@ def format_inspect(result: dict) -> list[str]:
         lines += [f"fixture input: {name}" for name in command.get("inputs", [])]
         lines += [f"fixture command file: {name}" for name in command.get("hashed_files", [])]
     lines += [f"observation {item['assertion']} expected: {json.dumps(item['expected'])}" for item in result.get("observations", [])]
+    lines += [f"observation {item['assertion']} origin env: {item['origin_env']}" for item in result.get("observations", []) if item.get("origin_env")]
+    if result.get("allowed_origins_env"):
+        lines.append(f"allowed origins env: {result['allowed_origins_env']}")
     return lines

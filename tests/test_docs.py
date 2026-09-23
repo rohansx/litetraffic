@@ -34,7 +34,7 @@ def test_cli_doc_synopsis_flags_match_each_parser():
 
 
 def test_every_flag_in_cli_doc_exists_in_the_parser():
-    known = set().union(*(_flags(command) for command in _commands().values()))
+    known = set().union(_flags(_parser()), *(_flags(command) for command in _commands().values()))
     # --host is documented as absent from dashboard; --max-redirects is passed to k6.
     assert set(FLAG.findall(CLI_DOC)) - known == {"--host", "--max-redirects"}
 

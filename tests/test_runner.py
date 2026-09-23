@@ -1350,6 +1350,11 @@ def test_bundled_runtime_under_real_k6(tmp_path):
         for line in (tmp_path / "runs" / result["run_id"] / "events" / "000001.jsonl").read_text().splitlines()
     ]
     keys = {event["logical_key"] for event in events}
+    # Exact on purpose, no tolerance: verify only passes when delivered == planned
+    # journeys, and k6 admits journey n when the arrival integral reaches n, so the
+    # count is fixed by the schedule, not by host speed. The one race (the last
+    # journey landing on the executor stop) is closed by the 500ms tail in
+    # runtime.js options(); with that tail removed this test fails ~7 runs in 10.
     assert len(keys) == 3 and all(key.startswith(f"{result['run_id']}-traffic-") for key in keys)
     assert len({event["detail"] for event in events}) == 3  # each iteration draws its own seeded stream
 
