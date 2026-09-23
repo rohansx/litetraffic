@@ -102,7 +102,7 @@ def _trend(runs_dir: Path, scenario: str) -> list[dict]:
     entries = [entry for entry in reversed(list_runs(runs_dir)) if entry["kind"] == "run" and entry["scenario"] == scenario]
 
     def p95(entry: dict) -> float | None:
-        value = _value((_load(Path(entry["path"]) / "result.json") or {}).get("metrics"), ("http_req_duration_ms", "p95"))
+        value = _value((read_json(Path(entry["path"]) / "result.json") or {}).get("metrics"), ("http_req_duration_ms", "p95"))
         return value if value is not None and math.isfinite(value) else None
 
     return [{"run_id": e["run_id"], "finished_at": e["finished_at"], "p95": p95(e), "verdict": e["verdict"]} for e in entries]
@@ -131,6 +131,11 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
 
         def _api(self, status: int, value: object) -> None:
             self._send(status, _json(value), "application/json")
+
+        def send_error(self, code: int, message: str | None = None, explain: str | None = None) -> None:
+            # Unsupported methods and malformed requests get the same security headers, plain text only.
+            self.close_connection = True
+            self._send(code, f"{code} {message or self.responses.get(code, ('Error',))[0]}\n".encode(), "text/plain; charset=utf-8")
 
         def _not_found(self) -> None:
             self._api(404, {"error": "not found"})

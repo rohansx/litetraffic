@@ -204,6 +204,15 @@ def test_every_response_has_security_headers(server, path):
     assert headers["Referrer-Policy"] == "no-referrer"
 
 
+@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
+def test_unsupported_methods_are_rejected_with_security_headers(server, method):
+    status, headers, body = raw(server, "/api/runs", method=method)
+
+    assert status == 501 and b"run_a" not in body
+    assert headers["Content-Security-Policy"] == CSP and headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["Referrer-Policy"] == "no-referrer"
+
+
 def test_misdirected_response_has_security_headers(server):
     _, headers, _ = raw(server, "/", host="attacker.example")
 
@@ -491,6 +500,15 @@ def test_trend_p95_is_null_when_missing_or_malformed(server, runs_dir, metrics):
     _, body = get_json(server, "/api/scenarios/checkout/trend")
 
     assert body[0]["run_id"] == "run_b" and body[0]["p95"] is None
+
+
+@pytest.mark.parametrize("content", ["[1, 2]", '"text"', "not json"])
+def test_trend_tolerates_a_result_that_is_not_an_object(server, runs_dir, content):
+    (runs_dir / "run_b" / "result.json").write_text(content)
+
+    status, body = get_json(server, "/api/scenarios/checkout/trend")
+
+    assert status == 200 and {point["run_id"]: point["p95"] for point in body}["run_b"] is None
 
 
 # --- SPA serving ---
