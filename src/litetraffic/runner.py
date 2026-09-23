@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from litetraffic.artifacts import MANIFEST, artifact_files
+from litetraffic.auth import AuthError, mint_tokens, redact, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
@@ -95,8 +96,8 @@ def verify(
     metrics_path = run_dir / "metrics.jsonl"
     command = k6_command(executable, console_path, metrics_path)
     environment = os.environ.copy()
-    for name in ("LT_FIXTURE_ID", "LT_FIXTURE_JSON", "LT_FIXTURE_POOL_JSON"):
-        environment.pop(name, None)
+    for name in [name for name in environment if name in ("LT_FIXTURE_ID", "LT_FIXTURE_JSON", "LT_FIXTURE_POOL_JSON") or name.startswith("LT_TOKEN_")]:
+        environment.pop(name)
     environment.update({"LT_RUN_ID": run_id, "LT_TARGET": target, "LT_SEED": str(seed)})
     hook_environment = dict(environment)  # command fixtures see only the run identity, not the schedule
     environment.update(
@@ -109,11 +110,18 @@ def verify(
     )
     lifecycle = "running"
     engine_error = ""
+    tokens = {}
+    try:  # a missing signing secret stops the run before any fixture work or traffic
+        tokens = mint_tokens(bundle.manifest.actors, run_id, environment)
+    except AuthError as exc:
+        lifecycle, engine_error = "crashed", str(exc)
+    environment.update(tokens)
+    secrets = secret_values(bundle.manifest.actors, environment, tokens)
     process: subprocess.Popen[str] | None = None
     engine_started = engine_finished = None
     fixture = hooks = None
     commands = bundle.manifest.fixtures.command
-    if commands:
+    if commands and lifecycle == "running":
         setup, setup_stdout = run_fixture_command("setup", commands.setup, bundle.root, hook_environment, commands.timeout_seconds)
         hooks = {"setup": setup}
         if fixture_json(setup_stdout):
@@ -128,7 +136,7 @@ def verify(
         else:
             if pool_json:
                 environment["LT_FIXTURE_POOL_JSON"] = pool_json
-    if bundle.manifest.fixtures.owned_http:
+    if bundle.manifest.fixtures.owned_http and lifecycle == "running":
         try:
             fixture = {"create": create_fixture(target, bundle.manifest.fixtures.owned_http, run_id)}
         except KeyboardInterrupt:
@@ -174,8 +182,11 @@ def verify(
         engine_finished = _now()
 
     engine_exit_code = process.returncode if process is not None else None
-    _write_text(run_dir / "engine.stdout.log", stdout)
-    _write_text(run_dir / "engine.stderr.log", stderr)
+    _write_text(run_dir / "engine.stdout.log", redact(stdout, secrets))
+    _write_text(run_dir / "engine.stderr.log", redact(stderr, secrets))
+    for path in (console_path, metrics_path) if secrets else ():
+        if path.is_file():  # k6 writes these itself; scrub any token or secret a script printed
+            path.write_text(redact(path.read_text(errors="replace"), secrets))
 
     events, malformed_events = _read_events(console_path, run_id)
     metrics, malformed_metrics = _read_metrics(metrics_path)

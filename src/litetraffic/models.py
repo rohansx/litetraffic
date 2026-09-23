@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
 
+from litetraffic.auth import token_env_name
 from litetraffic.expression import NAMES, evaluate, is_expression
 from litetraffic.target import validate_target
 
@@ -15,10 +16,40 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
+ENV_NAME = r"[A-Z_][A-Z0-9_]*"
+AUTH_PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
+AUTH_NAMES = {"run_id", "actor_index"}
+
+
+def _strings(value: JsonValue):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict | list):
+        for item in value.values() if isinstance(value, dict) else value:
+            yield from _strings(item)
+
+
+class JwtAuth(StrictModel):
+    kind: Literal["jwt_hs256"]
+    secret_env: str
+    claims: dict[str, JsonValue] = Field(default_factory=dict)
+    ttl_seconds: int = Field(gt=0, le=86400)
+
+    @model_validator(mode="after")
+    def require_env_and_known_placeholders(self) -> "JwtAuth":
+        if not re.fullmatch(ENV_NAME, self.secret_env):
+            raise ValueError("secret_env must name an uppercase environment variable")
+        for name in (name for text in _strings(self.claims) for name in AUTH_PLACEHOLDER.findall(text)):
+            if name not in AUTH_NAMES:
+                raise ValueError(f"claims use unknown placeholder ${{{name}}}; allowed: ${{run_id}}, ${{actor_index}}")
+        return self
+
+
 class Actor(StrictModel):
     actor_class: str = Field(alias="class", min_length=1)
     count: int = Field(gt=0)
     auth_recipe: str = Field(min_length=1)
+    auth: JwtAuth | None = None
 
 
 class OwnedHttpFixture(StrictModel):
@@ -80,7 +111,6 @@ class Fixtures(StrictModel):
 
 
 MATCHER_KEYS = {"eq", "gte", "lte", "len", "exists"}
-ENV_NAME = r"[A-Z_][A-Z0-9_]*"
 
 
 def as_matcher(expected: JsonValue) -> dict[str, JsonValue]:
@@ -341,6 +371,9 @@ class ScenarioManifest(StrictModel):
             raise ValueError("scheduled duration plus fixture and 5-second observation deadline exceeds max_seconds budget")
         if self.observation and self.observation.assertion not in self.assertions:
             raise ValueError("observation assertion must be declared in assertions")
+        token_envs = [token_env_name(actor.actor_class) for actor in self.actors if actor.auth]
+        if len(set(token_envs)) != len(token_envs):
+            raise ValueError(f"actor classes with auth must map to distinct token variables: {', '.join(token_envs)}")
         self.allowed_origins = [validate_target(origin, "allowed_origins entry") for origin in self.allowed_origins]
         if self.observation and self.observation.origin and self.observation.origin not in self.allowed_origins:
             raise ValueError(f"observation origin {self.observation.origin} must be listed in allowed_origins")

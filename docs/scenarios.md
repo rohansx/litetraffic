@@ -20,7 +20,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 |---|---|---|
 | `name` | yes | Scenario name recorded in run metadata |
 | `script` | yes | Script path relative to the bundle; must stay inside the directory. Relative imports it reaches (`./`, `../`) must also resolve to existing files inside the directory, or loading fails. Remote modules (any `scheme://` specifier, such as `https://jslib.k6.io/...`) and `k6/x/...` extensions are rejected in the script and every local import; k6 built-ins such as `k6`, `k6/http` and `k6/execution` are allowed |
-| `actors` | yes | `[{"class", "count", "auth_recipe"}]` — descriptive labels for reviewers; the controller does not execute them |
+| `actors` | yes | `[{"class", "count", "auth_recipe", "auth"}]` — `class`, `count` and `auth_recipe` are descriptive labels for reviewers; the optional `auth` recipe makes the controller mint a token for the actor class ([below](#actor-auth)) |
 | `fixtures.recipe`, `fixtures.parameters` | yes / no | Descriptive fixture label and parameters |
 | `fixtures.owned_http` | no | Run-owned HTTP fixture the controller creates and deletes ([below](#run-owned-fixtures)) |
 | `fixtures.command` | no | Setup and teardown commands run on the controller host ([below](#command-fixtures)); cannot be combined with `owned_http` |
@@ -73,6 +73,7 @@ The script is ordinary k6 JavaScript. The controller passes these environment va
 | `LT_FIXTURE_ID` | Present only when an `owned_http` fixture was created |
 | `LT_FIXTURE_JSON` | Present only when a `command` fixture's setup printed a JSON object as its last stdout line |
 | `LT_FIXTURE_POOL_JSON` | Present only when a [fixture pool](#fixture-pool) is set; read it with `poolItem()` |
+| `LT_TOKEN_<CLASS>` | Present only for actors with an [`auth` recipe](#actor-auth); a signed JWT for that actor class |
 
 ### Bundled runtime helper
 
@@ -98,6 +99,7 @@ export default function () {
 | `evidence(assertion, passed, {logicalKey, expected, actual, detail})` | Logs one `LT_EVENT` line. `logicalKey` defaults to `journeyKey()`; `expected`/`actual`/`detail` are included only when given; `detail` is cut to 500 characters |
 | `rng(iteration)` | Returns a function yielding numbers in `[0, 1)`, seeded from `LT_SEED` and `iteration` (default: the current `iterationInTest`), so the same seed replays the same choices per journey |
 | `poolItem(index)` | Returns the [fixture pool](#fixture-pool) item for `index` (default: the current `iterationInTest`). Throws when no pool is set or the index is out of range |
+| `hmacSha256Hex(secret, data)`, `hmacSha256Base64(secret, data)` | HMAC-SHA256 of `data` keyed by `secret` (via `k6/crypto`), hex or standard base64 — for signing webhook bodies, e.g. `lt.hmacSha256Hex(__ENV.WEBHOOK_SECRET, body)` |
 
 All bundled examples use the helper. Scripts that build their own options still work; they must then apply `LT_SCHEDULE_JSON` and `LT_MAX_IN_FLIGHT` themselves. `verify` runs k6 with `--max-redirects 0`, which overrides a script's `maxRedirects` option, so redirects are not followed. A request that sets its own `redirects` parameter still follows them; avoid that unless your journey needs it.
 
@@ -123,6 +125,35 @@ Events may also carry optional diagnostic fields: `expected` and `actual` (any J
 Events with a different `run_id`, a non-boolean `passed`, a non-string `logical_key` or `detail`, a `detail` longer than 500 characters, or invalid JSON are ignored and reported as a limitation. An assertion passes only when it has exactly one passing sample per planned journey. Any `false` sample fails it. When samples carry a `logical_key`, each key may appear only once per assertion: a repeated key makes the assertion `unknown` and adds the limitation `duplicate evidence for <key>`, so one journey reporting twice cannot stand in for a journey that reported nothing. Samples without a `logical_key` are only counted.
 
 Check the business effect, not just the status code — for example, read the ledger back after a retried payment rather than checking that the payment call returned 200.
+
+## Actor auth
+
+An actor may declare an `auth` recipe. Before any fixture work or traffic, the controller signs one HS256 JWT per such actor and passes it to k6 as `LT_TOKEN_<CLASS>`, where `<CLASS>` is the actor class upper-cased with every run of non-alphanumeric characters turned into `_` (`tenant-a` → `LT_TOKEN_TENANT_A`):
+
+```json
+"actors": [
+  {
+    "class": "buyer",
+    "count": 10,
+    "auth_recipe": "hs256-test-jwt",
+    "auth": {
+      "kind": "jwt_hs256",
+      "secret_env": "SHOP_JWT_SECRET",
+      "claims": {"sub": "lt-${run_id}-${actor_index}", "role": "buyer"},
+      "ttl_seconds": 900
+    }
+  }
+]
+```
+
+- `kind` must be `jwt_hs256`. `secret_env` names an uppercase environment variable holding the signing key; the manifest never holds the key.
+- `claims` is any JSON object. In its string values, `${run_id}` becomes the run ID and `${actor_index}` the actor's position in `actors` (from 0); any other `${...}` placeholder is rejected. The controller sets `iat` to the signing time and `exp` to `iat + ttl_seconds`, replacing declared values of either.
+- `ttl_seconds` is 1 to 86400.
+- Two auth actor classes that map to the same `LT_TOKEN_` name are rejected. `LT_TOKEN_*` variables inherited from the calling shell are not passed to k6.
+- A missing or empty `secret_env` makes the run an `error` before any fixture or k6 process starts, with the limitation `auth secret env NAME missing`.
+- Tokens and signing keys are never written by the controller. If a script prints one, it is replaced with `[redacted]` in `engine.stdout.log`, `engine.stderr.log`, `console.log` and `metrics.jsonl`. `inspect` lists the `secret_env` names.
+
+In the script, send the token like any header: `http.get(url, { headers: { Authorization: `Bearer ${__ENV.LT_TOKEN_BUYER}` } })`.
 
 ## Run-owned fixtures
 

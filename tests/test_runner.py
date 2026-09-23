@@ -18,6 +18,7 @@ def fake_k6(
     sleep_seconds: int = 0,
     extra_metric_lines: tuple[str, ...] = (),
     failed_tags: tuple[dict, dict] = ({}, {}),
+    echo_env: tuple[str, ...] = (),
 ) -> Path:
     path = tmp_path / "k6"
     path.write_text(
@@ -47,6 +48,10 @@ def fake_k6(
         f"    stream.write(json.dumps({{'type':'Point','metric':'http_req_failed','data':{{'value':{int(bool(failed_tags[0]))},'tags':{failed_tags[0]!r}}}}}) + '\\n')\n"
         f"    stream.write(json.dumps({{'type':'Point','metric':'http_req_failed','data':{{'value':1,'tags':{failed_tags[1]!r}}}}}) + '\\n')\n"
         f"    stream.write({''.join(line + chr(10) for line in extra_metric_lines)!r})\n"
+        f"echo = ' '.join(os.environ.get(name, '') for name in {list(echo_env)!r})\n"
+        "if echo:\n"
+        "    print(echo); print(echo, file=sys.stderr)\n"
+        "    with console.open('a') as stream: stream.write(echo + '\\n')\n"
         "console.chmod(0o644)\n"
         "metrics.chmod(0o644)\n"
         f"time.sleep({sleep_seconds})\n"

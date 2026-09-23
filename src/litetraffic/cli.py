@@ -204,7 +204,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "maximum_journey_writes": manifest.maximum_journey_writes,
             "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,
-            "actors": [actor.model_dump(by_alias=True) for actor in manifest.actors],
+            "actors": [actor.model_dump(by_alias=True, exclude_none=True) for actor in manifest.actors],
             "budgets": manifest.budgets.model_dump(),
             "fixture": {
                 "recipe": manifest.fixtures.recipe,
@@ -215,6 +215,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "secret_env": sorted(
                 {ref for ref in (owned and owned.bearer_token_env, observation and observation.bearer_token_env) if ref}
                 | set(observation.headers_env.values() if observation else ())
+                | {actor.auth.secret_env for actor in manifest.actors if actor.auth}
             ),
             "observer": manifest.observer,
             "observation_path": observation and observation.path,

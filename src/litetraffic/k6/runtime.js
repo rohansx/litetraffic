@@ -1,5 +1,6 @@
 // LiteTraffic runtime helper. `verify` places this file at ./litetraffic/runtime.js
 // inside a staged copy of the scenario; import it as "./litetraffic/runtime.js".
+import crypto from "k6/crypto";
 import exec from "k6/execution";
 
 const MAX_DETAIL_CHARS = 500;
@@ -84,4 +85,14 @@ export function poolItem(index = exec.scenario.iterationInTest) {
     throw new Error(`fixture pool has no item for journey ${index} (pool size ${pool.length})`);
   }
   return pool[index];
+}
+
+// HMAC-SHA256 of data under secret, for signing webhook bodies. Keep the secret
+// in an env var the controller never records, e.g. __ENV.WEBHOOK_SECRET.
+export function hmacSha256Hex(secret, data) {
+  return crypto.hmac("sha256", secret, data, "hex");
+}
+
+export function hmacSha256Base64(secret, data) {
+  return crypto.hmac("sha256", secret, data, "base64");
 }
