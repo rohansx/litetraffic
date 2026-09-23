@@ -7,6 +7,7 @@ from html import escape
 from pathlib import Path
 from urllib.parse import quote
 
+from litetraffic import runs
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard_assets import INDEX, STYLE, THEME_INIT, THEME_TOGGLE
 from litetraffic.human import format_diff
@@ -30,11 +31,7 @@ def _url(*parts: str) -> str:
 
 
 def read_json(path: Path) -> dict:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return value if isinstance(value, dict) else {}
+    return runs.read_json(path) or {}
 
 
 def _field(data: object, key: str, kind: type) -> dict | list:

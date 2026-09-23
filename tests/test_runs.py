@@ -233,3 +233,17 @@ def test_prune_command_reports_partial_failure_as_text(tmp_path, capsys, monkeyp
     assert lines[0] == f"deleted: {(tmp_path / 'run_03').resolve()}"
     assert lines[1] == f"failed: {(tmp_path / 'run_02').resolve()}"
     assert lines[2].startswith("error: ") and "denied" in lines[2]
+
+
+@pytest.mark.parametrize("verdict", [[], {}, 5, None])
+def test_list_runs_marks_non_string_verdicts_unreadable(tmp_path, verdict):
+    run = write_run(tmp_path / "run_bad", "run_bad")
+    result = json.loads((run / "result.json").read_text())
+    result["verdict"] = verdict
+    (run / "result.json").write_text(json.dumps(result))
+    (tmp_path / "series_bad.json").write_text(json.dumps({"scenario": "s", "verdict": verdict}))
+
+    runs = {entry["run_id"]: entry for entry in list_runs(tmp_path)}
+
+    assert runs["run_bad"]["verdict"] == "unreadable"
+    assert runs["series_bad"]["verdict"] == "unreadable"

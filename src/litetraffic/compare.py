@@ -16,6 +16,8 @@ def _finite_number(value: object) -> bool:
 def _load_run(path: Path) -> tuple[dict, dict]:
     root = Path(path).resolve()
     try:
+        if (root / "run.json").is_symlink() or (root / "result.json").is_symlink():
+            raise OSError("run artifacts must not be symlinks")
         run = json.loads((root / "run.json").read_text(encoding="utf-8"))
         result = json.loads((root / "result.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -37,7 +39,7 @@ def _load_run(path: Path) -> tuple[dict, dict]:
     metrics = result.get("metrics")
     assertions = result.get("assertions")
     if (
-        result.get("verdict") not in {"pass", "fail", "inconclusive", "error"}
+        result.get("verdict") not in ("pass", "fail", "inconclusive", "error")  # tuple: [] or {} must not raise TypeError
         or not isinstance(metrics, dict)
         or not isinstance(assertions, list)
         or not all(isinstance(item, dict) for item in assertions)
@@ -168,11 +170,12 @@ def compare_runs(
     elif baseline_p95 <= 0:
         status = "inconclusive"
     else:
-        change_percent = round((candidate_p95 - baseline_p95) / baseline_p95 * 100, 3)
+        exact_change_percent = (candidate_p95 - baseline_p95) / baseline_p95 * 100
+        change_percent = round(exact_change_percent, 3)
         if max_p95_regression_percent is not None:
             if min(baseline_samples, candidate_samples) < 200:
                 status = "inconclusive"
-            elif change_percent > max_p95_regression_percent:
+            elif exact_change_percent > max_p95_regression_percent:
                 status = "regression"
             else:
                 status = "within_limit"
