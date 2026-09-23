@@ -170,11 +170,12 @@ def compare_runs(
     elif baseline_p95 <= 0:
         status = "inconclusive"
     else:
-        change_percent = round((candidate_p95 - baseline_p95) / baseline_p95 * 100, 3)
+        exact_change_percent = (candidate_p95 - baseline_p95) / baseline_p95 * 100
+        change_percent = round(exact_change_percent, 3)
         if max_p95_regression_percent is not None:
             if min(baseline_samples, candidate_samples) < 200:
                 status = "inconclusive"
-            elif change_percent > max_p95_regression_percent:
+            elif exact_change_percent > max_p95_regression_percent:
                 status = "regression"
             else:
                 status = "within_limit"

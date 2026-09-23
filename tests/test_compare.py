@@ -296,3 +296,14 @@ def test_compare_runs_rejects_non_string_verdicts(tmp_path, verdict):
 
     with pytest.raises(ComparisonError, match="invalid result artifact"):
         compare_runs(baseline, candidate)
+
+
+def test_compare_runs_gates_on_the_unrounded_p95_change(tmp_path):
+    baseline = write_run(tmp_path / "baseline", "baseline", p95=10000)
+    candidate = write_run(tmp_path / "candidate", "candidate", p95=12000.01)
+
+    comparison = compare_runs(baseline, candidate, max_p95_regression_percent=20)
+
+    assert comparison["performance"]["p95"]["change_percent"] == 20.0
+    assert comparison["performance"]["p95"]["status"] == "regression"
+    assert comparison["verdict"] == "fail"
