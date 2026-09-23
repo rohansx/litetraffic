@@ -463,3 +463,30 @@ def test_rejects_unusable_fixture_pools(tmp_path, items, pool, message):
 
 def test_bundled_runtime_exports_pool_item():
     assert "export function poolItem(" in RUNTIME.read_text()
+
+
+@pytest.mark.parametrize(
+    "specifier",
+    ["/etc/passwd.js", "/tmp/lib.js", "file:///etc/lib.js", "file:/etc/lib.js", "FILE:///etc/lib.js", "//evil.test/lib.js"],
+)
+def test_rejects_absolute_file_and_protocol_relative_imports(tmp_path, specifier):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text(f'import x from "{specifier}";\nexport default function () {{}}\n')
+    with pytest.raises(ScenarioError, match="absolute paths, file: URLs and protocol-relative"):
+        load_scenario(path)
+
+
+def test_unreadable_import_is_a_scenario_error(tmp_path, monkeypatch):
+    path = write_bundle(tmp_path)
+    (path / "journeys.js").write_text('import "./lib.js";\nexport default function () {}\n')
+    (path / "lib.js").write_text("export const x = 1;\n")
+    real_read = Path.read_bytes
+
+    def read_bytes(self):
+        if self.name == "lib.js":
+            raise PermissionError(13, "Permission denied", str(self))
+        return real_read(self)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    with pytest.raises(ScenarioError, match="cannot read import lib.js"):
+        load_scenario(path)

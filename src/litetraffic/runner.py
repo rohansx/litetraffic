@@ -53,9 +53,10 @@ def _record_stage(run_dir: Path, run: dict, stage: str) -> None:
 
 
 def _restrict(run_dir: Path) -> None:
-    # k6 creates console.log and metrics.jsonl with its own (umask) mode.
+    # k6 creates files with its own (umask) mode; skip symlinks, chmod would follow them out of the run dir.
     for path in [run_dir, *run_dir.rglob("*")]:
-        path.chmod(0o700 if path.is_dir() else 0o600)
+        if not path.is_symlink():
+            path.chmod(0o700 if path.is_dir() else 0o600)
 
 
 def verify(

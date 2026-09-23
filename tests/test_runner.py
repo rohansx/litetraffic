@@ -1354,3 +1354,26 @@ def test_verify_passes_when_declared_overlap_is_observed(tmp_path, monkeypatch):
 def test_min_overlap_rejects_invalid_declarations(tmp_path, minimum):
     with pytest.raises(Exception, match="min_overlap"):
         load_scenario(_overlap_bundle(tmp_path, minimum))
+
+
+def test_restrict_never_follows_symlinks_out_of_the_run_dir(tmp_path):
+    from litetraffic.runner import _restrict
+
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    outside_dir.chmod(0o755)
+    outside_file = outside_dir / "shared.txt"
+    outside_file.write_text("keep my mode\n")
+    outside_file.chmod(0o644)
+    run_dir = tmp_path / "run"
+    (run_dir / "events").mkdir(parents=True)
+    (run_dir / "result.json").write_text("{}")
+    (run_dir / "events" / "link.txt").symlink_to(outside_file)
+    (run_dir / "linkdir").symlink_to(outside_dir, target_is_directory=True)
+
+    _restrict(run_dir)
+
+    assert stat.S_IMODE(outside_file.stat().st_mode) == 0o644
+    assert stat.S_IMODE(outside_dir.stat().st_mode) == 0o755
+    assert stat.S_IMODE((run_dir / "result.json").stat().st_mode) == 0o600
+    assert stat.S_IMODE((run_dir / "events").stat().st_mode) == 0o700

@@ -108,9 +108,17 @@ def _import_closure(root: Path, script_path: Path) -> dict[str, str]:
         name = path.relative_to(root).as_posix()
         if name in files:
             continue
-        data = path.read_bytes()
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            raise ScenarioError(f"cannot read import {name}: {exc}") from exc
         files[name] = hashlib.sha256(data).hexdigest()
         for specifier in _IMPORT.findall(data.decode("utf-8", errors="replace")):
+            if specifier.startswith("/") or specifier.lower().startswith("file:"):
+                raise ScenarioError(
+                    f"import {specifier!r} in {name} is not allowed: absolute paths, file: URLs and "
+                    "protocol-relative specifiers are rejected; use a ./ or ../ path inside the scenario directory"
+                )
             if "://" in specifier or specifier.startswith("k6/x/"):
                 raise ScenarioError(
                     f"import {specifier!r} in {name} is not allowed: remote modules and k6/x extensions are rejected"

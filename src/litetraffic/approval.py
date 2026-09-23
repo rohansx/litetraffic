@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from litetraffic.runner import _write_text
+from litetraffic.target import validate_target
 
 APPROVALS_PATH = Path(".litetraffic/approvals.json")  # relative to the working directory
 _DEFAULT_PORTS = {"http": 80, "https": 443}
@@ -19,6 +20,7 @@ def origin(target: str) -> str:
         raise ValueError(f"target must be an http(s) URL with a host: {target!r}")
     if parts.username or parts.password:
         raise ValueError("target must not contain URL credentials")
+    validate_target(target)  # rejects link-local/metadata hosts
     host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
     port = parts.port  # raises ValueError for an invalid port
     return f"{scheme}://{host}" + (f":{port}" if port not in (None, _DEFAULT_PORTS[scheme]) else "")
