@@ -382,6 +382,65 @@ def test_secret_values_scrub_a_lone_non_first_per_identity_token():
     assert redact(f"Authorization: Bearer {second}", secret_values(scenario, {}, tokens)) == "Authorization: Bearer [redacted]"
 
 
+def _leaky_run(tmp_path, monkeypatch, fail_at, error=KeyboardInterrupt):
+    """A run whose fake k6 prints the signing key into every raw file; runner.redact raises on call `fail_at`."""
+    import litetraffic.runner as runner
+
+    scenario = write_bundle(tmp_path / "scenario", manifest(actors=_actors()))
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("LT_TEST_JWT_SECRET", SECRET)
+    calls = []
+
+    def flaky(text, secrets):
+        calls.append(text)
+        if len(calls) == fail_at:
+            raise error
+        return redact(text, secrets)
+
+    monkeypatch.setattr(runner, "redact", flaky)
+    k6 = fake_k6(tmp_path, events, echo_env=("LT_TEST_JWT_SECRET",))
+    return lambda: runner.verify("http://example.test", scenario, tmp_path / "runs", str(k6))
+
+
+def _leaks(tmp_path):
+    return [path.name for path in (tmp_path / "runs").rglob("*") if path.is_file() and SECRET in path.read_text(errors="replace")]
+
+
+@pytest.mark.parametrize("fail_at", [1, 2, 3, 4])
+def test_ctrl_c_during_redaction_still_scrubs_every_artifact(tmp_path, monkeypatch, fail_at):
+    result = _leaky_run(tmp_path, monkeypatch, fail_at)()
+
+    assert result["lifecycle"] == "cancelled"
+    assert _leaks(tmp_path) == []
+
+
+def test_raw_file_that_cannot_be_scrubbed_is_deleted_and_recorded(tmp_path, monkeypatch):
+    import litetraffic.runner as runner
+
+    original = runner._write_text
+
+    def failing(path, text):
+        if path.name == "console.log":
+            raise OSError("disk full")
+        original(path, text)
+
+    monkeypatch.setattr(runner, "_write_text", failing)
+    result = _leaky_run(tmp_path, monkeypatch, fail_at=0)()
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    assert not (run_dir / "console.log").exists()
+    assert "console.log could not be scrubbed of secrets and was deleted" in result["limitations"]
+    assert _leaks(tmp_path) == []
+
+
+def test_unexpected_error_still_scrubs_raw_files_before_raising(tmp_path, monkeypatch):
+    with pytest.raises(RuntimeError):
+        _leaky_run(tmp_path, monkeypatch, fail_at=1, error=RuntimeError("boom"))()
+
+    assert _leaks(tmp_path) == []
+
+
 def test_per_identity_tokens_too_large_for_one_env_var_are_refused():
     actors = [Actor.model_validate({"class": "buyer", "count": 2000, "auth_recipe": "jwt", "auth": PER_IDENTITY})]
 

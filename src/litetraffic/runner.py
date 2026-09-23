@@ -58,6 +58,26 @@ def _restrict(run_dir: Path) -> None:
             path.chmod(0o700 if path.is_dir() else 0o600)
 
 
+def _scrub_raw(run_dir: Path, secrets: list[str]) -> list[str]:
+    """Scrub every file in the run directory of the run's secrets; a file that cannot be scrubbed is deleted.
+    Rewrites only files that change, so already-redacted artifacts are left alone."""
+    limitations = []
+    for path in sorted(run_dir.rglob("*")) if secrets else ():
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            text = path.read_text(errors="replace")
+            scrubbed = redact(text, secrets)
+            if scrubbed != text:
+                _write_text(path, scrubbed)
+        except BaseException as exc:
+            path.unlink(missing_ok=True)
+            if not isinstance(exc, Exception):
+                raise  # a Ctrl-C mid-scrub still leaves no unscrubbed copy behind
+            limitations.append(f"{path.relative_to(run_dir)} could not be scrubbed of secrets and was deleted")
+    return limitations
+
+
 def verify(
     target: str,
     scenario: Path,
@@ -77,11 +97,16 @@ def verify(
         if "run_dir" not in state:
             raise
         return _finalize_cancelled(state)
+    except BaseException:
+        if "run_dir" in state:  # k6 may already have logged a secret; never leave it behind on an error
+            _scrub_raw(state["run_dir"], state.get("secrets", []))
+        raise
 
 
 def _finalize_cancelled(state: dict) -> dict:
     # Best effort for a Ctrl-C the stage handlers did not catch: record the cancel, keep whatever evidence was written.
     run_dir, run = state["run_dir"], state["run"]
+    scrub_limitations = _scrub_raw(run_dir, state.get("secrets", []))
     finished_at = _now().isoformat()
     result = {
         **state["result"],
@@ -92,7 +117,7 @@ def _finalize_cancelled(state: dict) -> dict:
         "completeness": "incomplete",
         "assertions": [],
         "metrics": {},
-        "limitations": ["run cancelled by user"],
+        "limitations": ["run cancelled by user", *scrub_limitations],
         "notes": [],
     }
     _write_json(run_dir / "result.json", result)
@@ -175,6 +200,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         lifecycle, engine_error = "crashed", str(exc)
     environment.update(tokens)
     secrets = secret_values(bundle.manifest, environment, tokens)
+    state["secrets"] = secrets  # every finalization path scrubs the raw files with these
     process: subprocess.Popen[str] | None = None
     group_survived = False
     engine_started = engine_finished = None
@@ -247,9 +273,8 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     engine_exit_code = process.returncode if process is not None else None
     _write_text(run_dir / "engine.stdout.log", redact(stdout, secrets))
     _write_text(run_dir / "engine.stderr.log", redact(stderr, secrets))
-    for path in (console_path, metrics_path) if secrets else ():
-        if path.is_file():  # k6 writes these itself; scrub any token or secret a script printed
-            path.write_text(redact(path.read_text(errors="replace"), secrets))
+    # k6 writes console.log and metrics.jsonl itself; scrub any token or secret a script printed.
+    scrub_limitations = _scrub_raw(run_dir, secrets)
 
     events, malformed_events = _read_events(console_path, run_id)
     metrics, malformed_metrics = _read_metrics(metrics_path, bundle.manifest.journeys)
@@ -273,6 +298,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
                     environ=environment,  # includes the LT_TOKEN_<CLASS> tokens minted for this run
                     allowed_origins=bundle.manifest.allowed_origins,
                     allowed_origins_env=bundle.manifest.allowed_origins_env,
+                    secrets=secrets,  # redacted before truncation; the whole record is scrubbed again when written
                 )
                 record["requested"] = record.get("attempts", 1) if sent_request(record) else 0
             except KeyboardInterrupt:
@@ -320,7 +346,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         bundle.manifest.assertions, events, observations, bundle.manifest.planned_journeys
     )
 
-    limitations = []
+    limitations = list(scrub_limitations)
     unreachable = target_unreachable(metrics)
     if unreachable:
         # Failed assertions against a target that never answered say nothing about the application.

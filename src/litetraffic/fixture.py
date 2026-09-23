@@ -38,7 +38,10 @@ def create_fixture(
         if status not in {200, 201}:
             return {"status": "error", "reason": f"fixture create HTTP {status}", "requests": 1}
         fixture_id = _pointer(json.loads(content), config.id_pointer)
-    except (httpx.HTTPError, KeyError, ValueError, DeadlineExceeded) as exc:
+    except DeadlineExceeded:
+        # The server may have created it; bounded_request returns any id that arrived in time to clean up.
+        return {"status": "error", "reason": "fixture create outcome unknown: deadline exceeded", "requests": 1}
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
         return {"status": "error", "reason": f"fixture create unavailable: {failure(exc)}", "requests": 1}
     if not isinstance(fixture_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", fixture_id):
         return {"status": "error", "reason": "invalid fixture id", "requests": 1}

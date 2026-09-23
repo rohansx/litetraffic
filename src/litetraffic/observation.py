@@ -1,19 +1,23 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import socket
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import httpx
 
+from litetraffic.auth import redact_value
 from litetraffic.models import FinalObservation, as_matcher, resolve_expected
 from litetraffic.target import normalize_origin
 
 MAX_ACTUAL_BYTES = 2048
 REQUEST_DEADLINE_SECONDS = 5.0  # total wall clock per fixture/observer request: connect + headers + full body
 MAX_BODY_BYTES = 1 << 20
+CANCEL_GRACE_SECONDS = 1.0  # after the deadline, time allowed for a cancelled request's worker to finish
 
 
 class DeadlineExceeded(Exception):
@@ -34,35 +38,59 @@ def failure(exc: BaseException) -> str:
 def bounded_request(
     method: str, url: str, headers: dict[str, str], transport: httpx.BaseTransport | None = None, body: object = None
 ) -> tuple[int, bytes]:
-    """One request under REQUEST_DEADLINE_SECONDS of wall clock with a MAX_BODY_BYTES cap; returns (status, body)."""
+    """One request under REQUEST_DEADLINE_SECONDS of wall clock with a MAX_BODY_BYTES cap; returns (status, body).
+
+    At the deadline the request is cancelled: its sockets are shut down, its client is closed and its worker is
+    joined, so nothing it does outlives the call. A response that completes during that cancellation is returned.
+    """
     deadline = time.monotonic() + REQUEST_DEADLINE_SECONDS
     outcome: list = []
+    cancelled = threading.Event()
+    sockets: list[socket.socket] = []
+
+    def trace(event: str, info: dict) -> None:
+        # httpcore calls this in the worker before each connect/send/receive step: a cancelled request stops here.
+        if cancelled.is_set():
+            raise DeadlineExceeded
+        # start_tls wraps (and detaches) the TCP socket, so an https request is cancelled through the TLS socket
+        if event in ("connection.connect_tcp.complete", "connection.start_tls.complete"):
+            sockets.append(info["return_value"].get_extra_info("socket"))
+
+    # the connect cannot be woken by shutdown/close (no socket yet), so it gets only the time left before the deadline
+    connect = max(0.01, deadline - time.monotonic())
+    client = httpx.Client(transport=transport, timeout=httpx.Timeout(5, connect=connect), follow_redirects=False)
 
     def work() -> None:
         try:
-            with httpx.Client(transport=transport, timeout=5, follow_redirects=False) as client:
-                with client.stream(method, url, headers=headers, json=body) as response:
-                    content = bytearray()
-                    for chunk in response.iter_bytes():
-                        content += chunk
-                        if len(content) > MAX_BODY_BYTES:
-                            raise BodyTooLarge("response body over 1 MiB")
-                        if time.monotonic() > deadline:
-                            raise DeadlineExceeded
-                    outcome.append((response.status_code, bytes(content)))
+            with client, client.stream(method, url, headers=headers, json=body, extensions={"trace": trace}) as response:
+                content = bytearray()
+                for chunk in response.iter_bytes():
+                    content += chunk
+                    if len(content) > MAX_BODY_BYTES:
+                        raise BodyTooLarge("response body over 1 MiB")
+                outcome.append((response.status_code, bytes(content)))
         except Exception as exc:
             outcome.append(exc)
 
-    # ponytail: httpx timeouts are per read, so a trickling peer is cut off by join(); a worker stuck
-    # mid-headers is abandoned (daemon) until its own 5 s read timeout or the peer closes.
     worker = threading.Thread(target=work, daemon=True)
     worker.start()
     worker.join(max(0.0, deadline - time.monotonic()))
-    if not outcome:
+    if worker.is_alive():
+        cancelled.set()
+        for sock in list(sockets):
+            with contextlib.suppress(OSError):
+                sock.shutdown(socket.SHUT_RDWR)  # wakes a blocked recv; close() alone does not
+        client.close()
+        # ponytail: a worker still in DNS resolution cannot be interrupted (the connect timeout does not cover it);
+        # after the grace it is abandoned, and the trace hook stops it before it sends anything.
+        worker.join(CANCEL_GRACE_SECONDS)
+    if not outcome or (cancelled.is_set() and isinstance(outcome[0], Exception)):
         raise DeadlineExceeded
     if isinstance(outcome[0], Exception):
         raise outcome[0]
     return outcome[0]
+
+
 TRUNCATED = "...[truncated]"
 # Reasons given before any request is sent; every other outcome sent exactly one GET.
 PRE_REQUEST = ("observer bearer token", "observer header env", "observer origin env", "observer allowed_origins_env")
@@ -117,8 +145,10 @@ def _json_type(value: object) -> str:
     return {dict: "object", list: "array", str: "string"}.get(type(value), "number")
 
 
-def _recorded(op: str, found: bool, value: object) -> object:
-    """What an artifact keeps of the value: a summary for len/exists, else the value capped at 2 KB of JSON."""
+def _recorded(op: str, found: bool, value: object, secrets: Iterable[str] = ()) -> object:
+    """What an artifact keeps of the value: a summary for len/exists, else the value capped at 2 KB of JSON.
+
+    `secrets` are redacted before the cap, so truncation cannot cut one into an unrecognisable prefix."""
     if op == "exists":
         return found
     if not found:
@@ -128,6 +158,7 @@ def _recorded(op: str, found: bool, value: object) -> object:
         if isinstance(value, (list, str, dict)):
             summary["length"] = len(value)
         return summary
+    value = redact_value(value, secrets)
     text = json.dumps(value)  # ASCII-escaped, so characters are bytes
     return value if len(text) <= MAX_ACTUAL_BYTES else text[: MAX_ACTUAL_BYTES - len(TRUNCATED)] + TRUNCATED
 
@@ -190,8 +221,11 @@ def _observe_once(
     environ: Mapping[str, str] | None = None,
     allowed_origins: Sequence[str] = (),
     allowed_origins_env: str | None = None,
+    secrets: Iterable[str] = (),
 ) -> dict:
-    """Read the final state once. `environ` (default: the process environment) resolves env refs."""
+    """Read the final state once. `environ` (default: the process environment) resolves env refs.
+
+    Matching uses each full value; the recorded copy has `secrets` redacted before it is truncated."""
     environ = os.environ if environ is None else environ
     origin = config.origin or target
     if config.origin_env:
@@ -229,7 +263,7 @@ def _observe_once(
             value, found = None, False
             missing.append(pointer)
         matcher = as_matcher(expected)
-        actual[pointer] = _recorded(next(iter(matcher)), found, value)
+        actual[pointer] = _recorded(next(iter(matcher)), found, value, secrets)
         passed, reason = _matches(matcher, found, value)
         checks[pointer] = {"matcher": matcher, "actual": actual[pointer], "pass": passed}
         if reason:
