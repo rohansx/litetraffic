@@ -49,4 +49,4 @@ markers = ["real_k6: runs the pinned real k6 binary against the example servers 
 where = ["src"]
 
 [tool.setuptools.package-data]
-litetraffic = ["k6/*.js"]
+litetraffic = ["k6/*.js", "dashboard_ui/**/*"]
