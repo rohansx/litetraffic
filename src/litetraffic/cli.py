@@ -233,7 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "scenario_sha256": bundle.digest,
             "planned_journeys": manifest.planned_journeys,
             "maximum_journey_requests": manifest.maximum_journey_requests,
-            "maximum_observation_requests": len(observations),
+            "maximum_observation_requests": sum(o.max_requests for o in observations),
             "maximum_journey_writes": manifest.maximum_journey_writes,
             "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,

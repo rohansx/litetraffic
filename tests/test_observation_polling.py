@@ -127,3 +127,14 @@ def test_verify_counts_every_polling_attempt_as_an_observer_request(tmp_path, mo
     assert result["metrics"]["observer_requests"] == 3
     recorded = json.loads((tmp_path / "runs" / result["run_id"] / "observation.json").read_text())
     assert recorded["attempts"] == 3 and recorded["elapsed_seconds"] == 4.0
+
+
+def test_inspect_counts_polling_attempts_as_observation_requests(tmp_path, capsys):
+    from litetraffic.cli import main
+
+    polled = {"path": "/a", "assertion": "a", "expected": {"/n": 1}, "until": {"deadline_seconds": 10, "interval_seconds": 2}}
+    once = {"path": "/b", "assertion": "b", "expected": {"/n": 1}}
+    data = manifest(observations=[polled, once], assertions=["accepted_orders_persist", "a", "b"],
+                    budgets=manifest()["budgets"] | {"max_requests": 67, "max_seconds": 32})
+    assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["maximum_observation_requests"] == 6 + 1
