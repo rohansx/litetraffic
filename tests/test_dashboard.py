@@ -393,3 +393,11 @@ def test_index_auto_refreshes_from_the_api_and_can_be_disabled(server):
     assert 'id="autorefresh"' in body
     assert "/api/runs" in body and "5000" in body
     assert "textContent" in body  # refreshed rows are built without innerHTML
+
+
+def test_narrow_tables_scroll_instead_of_splitting_words_and_badges():
+    # overflow-wrap:anywhere let cells shrink to one character at 375px ("PA|SS", "Lifecycl|e").
+    from litetraffic.dashboard_assets import STYLE
+
+    assert "overflow-wrap:anywhere" not in STYLE.split("h1{overflow-wrap:anywhere}")[1]
+    assert "th,.badge{white-space:nowrap}" in STYLE

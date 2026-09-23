@@ -13,7 +13,8 @@ nav{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:spac
 a{color:var(--link)}:focus-visible{outline:3px solid var(--link);outline-offset:2px}
 h1{overflow-wrap:anywhere}.muted{color:var(--muted)}
 .scroll{overflow-x:auto;max-width:100%}
-table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8px;text-align:left;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;background:var(--card)}th,td{padding:8px;text-align:left;border-bottom:1px solid var(--line);overflow-wrap:break-word}
+th,.badge{white-space:nowrap}
 pre{background:var(--card);padding:12px;overflow-x:auto}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:16px 0;overflow-x:auto}
 button,input,select{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
 button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}
