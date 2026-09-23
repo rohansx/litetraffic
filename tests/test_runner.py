@@ -612,6 +612,24 @@ def test_owned_fixture_setup_failure_prevents_traffic(tmp_path, monkeypatch):
     assert "fixture create HTTP 503" in result["limitations"]
 
 
+def test_owned_fixture_create_timeout_reports_an_unknown_outcome(tmp_path, monkeypatch):
+    import socket
+
+    import litetraffic.observation as observation
+    import litetraffic.runner as runner
+
+    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22, "max_seconds": 22})
+    scenario = write_bundle(tmp_path / "scenario", data)
+    monkeypatch.setattr(observation, "REQUEST_DEADLINE_SECONDS", 0.3)
+    with socket.socket() as silent:  # accepts the create and never answers
+        silent.bind(("127.0.0.1", 0))
+        silent.listen()
+        result = runner.verify(f"http://127.0.0.1:{silent.getsockname()[1]}", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
+    assert result["verdict"] == "error"
+    assert result["engine_exit_code"] is None
+    assert "fixture create outcome unknown: deadline exceeded" in result["limitations"]
+
+
 def test_owned_fixture_cleanup_failure_cannot_pass(tmp_path, monkeypatch):
     import litetraffic.runner as runner
 
