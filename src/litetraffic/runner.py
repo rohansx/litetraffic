@@ -154,7 +154,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     metrics_path = run_dir / "metrics.jsonl"
     command = k6_command(executable, console_path, metrics_path)
     environment = os.environ.copy()
-    for name in [name for name in environment if name in ("LT_FIXTURE_ID", "LT_FIXTURE_JSON", "LT_FIXTURE_POOL_JSON") or name.startswith("LT_TOKEN_")]:
+    for name in [name for name in environment if name in ("LT_FIXTURE_ID", "LT_FIXTURE_JSON", "LT_FIXTURE_POOL_JSON") or name.startswith(("LT_TOKEN_", "LT_TOKENS_"))]:
         environment.pop(name)
     environment.update({"LT_RUN_ID": run_id, "LT_TARGET": target, "LT_SEED": str(seed)})
     hook_environment = dict(environment)  # command fixtures see only the run identity, not the schedule

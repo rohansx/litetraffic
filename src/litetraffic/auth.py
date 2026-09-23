@@ -44,8 +44,13 @@ def jwt_hs256(claims: dict, secret: str) -> str:
     return f"{header}.{payload}.{_b64(signature)}"
 
 
+# Linux MAX_ARG_STRLEN: one NAME=value env string above this makes exec fail with "Argument list too long".
+MAX_ENV_STRING_BYTES = 128 * 1024
+
+
 def mint_tokens(actors: Iterable, run_id: str, environ: Mapping[str, str], now: int | None = None) -> dict[str, str]:
-    """One token per actor with `auth`, keyed by LT_TOKEN_<CLASS>. `iat`/`exp` override declared claims."""
+    """One token per actor with `auth`, keyed by LT_TOKEN_<CLASS>; `per_identity` actors also get
+    LT_TOKENS_<CLASS>, a JSON array of `count` tokens. `iat`/`exp` override declared claims."""
     issued = int(time.time()) if now is None else now
     tokens = {}
     for index, actor in enumerate(actors):
@@ -56,10 +61,34 @@ def mint_tokens(actors: Iterable, run_id: str, environ: Mapping[str, str], now: 
             raise AuthError(f"auth secret env {actor.auth.secret_env} missing")
         if len(secret) < MIN_SECRET_LENGTH:
             raise AuthError(f"auth secret env {actor.auth.secret_env} is shorter than {MIN_SECRET_LENGTH} characters")
-        claims = _substitute(actor.auth.claims, {"run_id": run_id, "actor_index": str(index)})
-        claims |= {"iat": issued, "exp": issued + actor.auth.ttl_seconds}
-        tokens[token_env_name(actor.actor_class)] = jwt_hs256(claims, secret)
+        indexes = range(actor.count) if actor.auth.per_identity else [index]
+        minted = [
+            jwt_hs256(
+                _substitute(actor.auth.claims, {"run_id": run_id, "actor_index": str(identity)})
+                | {"iat": issued, "exp": issued + actor.auth.ttl_seconds},
+                secret,
+            )
+            for identity in indexes
+        ]
+        name = token_env_name(actor.actor_class)
+        tokens[name] = minted[0]
+        if actor.auth.per_identity:
+            array = json.dumps(minted)
+            if len(f"{tokens_env_name(name)}={array}") >= MAX_ENV_STRING_BYTES:
+                raise AuthError(
+                    f"{tokens_env_name(name)} is {len(array)} bytes, over the {MAX_ENV_STRING_BYTES}-byte environment variable limit; lower the actor count or shrink the claims"
+                )
+            tokens[tokens_env_name(name)] = array
     return tokens
+
+
+def tokens_env_name(token_env: str) -> str:
+    return "LT_TOKENS_" + token_env.removeprefix("LT_TOKEN_")
+
+
+def minted_tokens(tokens: Mapping[str, str]) -> set[str]:
+    """Every individual token in mint_tokens output, unpacking the LT_TOKENS_ arrays."""
+    return {item for name, value in tokens.items() for item in (json.loads(value) if name.startswith("LT_TOKENS_") else [value])}
 
 
 def secret_env_names(manifest) -> set[str]:
@@ -74,7 +103,7 @@ def secret_env_names(manifest) -> set[str]:
 
 def secret_values(manifest, environ: Mapping[str, str], tokens: Mapping[str, str]) -> list[str]:
     """Every declared credential value and minted token, longest first, for scrubbing anything that is kept."""
-    secrets = {environ.get(name, "") for name in secret_env_names(manifest)} | set(tokens.values())
+    secrets = {environ.get(name, "") for name in secret_env_names(manifest)} | minted_tokens(tokens)
     return sorted(filter(None, secrets), key=len, reverse=True)
 
 

@@ -89,6 +89,16 @@ export function poolItem(index = exec.scenario.iterationInTest) {
   return pool[index];
 }
 
+// A minted token for actorClass, round-robin over LT_TOKENS_<CLASS> (per_identity
+// auth) by journeyIndex; falls back to the single LT_TOKEN_<CLASS>.
+export function tokenFor(actorClass, journeyIndex = exec.scenario.iterationInTest) {
+  const name = String(actorClass).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const many = __ENV[`LT_TOKENS_${name}`];
+  const tokens = many ? JSON.parse(many) : __ENV[`LT_TOKEN_${name}`] ? [__ENV[`LT_TOKEN_${name}`]] : [];
+  if (tokens.length === 0) throw new Error(`no token for actor class ${actorClass}: declare an auth recipe`);
+  return tokens[((journeyIndex % tokens.length) + tokens.length) % tokens.length];
+}
+
 // HMAC-SHA256 of data under secret, for signing webhook bodies. Keep the secret
 // in an env var the controller never records, e.g. __ENV.WEBHOOK_SECRET.
 export function hmacSha256Hex(secret, data) {

@@ -15,7 +15,7 @@ The long-term goal is **users as an API**: give an application a believable, sta
 - Assertion evidence, verdicts, lifecycle, HTML report
 - Run-owned HTTP fixtures, `fixtures.command` setup/teardown hooks, and a per-journey `fixtures.pool`
 - Final observations with matchers, `${planned_journeys}` expected-value expressions, and a second origin from `allowed_origins` with `headers_env` secrets
-- Actor `auth` recipes: per-actor-class HS256 JWTs passed to k6 as `LT_TOKEN_<CLASS>`, redacted, with every declared credential, from kept artifacts and output
+- Actor `auth` recipes: per-actor-class HS256 JWTs passed to k6 as `LT_TOKEN_<CLASS>` (or, with `per_identity`, `count` distinct identities as `LT_TOKENS_<CLASS>`, picked with `tokenFor()`), redacted, with every declared credential, from kept artifacts and output
 - Concurrency proof: observed peak in-flight requests per operation (`metrics.overlap`) checked against journey `min_overlap`
 - Per-operation `expected_statuses` and `metrics.unexpected_http_failure_rate`
 - Examples emit expected/actual values on failing evidence samples
