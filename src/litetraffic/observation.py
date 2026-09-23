@@ -28,19 +28,32 @@ def _pointer(document: object, path: str) -> object:
     return current
 
 
-def _matches(matcher: dict, found: bool, actual: object) -> bool:
+def _json_equal(a: object, b: object) -> bool:
+    """JSON equality: booleans never equal numbers (Python's True == 1), at any depth; 1 == 1.0 still holds."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return type(a) is type(b) and a == b
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(map(_json_equal, a, b))
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_json_equal(a[key], b[key]) for key in a)
+    return a == b
+
+
+def _matches(matcher: dict, found: bool, actual: object) -> tuple[bool, str | None]:
+    """(pass, reason); a reason is given only when an ordering matcher meets a non-number."""
     (op, operand), = matcher.items()
     if op == "exists":
-        return found == operand
+        return found == operand, None
     if not found:
-        return False
+        return False, None
     if op == "eq":
-        return actual == operand
+        return _json_equal(actual, operand), None
     if op == "len":
-        return isinstance(actual, (list, str, dict)) and len(actual) == operand
-    if isinstance(actual, bool) or not isinstance(actual, (int, float)):
-        return False
-    return actual >= operand if op == "gte" else actual <= operand
+        return isinstance(actual, (list, str, dict)) and len(actual) == operand, None
+    for side, value in (("operand", operand), ("", actual)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False, f"{op} needs a number{' operand' if side else ''}, got {_json_type(value)}"
+    return (actual >= operand if op == "gte" else actual <= operand), None
 
 
 def _json_type(value: object) -> str:
@@ -140,7 +153,10 @@ def observe(
             missing.append(pointer)
         matcher = as_matcher(expected)
         actual[pointer] = _recorded(next(iter(matcher)), found, value)
-        checks[pointer] = {"matcher": matcher, "actual": actual[pointer], "pass": _matches(matcher, found, value)}
+        passed, reason = _matches(matcher, found, value)
+        checks[pointer] = {"matcher": matcher, "actual": actual[pointer], "pass": passed}
+        if reason:
+            checks[pointer]["reason"] = reason
     result = {
         "assertion": config.assertion,
         "status": "pass" if all(check["pass"] for check in checks.values()) else "fail",

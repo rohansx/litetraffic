@@ -125,7 +125,7 @@ def test_matchers_pass_when_all_hold_and_reject_wrong_types():
 
 @pytest.mark.parametrize(
     "expected",
-    [{"/n": {"gte": 1, "lte": 2}}, {"/n": {"gte": "1"}}, {"/n": {"len": -1}}, {"/n": {"len": 1.5}}, {"/n": {"exists": 1}}],
+    [{"/n": {"gte": 1, "lte": 2}}, {"/n": {"gte": "1"}}, {"/n": {"gte": True}}, {"/n": {"lte": False}}, {"/n": {"len": -1}}, {"/n": {"len": 1.5}}, {"/n": {"exists": 1}}],
 )
 def test_invalid_matchers_are_rejected(expected):
     with pytest.raises(ValidationError, match="matcher"):
@@ -254,3 +254,38 @@ def test_observe_with_expression_and_no_variables_raises_a_clear_value_error():
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"n": 1}))
     with pytest.raises(ValueError, match="no value for 'planned_journeys'"):
         observe("http://example.test", config, "run-1", transport=transport)
+
+
+def _checks(body, expected):
+    config = FinalObservation(path="/state", assertion="typed", expected=expected)
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=body))
+    return observe("http://example.test", config, "run-1", transport=transport)["checks"]
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ({"count": True}, {"/count": 1}),
+        ({"count": 1}, {"/count": True}),
+        ({"count": False}, {"/count": {"eq": 0}}),
+        ({"items": [True]}, {"/items": [1]}),
+        ({"items": [1]}, {"/items": {"eq": [True]}}),
+        ({"a": {"b": {"c": True}}}, {"/a": {"b": {"c": 1}}}),
+        ({"a": {"b": [0.0]}}, {"/a": {"eq": {"b": [False]}}}),
+    ],
+)
+def test_equality_distinguishes_booleans_from_numbers_recursively(body, expected):
+    (check,) = _checks(body, expected).values()
+    assert check["pass"] is False
+
+
+def test_equality_still_treats_int_and_float_as_equal():
+    checks = _checks({"n": 1, "items": [2.0, {"x": True}]}, {"/n": 1.0, "/items": [2, {"x": True}]})
+    assert [check["pass"] for check in checks.values()] == [True, True]
+
+
+@pytest.mark.parametrize("op", ["gte", "lte"])
+def test_ordering_matchers_fail_booleans_with_reason(op):
+    (check,) = _checks({"count": True}, {"/count": {op: 1}}).values()
+    assert check["pass"] is False
+    assert check["reason"] == f"{op} needs a number, got boolean"

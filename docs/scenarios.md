@@ -241,7 +241,7 @@ Each `expected` value is either a literal, compared for equality, or a matcher o
 
 | Matcher | Passes when the value at the pointer |
 |---|---|
-| `{"eq": v}` | exists and equals `v` |
+| `{"eq": v}` | exists and equals `v` as JSON: `true`/`false` never equal `1`/`0`, at any depth inside arrays and objects, while `1` equals `1.0` |
 | `{"gte": n}` / `{"lte": n}` | exists, is a number (not a boolean), and is ≥ / ≤ `n` |
 | `{"len": n}` | exists, is an array, string or object, and has `n` items/characters/keys |
 | `{"exists": true\|false}` | is present / absent (a present `null` counts as present) |
@@ -258,7 +258,7 @@ A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is
 
 `inspect` shows the resolved values for its `--seed` as `observation_expected`.
 
-`observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the recorded `actual` value and `pass`. The observation passes only when every check passes.
+`observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the recorded `actual` value and `pass`, plus a `reason` such as `gte needs a number, got boolean` when a `gte`/`lte` check fails because the value is not a number. The observation passes only when every check passes.
 
 The recorded `actual` (in `actual`, `checks` and `result.json`) is compact:
 
