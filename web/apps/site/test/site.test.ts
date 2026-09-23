@@ -45,6 +45,14 @@ describe("landing page", () => {
     expect(loaded.length).toBeGreaterThan(0);
   });
 
+  test("toggle and copy buttons keep an accessible name that matches their state", () => {
+    const tag = (id: string) => html.match(new RegExp(`<button\\b[^>]*\\bid="${id}"[^>]*>`))![0];
+    // A toggle announces its state through aria-pressed, so its name must not flip too.
+    expect(tag("theme-toggle")).toContain('aria-label="Dark mode"');
+    // The copy button's visible text changes to "Copied"; an aria-label would hide that from screen readers.
+    expect(tag("copy-command")).not.toContain("aria-label");
+  });
+
   test("the dashboard mock is labelled illustrative", () => {
     expect(html).toContain("Illustrative mock");
   });

@@ -30,7 +30,7 @@ const repo = "https://github.com/rohansx/litetraffic";
         id="theme-toggle"
         type="button"
         class="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-        aria-label="Switch to dark mode"
+        aria-label="Dark mode"
         aria-pressed="false"
       >
         <svg class="size-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path class="fill-current stroke-none" d="M12 3a9 9 0 0 1 0 18z"></path></svg>
@@ -165,7 +165,6 @@ const repo = "https://github.com/rohansx/litetraffic";
   const os = matchMedia("(prefers-color-scheme: dark)");
   const isDark = () => root.classList.contains("dark") || (!root.classList.contains("light") && os.matches);
   const sync = () => {
-    toggle.setAttribute("aria-label", `Switch to ${isDark() ? "light" : "dark"} mode`);
     toggle.setAttribute("aria-pressed", String(isDark()));
   };
   toggle.addEventListener("click", () => {

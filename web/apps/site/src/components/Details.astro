@@ -180,7 +180,7 @@ const toggleBtn =
     <div class="min-w-0 overflow-hidden rounded-xl border bg-sidebar text-foreground shadow-sm scheme-dark">
       <div class="flex items-center justify-between gap-4 border-b px-5 py-3 text-xs text-muted-foreground">
         <span>install from source</span>
-        <button id="copy-command" type="button" class="rounded-md px-2 py-1 font-semibold text-brand hover:bg-sidebar-accent" aria-label="Copy install commands" data-copy={install.join("\n")}>Copy install commands</button>
+        <button id="copy-command" type="button" class="rounded-md px-2 py-1 font-semibold text-brand hover:bg-sidebar-accent" data-copy={install.join("\n")}>Copy install commands</button>
       </div>
       <pre class="overflow-x-auto px-4 py-5 font-mono text-[10px] leading-loose sm:px-5 sm:py-7 sm:text-xs"><code>{[...install, "litetraffic doctor", "litetraffic verify examples/checkout \\\n    --target http://127.0.0.1:8765 --seed 42", "litetraffic dashboard"].map((line, i) => <>{i > 0 && "\n"}<span class="text-brand">$</span> {line}</>)}</code></pre>
     </div>
