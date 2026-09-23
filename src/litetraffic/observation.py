@@ -4,10 +4,11 @@ import json
 import os
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import httpx
 
+from litetraffic.auth import redact_value
 from litetraffic.models import FinalObservation, as_matcher, resolve_expected
 from litetraffic.target import normalize_origin
 
@@ -117,8 +118,10 @@ def _json_type(value: object) -> str:
     return {dict: "object", list: "array", str: "string"}.get(type(value), "number")
 
 
-def _recorded(op: str, found: bool, value: object) -> object:
-    """What an artifact keeps of the value: a summary for len/exists, else the value capped at 2 KB of JSON."""
+def _recorded(op: str, found: bool, value: object, secrets: Iterable[str] = ()) -> object:
+    """What an artifact keeps of the value: a summary for len/exists, else the value capped at 2 KB of JSON.
+
+    `secrets` are redacted before the cap, so truncation cannot cut one into an unrecognisable prefix."""
     if op == "exists":
         return found
     if not found:
@@ -128,6 +131,7 @@ def _recorded(op: str, found: bool, value: object) -> object:
         if isinstance(value, (list, str, dict)):
             summary["length"] = len(value)
         return summary
+    value = redact_value(value, secrets)
     text = json.dumps(value)  # ASCII-escaped, so characters are bytes
     return value if len(text) <= MAX_ACTUAL_BYTES else text[: MAX_ACTUAL_BYTES - len(TRUNCATED)] + TRUNCATED
 
@@ -190,8 +194,11 @@ def _observe_once(
     environ: Mapping[str, str] | None = None,
     allowed_origins: Sequence[str] = (),
     allowed_origins_env: str | None = None,
+    secrets: Iterable[str] = (),
 ) -> dict:
-    """Read the final state once. `environ` (default: the process environment) resolves env refs."""
+    """Read the final state once. `environ` (default: the process environment) resolves env refs.
+
+    Matching uses each full value; the recorded copy has `secrets` redacted before it is truncated."""
     environ = os.environ if environ is None else environ
     origin = config.origin or target
     if config.origin_env:
@@ -229,7 +236,7 @@ def _observe_once(
             value, found = None, False
             missing.append(pointer)
         matcher = as_matcher(expected)
-        actual[pointer] = _recorded(next(iter(matcher)), found, value)
+        actual[pointer] = _recorded(next(iter(matcher)), found, value, secrets)
         passed, reason = _matches(matcher, found, value)
         checks[pointer] = {"matcher": matcher, "actual": actual[pointer], "pass": passed}
         if reason:

@@ -334,7 +334,7 @@ The recorded `actual` (in `actual`, `checks` and `result.json`) is compact:
 
 - `exists`: `true` or `false` (whether the pointer was found).
 - `len`: `{"type", "length"}` of the value, where `type` is its JSON type (`array`, `string`, `object`, `number`, `boolean`, `null`) and `length` is present only for arrays, strings and objects; the value itself is never stored.
-- any other matcher: the value, or `null` when missing. When its JSON form exceeds 2048 bytes it is replaced by a string of its first bytes ending in `...[truncated]`, 2048 bytes in total. Matching always uses the full value.
+- any other matcher: the value, or `null` when missing. When its JSON form exceeds 2048 bytes it is replaced by a string of its first bytes ending in `...[truncated]`, 2048 bytes in total. Credentials the run knows (see [safety](safety.md)) are redacted from the value before it is cut, so truncation never leaves a partial credential. Matching always uses the full, unredacted value.
 
 ### Multiple observations
 

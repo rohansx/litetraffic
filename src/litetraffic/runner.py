@@ -273,6 +273,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
                     environ=environment,  # includes the LT_TOKEN_<CLASS> tokens minted for this run
                     allowed_origins=bundle.manifest.allowed_origins,
                     allowed_origins_env=bundle.manifest.allowed_origins_env,
+                    secrets=secrets,  # redacted before truncation; the whole record is scrubbed again when written
                 )
                 record["requested"] = record.get("attempts", 1) if sent_request(record) else 0
             except KeyboardInterrupt:

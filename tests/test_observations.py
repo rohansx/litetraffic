@@ -152,6 +152,59 @@ def test_large_recorded_actuals_are_truncated_to_2kb_with_a_marker():
     assert result["status"] == "fail"
 
 
+STRADDLING_SECRET = "fake-key-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def _straddling_value() -> str:
+    """A string whose recorded JSON form is cut inside the secret (the Codex R1 reproduction)."""
+    from litetraffic.observation import MAX_ACTUAL_BYTES, TRUNCATED
+
+    return "x" * (MAX_ACTUAL_BYTES - len(TRUNCATED) - len(STRADDLING_SECRET)) + STRADDLING_SECRET + "z" * 100
+
+
+def _leaked_prefix(stored: str, secret: str = STRADDLING_SECRET) -> int:
+    return max((n for n in range(1, len(secret) + 1) if secret[:n] in stored), default=0)
+
+
+def test_recorded_actual_is_redacted_before_truncation():
+    from litetraffic.auth import redact_value
+    from litetraffic.observation import _recorded
+
+    stored = redact_value(_recorded("eq", True, _straddling_value(), [STRADDLING_SECRET]), [STRADDLING_SECRET])
+    assert _leaked_prefix(stored) < 8
+
+
+def test_observe_redacts_a_secret_straddling_the_cap_but_matches_the_full_value():
+    value = _straddling_value()
+    config = FinalObservation(path="/rows", assertion="rows_ok", expected={"/v": {"eq": value}})
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json={"v": value}))
+    result = observe("http://example.test", config, "run-1", transport=transport, secrets=[STRADDLING_SECRET])
+
+    assert result["status"] == "pass"  # matched against the full, unredacted value
+    assert _leaked_prefix(json.dumps([result["actual"], result["checks"]["/v"]["actual"]])) < 8
+
+
+def test_verify_keeps_no_prefix_of_a_header_credential_straddling_the_cap(tmp_path, monkeypatch):
+    value = _straddling_value()
+    data = manifest(
+        observations=[_obs("a", expected={"/v": {"eq": "other"}}, headers_env={"apikey": "LT_TEST_API_KEY"})],
+        assertions=["accepted_orders_persist", "a"],
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("LT_TEST_API_KEY", STRADDLING_SECRET)
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json={"v": value}))
+    monkeypatch.setattr("litetraffic.runner.observe", lambda *args, **kwargs: observe(*args, transport=transport, **kwargs))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert next(row for row in result["assertions"] if row["id"] == "a")["status"] == "fail"
+    for text in [json.dumps(result), *(p.read_text(errors="replace") for p in (tmp_path / "runs").rglob("*") if p.is_file())]:
+        assert _leaked_prefix(text) < 8
+
+
 def test_verify_runs_each_observation_after_k6_and_records_each(tmp_path, monkeypatch):
     data = manifest(
         observations=[_obs("a"), _obs("b", origin_env="DB_ORIGIN")],
