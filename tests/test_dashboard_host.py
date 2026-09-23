@@ -2,7 +2,7 @@ import http.client
 
 import pytest
 
-from test_dashboard import runs_dir, server  # noqa: F401 - fixtures
+from test_dashboard import runs_dir, server, ui_dir  # noqa: F401 - fixtures
 
 
 def request(server, path, host):
@@ -18,7 +18,7 @@ def request(server, path, host):
         conn.close()
 
 
-@pytest.mark.parametrize("path", ["/", "/api/runs", "/runs/run_a/report.html"])
+@pytest.mark.parametrize("path", ["/", "/api/runs", "/api/meta", "/api/runs/run_a/artifacts/report.html"])
 @pytest.mark.parametrize(
     "host",
     ["attacker.example:{port}", "attacker.example", "127.0.0.1", "127.0.0.1:1", "localhost.attacker.example:{port}", None],
@@ -28,11 +28,11 @@ def test_foreign_host_header_is_refused_without_data(server, path, host):
     status, body = request(server, path, host and host.format(port=port))
 
     assert status == 421
-    assert "run_a" not in body and "the report" not in body
+    assert "run_a" not in body and "the report" not in body and "root" not in body
 
 
 @pytest.mark.parametrize("host", ["127.0.0.1:{port}", "localhost:{port}", "LOCALHOST:{port}", "[::1]:{port}"])
 def test_loopback_host_header_is_served(server, host):
-    status, body = request(server, "/runs/run_a/report.html", host.format(port=server.server_address[1]))
+    status, body = request(server, "/api/runs/run_a/artifacts/report.html", host.format(port=server.server_address[1]))
 
     assert status == 200 and "the report" in body
