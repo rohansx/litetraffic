@@ -118,6 +118,21 @@ def test_allowed_origins_pass_through_for_observations(tmp_path, capsys):
     assert manifest.allowed_origins_env == "EXTRA_ORIGINS"
 
 
+def test_polled_observations_reserve_their_deadline_and_attempts(tmp_path, capsys):
+    observation = {
+        "path": "/rows",
+        "assertion": "rows_intact",
+        "expected": {"": {"len": 0}},
+        "until": {"deadline_seconds": 15, "interval_seconds": 1},
+    }
+    code, result = _init(tmp_path, _config(observations=[observation]), capsys)
+    assert code == 0, result
+    manifest = load_scenario(tmp_path / "out").manifest
+    polled = manifest.observations[0]
+    assert polled.max_requests > 1
+    assert manifest.budgets.max_requests >= manifest.maximum_journey_requests + polled.max_requests
+
+
 def _kit(tmp_path) -> dict:
     script = (tmp_path / "out" / "journeys.js").read_text()
     return json.loads(script.split("const KIT = ", 1)[1].split(";\nconst MAX_SAMPLES", 1)[0])

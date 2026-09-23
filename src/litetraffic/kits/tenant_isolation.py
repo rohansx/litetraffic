@@ -223,8 +223,8 @@ def build_manifest(config: KitConfig, raw: dict) -> dict:
         "assertions": _journey_assertions(config) + [observation.assertion for observation in config.observations],
         "observer": "tenant-isolation-kit",
         "budgets": {
-            "max_seconds": seconds + ENGINE_SLACK_SECONDS + reserved.reserved_seconds + 5 * len(observations),
-            "max_requests": planned * journey["max_requests"] + len(observations) + lifecycle,
+            "max_seconds": seconds + ENGINE_SLACK_SECONDS + reserved.reserved_seconds + sum(o.reserved_seconds for o in config.observations),
+            "max_requests": planned * journey["max_requests"] + sum(o.max_requests for o in config.observations) + lifecycle,
             "max_write_attempts": planned * journey["max_writes"] + lifecycle,
             "max_in_flight": config.max_in_flight,
             "max_artifact_bytes": MAX_ARTIFACT_BYTES,
