@@ -1,5 +1,5 @@
 ---
-import { button, h2, label, lead, wrap } from "../lib/ui";
+import { badgeOutline, button, buttonGhostSm, card, cardDescription, cardTitle, codeBlock, h2, label, lead, section, tabsList, tabsTrigger, wrap } from "../lib/ui";
 
 const profiles = {
   spiky: {
@@ -64,134 +64,154 @@ const install = [
   "python -m pip install -e .",
 ];
 const repo = "https://github.com/rohansx/litetraffic";
-const toggleBtn =
-  "rounded-md border px-3 py-2 text-xs font-semibold hover:bg-accent aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground";
 ---
-<section class={`${wrap} grid items-center gap-14 py-20 sm:py-28 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20 lg:py-36`} id="profiles">
+<section class={`${wrap} ${section} grid items-center gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16`} id="profiles">
   <div>
     <p class={label}>Timing is part of behavior</p>
     <h2 class={h2}>Pressure has a shape.</h2>
-    <p class={`${lead} max-w-[430px]`}>A quiet baseline and a short rush reveal different failures. LiteTraffic resolves the profile before the run and records the exact schedule with its seed.</p>
-    <div class="mt-8 flex flex-wrap gap-2" role="group" aria-label="Traffic profile">
-      {plots.map((p, i) => <button type="button" class={toggleBtn} aria-pressed={i === 0 ? "true" : "false"} data-profile={p.id}>{p.name}</button>)}
-    </div>
-    <p class="mt-5 min-h-[3em] text-sm leading-normal text-muted-foreground" aria-live="polite" data-profile-description>{plots[0].description}</p>
+    <p class={`${lead} max-w-md`}>A quiet baseline and a short rush reveal different failures. LiteTraffic resolves the profile before the run and records the exact schedule with its seed.</p>
   </div>
-  <div class="min-w-0 rounded-xl border bg-sidebar p-4 text-foreground shadow-sm scheme-dark sm:p-6">
-    <div class="flex justify-between text-xs text-muted-foreground tabular-nums"><span>journeys / second</span><strong class="font-semibold text-brand">seed 42</strong></div>
-    <svg class="mt-4 mb-1 block w-full" viewBox="0 0 720 300" role="img" aria-label={plots[0].label} data-profile-chart>
-      <path class="fill-none stroke-border" d="M0 60H720M0 120H720M0 180H720M0 240H720" aria-hidden="true" />
-      {plots.map((p, i) => (
-        <g data-profile-plot={p.id} data-label={p.label} data-description={p.description} display={i === 0 ? "inline" : "none"}>
-          <path class="fill-brand/20" d={p.area} />
-          <path class="fill-none stroke-brand stroke-4 [stroke-linecap:round] [stroke-linejoin:round] [vector-effect:non-scaling-stroke]" d={p.line} />
-          {p.points.map(([x, y]) => <circle class="fill-sidebar stroke-brand stroke-3" cx={x} cy={y} r="4" />)}
-        </g>
-      ))}
-    </svg>
-    <div class="flex justify-between text-xs text-muted-foreground tabular-nums"><span>0s</span><span>30s</span><span>60s</span><span>90s</span></div>
+  <div class={`${card} min-w-0 gap-4 py-6`}>
+    <div class="flex flex-wrap items-start justify-between gap-3 px-6">
+      <div class="grid gap-1.5"><span class={cardTitle}>Traffic profile</span><span class={cardDescription}>Journeys / second, seed 42</span></div>
+      <div class={`${tabsList} max-sm:w-full`} role="group" aria-label="Traffic profile">
+        {plots.map((p, i) => <button type="button" class={tabsTrigger} aria-pressed={i === 0 ? "true" : "false"} data-profile={p.id}>{p.name}</button>)}
+      </div>
+    </div>
+    <div class="px-6">
+      <svg class="block w-full" viewBox="0 0 720 300" role="img" aria-label={plots[0].label} data-profile-chart>
+        <defs>
+          <linearGradient id="profile-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stop-color="var(--primary)" stop-opacity="0.8" />
+            <stop offset="95%" stop-color="var(--primary)" stop-opacity="0.1" />
+          </linearGradient>
+        </defs>
+        <path class="fill-none stroke-border [stroke-dasharray:3_3]" d="M0 60H720M0 120H720M0 180H720M0 240H720" aria-hidden="true" />
+        {plots.map((p, i) => (
+          <g data-profile-plot={p.id} data-label={p.label} data-description={p.description} display={i === 0 ? "inline" : "none"}>
+            <path fill="url(#profile-fill)" d={p.area} />
+            <path class="fill-none stroke-primary stroke-2 [vector-effect:non-scaling-stroke]" d={p.line} />
+          </g>
+        ))}
+      </svg>
+      <div class="mt-1 flex justify-between text-xs text-muted-foreground tabular-nums"><span>0s</span><span>30s</span><span>60s</span><span>90s</span></div>
+    </div>
+    <p class="min-h-[3em] border-t px-6 pt-4 text-sm leading-normal text-muted-foreground" aria-live="polite" data-profile-description>{plots[0].description}</p>
   </div>
 </section>
 
-<section class="bg-sidebar py-20 text-foreground scheme-dark sm:py-28" id="scenarios">
+<section class={`border-y bg-muted/40 ${section}`} id="scenarios">
   <div class={wrap}>
-    <div class="max-w-[780px]">
-      <p class="mb-5 text-sm font-semibold text-brand">Five conformance scenarios</p>
+    <div class="max-w-2xl">
+      <p class={label}>Five conformance scenarios</p>
       <h2 class={h2}>Designed to catch a wrong answer.</h2>
       <p class={lead}>Each example has a known-good app and a deliberate fault. The same scenario must pass one and fail the other.</p>
     </div>
-    <ul class="mt-12 border-t sm:mt-16">
-      {scenarios.map(([area, title, check]) => (
-        <li class="grid gap-1 border-b py-5 sm:min-h-22 sm:grid-cols-[125px_1fr_1.1fr] sm:items-center sm:gap-5 sm:py-3 lg:grid-cols-[155px_1fr_1.2fr]">
-          <span class="text-xs text-muted-foreground">{area}</span>
-          <strong class="font-heading text-[1.375rem] font-bold">{title}</strong>
-          <p class="text-sm text-muted-foreground" set:html={check} />
+    <div class={`${card} mt-10 overflow-hidden py-0 sm:mt-12`}>
+      <table class="w-full text-sm">
+        <thead class="bg-muted/60 max-sm:hidden">
+          <tr class="border-b text-left"><th class="h-10 px-4 font-medium" scope="col">Scenario</th><th class="h-10 px-4 font-medium" scope="col">What the users do</th><th class="h-10 px-4 font-medium" scope="col">What must hold</th></tr>
+        </thead>
+        <tbody>
+          {scenarios.map(([area, title, check]) => (
+            <tr class="border-b last:border-0 hover:bg-muted/50 max-sm:grid max-sm:gap-1 max-sm:px-4 max-sm:py-3">
+              <td class="px-4 py-3 align-top max-sm:p-0"><span class={badgeOutline}>{area}</span></td>
+              <td class="px-4 py-3 align-top font-medium max-sm:p-0">{title}</td>
+              <td class="px-4 py-3 align-top text-muted-foreground max-sm:p-0" set:html={check} />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class={`${wrap} ${section}`} id="commands" aria-labelledby="commands-title">
+  <div class="max-w-2xl">
+    <p class={label}>The CLI</p>
+    <h2 id="commands-title" class={h2}>Nine commands.</h2>
+    <p class={lead}>Most print a short summary for people, or one JSON object with <code>--json</code> for scripts and agents.</p>
+  </div>
+  <dl class={`${card} mt-10 gap-0 divide-y py-0 sm:mt-12`}>
+    {commands.map(([name, text]) => (
+      <div class="grid gap-1.5 px-5 py-4 sm:grid-cols-[160px_1fr] sm:gap-6 sm:px-6">
+        <dt><code class="font-mono text-sm font-semibold">{name}</code></dt>
+        <dd class="max-w-3xl text-sm leading-relaxed text-muted-foreground" set:html={text} />
+      </div>
+    ))}
+  </dl>
+  <div class="mt-12">
+    <h3 class="font-heading text-lg font-semibold">Exit codes for <code>verify</code></h3>
+    <ul class="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
+      {exitCodes.map(([code, meaning]) => (
+        <li class={`${card} gap-1 px-4 py-4`}>
+          <span class={cardDescription}>{meaning}</span>
+          <strong class:list={["font-heading text-3xl font-semibold tabular-nums", code === "1" && "text-fail"]}>{code}</strong>
         </li>
       ))}
     </ul>
+    <p class="mt-5 max-w-3xl text-sm leading-relaxed text-muted-foreground">A target that never returns an HTTP response is an error, not a pass. A missing or mismatched approval also exits 3 before anything runs. Cancelling with Ctrl+C still saves the evidence collected so far. <code>diff</code> uses 0, 1 and 2 the same way for its comparison. Every command exits 2 on a usage error and 3 on an error. <a class="font-medium text-foreground underline underline-offset-4" href={`${repo}/blob/main/docs/cli.md#exit-codes`}>Exit codes for every command</a></p>
   </div>
 </section>
 
-<section class="border-b bg-card py-20 sm:py-28 lg:py-32" id="commands" aria-labelledby="commands-title">
-  <div class={wrap}>
-    <div class="max-w-[780px]">
-      <p class={label}>The CLI</p>
-      <h2 id="commands-title" class={h2}>Nine commands.</h2>
-      <p class={lead}>Most print a short summary for people, or one JSON object with <code>--json</code> for scripts and agents.</p>
+<section class={`border-y bg-muted/40 ${section}`} id="targets">
+  <div class={`${wrap} grid gap-10 lg:grid-cols-[1fr_1fr] lg:gap-16`}>
+    <div>
+      <p class={label}>Works with a running HTTP app</p>
+      <h2 class={h2}>Bring the target.<br />Keep the contract.</h2>
+      <p class={lead}>Run the same reviewed scenario against localhost, a CI preview, or an existing E2B sandbox. Target addresses and secrets stay outside the portable scenario.</p>
     </div>
-    <dl class="mt-10 border-t-2 border-foreground sm:mt-16">
-      {commands.map(([name, text]) => (
-        <div class="grid gap-1.5 border-b py-5 sm:grid-cols-[200px_1fr] sm:gap-6 sm:py-6">
-          <dt><code class="font-heading text-[1.7rem] font-bold">{name}</code></dt>
-          <dd class="max-w-[680px] text-[15px] leading-normal text-muted-foreground sm:pt-1.5" set:html={text} />
-        </div>
-      ))}
-    </dl>
-    <div class="mt-16">
-      <h3 class="font-sans text-lg font-semibold">Exit codes for <code>verify</code></h3>
-      <ul class="mt-5 grid grid-cols-3 overflow-hidden rounded-xl border sm:grid-cols-5">
-        {exitCodes.map(([code, meaning]) => (
-          <li class="border-r border-b p-3.5 sm:border-b-0 sm:p-4.5 sm:last:border-r-0">
-            <strong class:list={["block font-heading text-[2.4rem] leading-none tabular-nums sm:text-[2.9rem]", code === "1" && "text-fail"]}>{code}</strong>
-            <span class="mt-1.5 block text-[13px] text-muted-foreground">{meaning}</span>
-          </li>
+    <div>
+      <ul class={`${card} gap-0 divide-y py-0 text-sm font-medium`}>
+        {[["--target", "Local development"], ["--target", "CI and preview URLs"], ["--e2b-sandbox-id", "Existing E2B sandbox"]].map(([flag, text]) => (
+          <li class="flex flex-wrap items-center justify-between gap-2 px-5 py-4">{text}<code class={`${badgeOutline} font-mono font-normal text-muted-foreground`}>{flag}</code></li>
         ))}
       </ul>
-      <p class="mt-5 max-w-[680px] text-sm leading-relaxed text-muted-foreground">A target that never returns an HTTP response is an error, not a pass. A missing or mismatched approval also exits 3 before anything runs. Cancelling with Ctrl+C still saves the evidence collected so far. <code>diff</code> uses 0, 1 and 2 the same way for its comparison. Every command exits 2 on a usage error and 3 on an error. <a class="border-b border-foreground font-semibold text-foreground" href={`${repo}/blob/main/docs/cli.md#exit-codes`}>Exit codes for every command</a></p>
+      <p class="mt-5 text-sm leading-relaxed text-muted-foreground">Cloud metadata and link-local addresses are refused, in any spelling, before a request is sent. URLs with embedded credentials are refused, and k6 does not follow redirects.</p>
     </div>
   </div>
 </section>
 
-<section class={`${wrap} grid gap-9 py-20 sm:py-28 lg:grid-cols-[1fr_0.8fr] lg:gap-24 lg:py-36`} id="targets">
-  <div>
-    <p class={label}>Works with a running HTTP app</p>
-    <h2 class={h2}>Bring the target.<br />Keep the contract.</h2>
-  </div>
-  <div>
-    <p class="mb-9 text-lg leading-relaxed text-muted-foreground">Run the same reviewed scenario against localhost, a CI preview, or an existing E2B sandbox. Target addresses and secrets stay outside the portable scenario.</p>
-    <ul class="divide-y border-y font-semibold">
-      {[["--target", "Local development"], ["--target", "CI and preview URLs"], ["--e2b-sandbox-id", "Existing E2B sandbox"]].map(([flag, text]) => (
-        <li class="py-4"><span class="inline-block min-w-38 font-mono text-xs font-normal text-muted-foreground max-sm:mb-1 max-sm:block">{flag}</span>{text}</li>
-      ))}
-    </ul>
-    <p class="mt-6 text-[15px] leading-relaxed text-muted-foreground">Cloud metadata and link-local addresses are refused, in any spelling, before a request is sent. URLs with embedded credentials are refused, and k6 does not follow redirects.</p>
-  </div>
-</section>
-
-<section class="bg-muted py-20 sm:py-28" id="start">
-  <div class={`${wrap} grid items-center gap-14 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16`}>
+<section class={section} id="start">
+  <div class={`${wrap} grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16`}>
     <div>
       <p class={label}>Developer preview</p>
       <h2 class={h2}>Start with a scenario you can read.</h2>
-      <p class="mt-6 max-w-[490px] leading-relaxed text-muted-foreground">Scenarios are handwritten k6 journeys, or generated by <code>init tenant-isolation</code>, and you review them before running. Install k6 v2.2.0 separately, then install LiteTraffic from source.</p>
+      <p class="mt-4 max-w-lg leading-relaxed text-muted-foreground">Scenarios are handwritten k6 journeys, or generated by <code>init tenant-isolation</code>, and you review them before running. Install k6 v2.2.0 separately, then install LiteTraffic from source.</p>
       <div class="mt-7 mb-8 grid gap-6 sm:grid-cols-2">
         {[
           ["Works today", ["Nine commands, local runs and repeats", "Tenant-isolation scenarios from a JSON config", "Seeded traffic profiles and budgets", "Fixtures, test JWTs and final observations", "Reports, approvals and run comparison"]],
           ["Not shipped yet", ["AI or automatic scenario authoring", "Persistent users across runs", "Managed sandboxes", "A PyPI release"]],
-        ].map(([title, items]) => (
+        ].map(([title, items], col) => (
           <div>
-            <h3 class="mb-2 font-sans text-sm font-semibold">{title}</h3>
-            <ul class="divide-y border-y text-sm text-muted-foreground">{(items as string[]).map((item) => <li class="py-2.5">{item}</li>)}</ul>
+            <h3 class="mb-2 font-heading text-sm font-semibold">{title}</h3>
+            <ul class="grid gap-2 text-sm text-muted-foreground">{(items as string[]).map((item) => (
+              <li class="flex gap-2">
+                <svg class="mt-0.5 size-4 shrink-0 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">{col === 0 ? <path d="M20 6 9 17l-5-5" /> : <circle cx="12" cy="12" r="8" class="[stroke-dasharray:3_3]" />}</svg>{item}
+              </li>
+            ))}</ul>
           </div>
         ))}
       </div>
       <a class={button} href={`${repo}/blob/main/docs/quickstart.md`}>Read the quickstart</a>
     </div>
-    <div class="min-w-0 overflow-hidden rounded-xl border bg-sidebar text-foreground shadow-sm scheme-dark">
-      <div class="flex items-center justify-between gap-4 border-b px-5 py-3 text-xs text-muted-foreground">
-        <span>install from source</span>
-        <button id="copy-command" type="button" class="rounded-md px-2 py-1 font-semibold text-brand hover:bg-sidebar-accent" data-copy={install.join("\n")}>Copy install commands</button>
+    <div class={`${card} min-w-0 gap-0 overflow-hidden py-0`}>
+      <div class="flex items-center justify-between gap-4 border-b px-5 py-2.5 text-sm text-muted-foreground">
+        <span>Install from source</span>
+        <button id="copy-command" type="button" class={buttonGhostSm} data-copy={install.join("\n")}>Copy install commands</button>
       </div>
-      <pre class="overflow-x-auto px-4 py-5 font-mono text-[10px] leading-loose sm:px-5 sm:py-7 sm:text-xs"><code>{[...install, "litetraffic doctor", "litetraffic verify examples/checkout \\\n    --target http://127.0.0.1:8765 --seed 42", "litetraffic dashboard"].map((line, i) => <>{i > 0 && "\n"}<span class="text-brand">$</span> {line}</>)}</code></pre>
+      <pre class={`${codeBlock} bg-muted/40 px-5 py-5 leading-loose max-sm:text-[10px]`}><code>{[...install, "litetraffic doctor", "litetraffic verify examples/checkout \\\n    --target http://127.0.0.1:8765 --seed 42", "litetraffic dashboard"].map((line, i) => <>{i > 0 && "\n"}<span class="text-muted-foreground select-none">$</span> {line}</>)}</code></pre>
     </div>
   </div>
 </section>
 
-<section class="bg-brand py-20 text-brand-foreground sm:py-28">
+<section class="pb-16 sm:pb-24">
   <div class={wrap}>
-    <p class="mb-4 font-semibold">For developers, agents, and the systems they change.</p>
-    <h2 class="max-w-[920px] text-[clamp(3.5rem,7vw,5.875rem)] leading-[0.97] font-bold text-balance">Give the app a world.<br />Then ask what survived.</h2>
-    <a class="mt-10 inline-block border-b-2 border-current pb-1.5 font-bold focus-visible:outline-brand-foreground" href={`${repo}/tree/main/docs`}>Read the documentation <span class="ml-2" aria-hidden="true">↗</span></a>
+    <div class="rounded-xl bg-primary px-6 py-12 text-primary-foreground shadow-sm sm:px-12 sm:py-16">
+      <p class="mb-3 text-sm font-medium opacity-70">For developers, agents, and the systems they change.</p>
+      <h2 class="max-w-3xl font-heading text-3xl font-semibold tracking-tight text-balance sm:text-5xl">Give the app a world.<br />Then ask what survived.</h2>
+      <a class="mt-8 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary-foreground px-6 text-sm font-medium text-primary shadow-xs transition-all outline-none hover:bg-primary-foreground/90 focus-visible:ring-[3px] focus-visible:ring-primary-foreground/50" href={`${repo}/tree/main/docs`}>Read the documentation <span aria-hidden="true">↗</span></a>
+    </div>
   </div>
 </section>
 

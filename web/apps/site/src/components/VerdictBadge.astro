@@ -1,0 +1,13 @@
+---
+import { badgeOutline, verdictDot, type Verdict } from "../lib/ui";
+
+interface Props {
+  verdict: Verdict;
+  class?: string;
+}
+const { verdict, class: extra } = Astro.props;
+const word = { pass: "Pass", fail: "Fail", error: "Error", inconclusive: "Inconclusive" }[verdict];
+---
+<span class:list={[badgeOutline, "px-1.5 text-muted-foreground", extra]}>
+  <svg viewBox="0 0 12 12" aria-hidden="true" class={verdictDot[verdict]}><circle cx="6" cy="6" r="5"></circle></svg>{word}
+</span>

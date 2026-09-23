@@ -3,7 +3,7 @@
 @import "@litetraffic/design/tokens.css";
 
 @layer base {
-  html { scroll-padding-top: 1rem; }
+  html { scroll-padding-top: 4.5rem; }
   :focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
   code { font-family: var(--font-mono); font-size: 0.9em; }
   p { text-wrap: pretty; }
