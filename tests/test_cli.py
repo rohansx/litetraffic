@@ -523,7 +523,7 @@ def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
 
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
     first = json.loads(capsys.readouterr().out)
-    assert first["fixture"]["command"] == command | {"cwd": "bundle", "inputs": []}
+    assert first["fixture"]["command"] == command | {"cwd": "bundle", "inputs": [], "hashed_files": []}
 
     data["fixtures"]["command"]["setup"] = ["psql", "-f", "other.sql"]
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
@@ -548,6 +548,18 @@ def test_inspect_shows_command_fixture_inputs(tmp_path, capsys):
     text = capsys.readouterr().out
     assert "fixture input: seed.sql" in text
     assert f"scenario sha256: {output['scenario_sha256']}" in text  # the digest covering the inputs
+
+
+def test_inspect_lists_hashed_command_files(tmp_path, capsys):
+    command = {"setup": ["python3", "setup.py"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 2}
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 22})
+    path = write_bundle(tmp_path, data)
+    (path / "setup.py").write_text("print(1)\n")
+
+    assert main(["inspect", str(path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["fixture"]["command"]["hashed_files"] == ["setup.py"]
+    assert main(["inspect", str(path)]) == 0
+    assert "fixture command file: setup.py" in capsys.readouterr().out
 
 
 def test_verify_cancelled_during_fixture_create_exits_130(tmp_path, monkeypatch, capsys):

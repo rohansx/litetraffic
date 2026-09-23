@@ -79,5 +79,6 @@ def format_inspect(result: dict) -> list[str]:
         # ponytail: space-joined for reading, not shell-quoted; --json has the exact argv.
         lines += [f"fixture {stage}: {' '.join(command[stage])}" for stage in ("setup", "teardown")]
         lines += [f"fixture input: {name}" for name in command.get("inputs", [])]
+        lines += [f"fixture command file: {name}" for name in command.get("hashed_files", [])]
     lines += [f"observation {item['assertion']} expected: {json.dumps(item['expected'])}" for item in result.get("observations", [])]
     return lines

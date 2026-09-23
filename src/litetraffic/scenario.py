@@ -33,6 +33,7 @@ class ScenarioBundle:
     files: dict[str, str]  # relative path -> sha256, for the script and its relative import closure
     digest: str  # sha256 over the canonical manifest JSON plus every file hash
     pool: list | None = None  # the fixtures.pool file's items
+    command_files: tuple[str, ...] = ()  # fixtures.command inputs plus argv elements naming bundle files, all hashed
 
 
 def check_pool(pool: object, planned_journeys: int) -> None:
@@ -84,9 +85,9 @@ def load_scenario(path: Path) -> ScenarioBundle:
     if manifest.fixtures.pool:
         name, data, pool = _load_pool(root, manifest.fixtures.pool, manifest.planned_journeys)
         files[name] = hashlib.sha256(data).hexdigest()
-    for name in manifest.fixtures.command.inputs if manifest.fixtures.command else ():
-        path = _bundle_file(root, name, "fixture input")
-        files[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    command_files = _command_files(root, manifest.fixtures.command) if manifest.fixtures.command else ()
+    for name in command_files:
+        files[name] = hashlib.sha256((root / name).read_bytes()).hexdigest()
     digest = hashlib.sha256(json.dumps(raw, sort_keys=True, separators=(",", ":")).encode())
     for name, file_sha in sorted(files.items()):
         digest.update(f"\n{name}\0{file_sha}".encode())
@@ -104,7 +105,18 @@ def load_scenario(path: Path) -> ScenarioBundle:
             f"journey and lifecycle maximum {manifest.maximum_journey_writes + extra_writes}"
         )
 
-    return ScenarioBundle(root, manifest_path, script_path, manifest, raw, files, digest.hexdigest(), pool)
+    return ScenarioBundle(root, manifest_path, script_path, manifest, raw, files, digest.hexdigest(), pool, command_files)
+
+
+def _command_files(root: Path, command) -> tuple[str, ...]:
+    """Declared inputs plus every setup/teardown argv element that names an existing file in the bundle."""
+    names = {_bundle_file(root, name, "fixture input").relative_to(root).as_posix() for name in command.inputs}
+    # ponytail: whole-element match only; `--file=seed.sql` style args must be listed in `inputs`.
+    for arg in (*command.setup, *command.teardown):
+        path = (root / arg).resolve()
+        if path.is_relative_to(root) and path.is_file():
+            names.add(path.relative_to(root).as_posix())
+    return tuple(sorted(names))
 
 
 def _import_closure(root: Path, script_path: Path) -> dict[str, str]:

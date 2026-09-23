@@ -201,9 +201,9 @@ When the app has no create/delete endpoints, seed and reset state with commands 
 - On timeout or cancel, the command's whole process group gets SIGTERM, then SIGKILL, even when the command itself already exited and left children behind. If any process in the group is still alive a second later, the hook's reason ends with `process group did not exit`.
 - `fixture.json` records each command's `argv`, `exit_code`, `duration_seconds`, `status` and the last 4 KB of its stderr. Stdout is not stored.
 
-`inputs` (optional) lists bundle-relative files the commands read, such as SQL scripts. Each must exist and stay inside the scenario directory, or `inspect` and `verify` exit 3 (`fixture input does not exist`, `fixture input must stay inside the scenario directory`). Their sha256 values are recorded in the bundle digest and in `scenario.lock.json`, so editing `seed.sql` changes `scenario_sha256`. Files the commands read but that are not listed are not covered.
+`inputs` (optional) lists bundle-relative files the commands read, such as SQL scripts. Each must exist and stay inside the scenario directory, or `inspect` and `verify` exit 3 (`fixture input does not exist`, `fixture input must stay inside the scenario directory`). Their sha256 values are recorded in the bundle digest and in `scenario.lock.json`, so editing `seed.sql` changes `scenario_sha256`. Any `setup` or `teardown` argv element that names an existing file inside the scenario directory (for example `setup.py` in `["python3", "setup.py"]`) is hashed the same way without being listed, so editing a bundle-local setup script also invalidates approvals. Only whole argv elements are matched: a path embedded in a flag such as `--file=seed.sql`, or any other file the commands read, must be listed in `inputs` to be covered.
 
-`inspect` prints both argv lists, each `inputs` file, and the `scenario_sha256` digest, which covers the whole manifest, so a changed command is visible in the digest and in `scenario.lock.json`.
+`inspect` prints both argv lists, each `inputs` file, every hashed command file (`fixture command file:` lines; `fixture.command.hashed_files` in `--json`, which includes the declared inputs), and the `scenario_sha256` digest, which covers the whole manifest, so a changed command is visible in the digest and in `scenario.lock.json`.
 
 ## Fixture pool
 

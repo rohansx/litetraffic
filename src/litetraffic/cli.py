@@ -223,7 +223,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "fixture": {
                 "recipe": manifest.fixtures.recipe,
                 "owned_http": owned and owned.model_dump(include={"create_path", "delete_path"}),
-                "command": manifest.fixtures.command and manifest.fixtures.command.model_dump(),
+                "command": manifest.fixtures.command
+                and manifest.fixtures.command.model_dump() | {"hashed_files": list(bundle.command_files)},
             },
             # Names only: the environment is never read here.
             "secret_env": sorted(
