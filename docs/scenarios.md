@@ -155,6 +155,8 @@ An actor may declare an `auth` recipe. Before any fixture work or traffic, the c
 
 In the script, send the token like any header: `http.get(url, { headers: { Authorization: `Bearer ${__ENV.LT_TOKEN_BUYER}` } })`.
 
+The [final observation](#final-observation) can use the same token: set its `bearer_token_env` (or a `headers_env` value) to `LT_TOKEN_<CLASS>`. The controller resolves those names against the run's environment, which holds the minted tokens, so no separately minted token is needed.
+
 ## Run-owned fixtures
 
 Give the run its own starting state and remove it afterwards:
@@ -225,7 +227,7 @@ Check the resulting state once, after all journeys finish:
 }
 ```
 
-The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`. An unreachable observer yields `unknown`, which prevents a pass.
+The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`, which may also name an [`LT_TOKEN_<CLASS>`](#actor-auth) token minted for the run. An unreachable observer yields `unknown`, which prevents a pass; the reason (for example `observer HTTP 503` or `observer bearer token missing`) is kept as the assertion's `reason` in `result.json` and printed after it in the `verify` text summary.
 
 ### Matchers
 

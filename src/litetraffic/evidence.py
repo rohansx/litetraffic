@@ -52,7 +52,7 @@ def evaluate_assertions(
             elif status == "unknown":
                 missing.append(assertion_id)
             row = {"id": assertion_id, "status": status, "samples": int(status != "unknown")}
-            rows.append(row | {key: observation[key] for key in ("expected", "actual") if key in observation})
+            rows.append(row | {key: observation[key] for key in ("expected", "actual", "reason") if key in observation})
             continue
         samples = [event for event in events if event["assertion"] == assertion_id]
         failures = [event for event in samples if not event["passed"]]

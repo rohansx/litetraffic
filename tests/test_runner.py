@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from litetraffic.runner import RunnerError, _read_events, _read_metrics, repeat_verify, verify
+from litetraffic.human import format_verify
 from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
 
@@ -296,7 +297,8 @@ def test_verify_is_inconclusive_when_final_observation_is_unavailable(tmp_path, 
     result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
 
     assert result["verdict"] == "inconclusive"
-    assert result["assertions"][-1] == {"id": "ledger_total", "status": "unknown", "samples": 0}
+    assert result["assertions"][-1] == {"id": "ledger_total", "status": "unknown", "samples": 0, "reason": "observer HTTP 503"}
+    assert "ledger_total  unknown  0  (observer HTTP 503)" in format_verify(result, tmp_path / "runs")
 
 
 def test_verify_missing_observer_header_env_is_inconclusive_without_a_request(tmp_path, monkeypatch):

@@ -29,7 +29,10 @@ def format_verify(result: dict, output_dir: Path) -> list[str]:
         lines.append(f"summary: {Path(output_dir).resolve() / result['result']}")
         return lines
     lines = [f"verdict: {result['verdict'].upper()}  lifecycle: {result['lifecycle']}  {_journeys(result)}"]
-    lines += [f"{item['id']}  {item['status']}  {item['samples']}" for item in result.get("assertions", [])]
+    lines += [
+        f"{item['id']}  {item['status']}  {item['samples']}" + (f"  ({item['reason']})" if item.get("reason") else "")
+        for item in result.get("assertions", [])
+    ]
     if unexpected := result.get("metrics", {}).get("unexpected_http_failure_rate"):
         lines.append(f"unexpected HTTP failure rate: {unexpected['rate'] * 100:.1f}% ({unexpected['failed']}/{unexpected['samples']})")
     lines += [f"- {limitation}" for limitation in result.get("limitations", [])]
