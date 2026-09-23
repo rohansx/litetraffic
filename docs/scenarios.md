@@ -198,7 +198,7 @@ When the app has no create/delete endpoints, seed and reset state with commands 
 - `setup` runs before k6. A non-zero exit, a timeout or a missing executable makes the verdict `error` (`fixture setup failed: exit N`, `fixture setup failed: timed out after Ns`), and k6 is not started.
 - If the last line `setup` prints to stdout is a JSON object, it is passed to k6 (and to `teardown`) as `LT_FIXTURE_JSON` — for example `psql -At -c "select json_build_object('tenant_id', id) from ..."`.
 - `teardown` always runs once setup has been attempted: after a pass, a failed setup, a k6 crash or timeout, a cancel, or an unexpected error such as a failed artifact write (the error is still reported, exit 3). A non-zero exit, timeout or cancel makes the verdict `error` (`fixture teardown failed: exit N`).
-- On timeout or cancel, the command's process group gets SIGTERM, then SIGKILL.
+- On timeout or cancel, the command's whole process group gets SIGTERM, then SIGKILL, even when the command itself already exited and left children behind. If any process in the group is still alive a second later, the hook's reason ends with `process group did not exit`.
 - `fixture.json` records each command's `argv`, `exit_code`, `duration_seconds`, `status` and the last 4 KB of its stderr. Stdout is not stored.
 
 `inputs` (optional) lists bundle-relative files the commands read, such as SQL scripts. Each must exist and stay inside the scenario directory, or `inspect` and `verify` exit 3 (`fixture input does not exist`, `fixture input must stay inside the scenario directory`). Their sha256 values are recorded in the bundle digest and in `scenario.lock.json`, so editing `seed.sql` changes `scenario_sha256`. Files the commands read but that are not listed are not covered.
