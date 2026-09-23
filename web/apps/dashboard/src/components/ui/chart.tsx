@@ -90,9 +90,9 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   }
 
   return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
+    // A text child: React writes it as textContent, so it is never parsed as HTML.
+    <style>
+      {Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
@@ -107,9 +107,8 @@ ${colorConfig
 }
 `
           )
-          .join("\n"),
-      }}
-    />
+          .join("\n")}
+    </style>
   )
 }
 
