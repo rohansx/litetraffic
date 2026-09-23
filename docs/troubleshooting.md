@@ -22,6 +22,7 @@ Start with `litetraffic doctor --target <url> --json`, then open the run's `resu
 | Lifecycle `timed_out` | The app is too slow for the `max_seconds` envelope | Raise `max_seconds` or investigate the slowdown |
 | `fixture create HTTP 4xx/5xx` | Fixture endpoint missing, rejected the body, or needs auth | Check `create_path`, `create_body`, `bearer_token_env` |
 | `fixture cleanup ...` makes the verdict `error` | Delete failed | Clean up manually; fix `delete_path` |
+| `... unavailable: deadline exceeded` | Fixture or observer endpoint took over 5 s in total (connect + full body) | Make the endpoint answer promptly; slow or trickling responses are cut off |
 | `observer HTTP ...` / `unknown` | Observation endpoint not reachable or not 200 JSON | Check `observation.path` and token |
 | Example `verify` fails on the first try | A demo server is still running from earlier with a fault flag, or holds old state | Stop it and restart without the fault flag |
 | `diff` is `inconclusive` | Different seed, manifest, engine, or schedule; the candidate verdict is `error`/`inconclusive`; the candidate delivered less work (fewer iterations or HTTP requests than the baseline); or, without a p95 gate, the candidate has no latency samples | Read the `reasons` field; compare runs of the same scenario and seed that ran to completion |

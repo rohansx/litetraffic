@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from litetraffic.artifacts import MANIFEST, artifact_files
-from litetraffic.auth import AuthError, mint_tokens, redact, secret_values
+from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
@@ -66,14 +66,49 @@ def verify(
     seed: int = 0,
 ) -> dict:
     owed: dict = {}  # fixture teardown/cleanup not yet run; runs even when the run raises
+    state: dict = {}  # filled once the run directory exists, so a stray Ctrl-C can still finalize it
     try:
-        return _verify(target, scenario, output_dir, k6_path, seed, owed)
-    finally:
-        for release in list(owed.values()):
-            release()
+        try:
+            return _verify(target, scenario, output_dir, k6_path, seed, owed, state)
+        finally:
+            for release in list(owed.values()):
+                release()
+    except KeyboardInterrupt:
+        if "run_dir" not in state:
+            raise
+        return _finalize_cancelled(state)
 
 
-def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, seed: int, owed: dict) -> dict:
+def _finalize_cancelled(state: dict) -> dict:
+    # Best effort for a Ctrl-C the stage handlers did not catch: record the cancel, keep whatever evidence was written.
+    run_dir, run = state["run_dir"], state["run"]
+    finished_at = _now().isoformat()
+    result = {
+        **state["result"],
+        "lifecycle": "cancelled",
+        "engine_exit_code": None,
+        "finished_at": finished_at,
+        "verdict": "inconclusive",
+        "completeness": "incomplete",
+        "assertions": [],
+        "metrics": {},
+        "limitations": ["run cancelled by user"],
+        "notes": [],
+    }
+    _write_json(run_dir / "result.json", result)
+    run["finished_at"] = finished_at
+    _record_stage(run_dir, run, "cancelled")
+    try:  # ponytail: a second Ctrl-C here escapes; result.json and run.json are already final
+        _write_text(run_dir / result["report"], render_report(result, run))
+        files = artifact_files(run_dir)
+        _write_json(run_dir / MANIFEST, {"schema_version": 1, "run_id": result["run_id"], "files": files, "total_bytes": sum(entry["bytes"] for entry in files)})
+        _restrict(run_dir)
+    except Exception:  # noqa: BLE001 - the cancelled result stands without a report
+        pass
+    return result
+
+
+def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, seed: int, owed: dict, state: dict) -> dict:
     target = _target(target)
     bundle = load_scenario(Path(scenario))
     executable, engine_version = _engine(k6_path)
@@ -98,6 +133,20 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
         "started_at": started_at.isoformat(),
     }
+    base = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "mode": "verify",
+        "seed": seed,
+        "planned_journeys": bundle.manifest.planned_journeys,
+        "planned_journeys_per_second": round(
+            sum(phase.admitted_journeys for phase in resolved_schedule)
+            / max(sum(phase.seconds for phase in resolved_schedule), 1),
+            3,
+        ),
+        "report": "report.html",
+    }
+    state.update(run_dir=run_dir, run=run, result=base)
     _write_json(run_dir / "run.json", run)
     _write_json(run_dir / "scenario.lock.json", {"manifest": bundle.manifest_data, "engine": engine_version, "files": bundle.files})
 
@@ -125,7 +174,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     except AuthError as exc:
         lifecycle, engine_error = "crashed", str(exc)
     environment.update(tokens)
-    secrets = secret_values(bundle.manifest.actors, environment, tokens)
+    secrets = secret_values(bundle.manifest, environment, tokens)
     process: subprocess.Popen[str] | None = None
     group_survived = False
     engine_started = engine_finished = None
@@ -205,7 +254,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     events, malformed_events = _read_events(console_path, run_id)
     metrics, malformed_metrics = _read_metrics(metrics_path, bundle.manifest.journeys)
     events_path = events_dir / "000001.jsonl"
-    _write_text(events_path, "".join(json.dumps(event, sort_keys=True) + "\n" for event in events))
+    _write_text(events_path, "".join(json.dumps(event, sort_keys=True) + "\n" for event in redact_value(events, secrets)))
 
     _record_stage(run_dir, run, "observing")
     observations, engine_finished_ok = [], lifecycle == "finished"
@@ -233,7 +282,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     if observations:
         metrics["observer_requests"] = sum(record.pop("requested") for record in observations)
         # The legacy single `observation` keeps its single-object observation.json.
-        _write_json(run_dir / "observation.json", observations[0] if bundle.manifest.observation else observations)
+        _write_json(run_dir / "observation.json", redact_value(observations[0] if bundle.manifest.observation else observations, secrets))
     if fixture:
         if fixture["create"]["status"] == "created":
             fixture_id = fixture["create"]["fixture_id"]
@@ -242,7 +291,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
             except KeyboardInterrupt:
                 lifecycle = "cancelled"
                 fixture["cleanup"] = {"status": "error", "reason": f"fixture cleanup cancelled; fixture {fixture_id} may remain", "requests": 1}
-        _write_json(run_dir / "fixture.json", fixture)
+        _write_json(run_dir / "fixture.json", redact_value(fixture, secrets))
         metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
     if hooks:
         # Teardown runs whatever happened before it, including a failed or cancelled setup.
@@ -250,7 +299,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         if hooks["teardown"]["status"] == "cancelled":
             lifecycle = "cancelled"
             hooks["teardown"].update(status="error", reason="fixture teardown cancelled; fixture state may remain")
-        _write_json(run_dir / "fixture.json", hooks)
+        _write_json(run_dir / "fixture.json", redact_value(hooks, secrets))
     # Fixture create (POST) and cleanup (DELETE) are writes; the observer only reads.
     metrics["write_attempts"] = metrics.get("write_attempts", 0) + metrics.get("fixture_requests", 0)
     if fixture or observations:
@@ -337,17 +386,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         verdict = "pass"
 
     result = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "mode": "verify",
-        "seed": seed,
-        "planned_journeys": bundle.manifest.planned_journeys,
-        "planned_journeys_per_second": round(
-            sum(phase.admitted_journeys for phase in resolved_schedule)
-            / max(sum(phase.seconds for phase in resolved_schedule), 1),
-            3,
-        ),
-        "report": "report.html",
+        **base,
         "lifecycle": lifecycle,
         "engine_exit_code": engine_exit_code,
         "finished_at": finished_at,
@@ -359,6 +398,8 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         # Honesty notes describe what this preview never measures; they do not affect completeness.
         "notes": ["per-arrival lateness not measured", "workload is synthetic (no traces supplied)"],
     }
+    # Assertions have already seen the real values; everything kept or returned from here is a scrubbed copy.
+    result = redact_value(result, secrets)
     _write_json(run_dir / "result.json", result)
     _record_stage(run_dir, run, lifecycle)
     report_path = run_dir / result["report"]

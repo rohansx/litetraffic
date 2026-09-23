@@ -10,7 +10,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from litetraffic.auth import AuthError, mint_tokens, redact, token_env_name
+from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, token_env_name
 from litetraffic.cli import main
 from litetraffic.models import Actor, ScenarioManifest
 from litetraffic.observation import observe
@@ -221,3 +221,117 @@ def test_runtime_hmac_helpers_match_python(tmp_path):
     digest = hmac.new(b"key", b"body", hashlib.sha256).digest()
     assert f"HEX {digest.hex()}" in log
     assert f"B64 {base64.b64encode(digest).decode()}" in log
+
+
+def test_redact_catches_json_escaped_secrets_in_raw_text():
+    secret = "long\"secret\\123\nx"
+    assert json.loads(redact(json.dumps({"actual": secret}), [secret]))["actual"] == "[redacted]"
+
+
+def test_redact_catches_unescaped_non_ascii_and_go_html_escaped_forms():
+    secret = "pässwort\"<a&b>1"
+    for text in (json.dumps({"v": secret}, ensure_ascii=False), '{"v": "p\u00e4sswort\\"\\u003ca\\u0026b\\u003e1"}'):
+        assert json.loads(redact(text, [secret]))["v"] == "[redacted]", text
+
+
+def test_redact_value_walks_decoded_json():
+    secret = "long\"secret\\123\nx"
+    value = {"a": [f"pre {secret} post", 7, {secret: True}], "b": None}
+    assert redact_value(value, [secret]) == {"a": ["pre [redacted] post", 7, {"[redacted]": True}], "b": None}
+
+
+def test_echoed_credentials_never_reach_the_run_dir_or_stdout(tmp_path, monkeypatch, capsys):
+    api_key, observer_token, signing = "apikey-value-123", "observer-token-456", "long\"secret\\123\nx"
+
+    def echo(request):
+        return httpx.Response(200, json={"headers": dict(request.headers)})
+
+    monkeypatch.setattr(
+        "litetraffic.runner.observe",
+        lambda *args, **kwargs: observe(*args, transport=httpx.MockTransport(echo), **kwargs),
+    )
+    data = manifest(
+        actors=_actors(),
+        assertions=["accepted_orders_persist", "echoed"],
+        observation={
+            "path": "/echo",
+            "assertion": "echoed",
+            # `eq` records the whole echoed header map, so the credentials would land in observation.json unscrubbed.
+            "expected": {"/headers": {"eq": None}, "/headers/apikey": {"exists": True}, "/headers/authorization": {"exists": True}},
+            "bearer_token_env": "LT_TEST_OBSERVER_TOKEN",
+            "headers_env": {"apikey": "LT_TEST_API_KEY"},
+        },
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(19)]
+    events.append(assertion("accepted_orders_persist", passed=False) | {"actual": signing, "detail": f"key {signing}"})
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("LT_TEST_JWT_SECRET", signing)
+    monkeypatch.setenv("LT_TEST_API_KEY", api_key)
+    monkeypatch.setenv("LT_TEST_OBSERVER_TOKEN", observer_token)
+
+    k6 = fake_k6(tmp_path, events)
+    # Every character \u-escaped: valid JSON no raw text scrub can recognise, so only the decoded walk catches it in events/.
+    hidden = "".join(f"\\\\u{ord(c):04x}" for c in api_key)
+    line = f"with console.open('a') as stream: stream.write('LT_EVENT ' + json.dumps({assertion('accepted_orders_persist', passed=False)!r} | {{'run_id': run_id}})[:-1] + ', \"detail\": \"{hidden}\"}}\\n')\n"
+    k6.write_text(k6.read_text().replace("time.sleep(", line + "time.sleep(", 1))
+
+    code = main(["verify", "--target", "http://example.test", "--scenario", str(scenario), "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--json"])
+
+    stdout = capsys.readouterr().out
+    result = json.loads(stdout)
+    assert code is not None and result["verdict"] == "fail", result["limitations"]
+    failures = next(row for row in result["assertions"] if row["id"] == "accepted_orders_persist")["failures"]
+    assert failures[0]["actual"] == "[redacted]" and failures[0]["detail"] == "key [redacted]"
+    observation = json.loads((tmp_path / "runs" / result["run_id"] / "observation.json").read_text())
+    # Assertions saw the real values before redaction; only the kept copy is scrubbed.
+    assert observation["checks"]["/headers/apikey"]["pass"] and observation["checks"]["/headers/authorization"]["pass"]
+    assert observation["actual"]["/headers"]["apikey"] == "[redacted]"
+    assert observation["actual"]["/headers"]["authorization"] == "Bearer [redacted]"
+    event_lines = (tmp_path / "runs" / result["run_id"] / "events" / "000001.jsonl").read_text().splitlines()
+    assert "[redacted]" in [json.loads(line).get("detail") for line in event_lines], event_lines[-2:]
+    escaped = [json.dumps(value)[1:-1] for value in (api_key, observer_token, signing)]
+    for text in [stdout, *(p.read_text(errors="replace") for p in (tmp_path / "runs").rglob("*") if p.is_file())]:
+        for value in (api_key, observer_token, signing, *escaped):
+            assert value not in text
+
+
+def test_fixture_bearer_token_is_scrubbed_from_fixture_json(tmp_path, monkeypatch, capsys):
+    import litetraffic.runner as runner
+
+    token = "fixture-token-789"
+    data = manifest(
+        fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id", "bearer_token_env": "LT_TEST_FIXTURE_TOKEN"}},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("LT_TEST_FIXTURE_TOKEN", token)
+    # A target that hands the caller's token back as the fixture id.
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": token, "requests": 1})
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: {"status": "deleted", "requests": 1})
+
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    fixture = json.loads((tmp_path / "runs" / result["run_id"] / "fixture.json").read_text())
+    assert fixture["create"]["fixture_id"] == "[redacted]"
+    assert token not in json.dumps(result)
+
+
+def test_command_hook_record_is_scrubbed(tmp_path, monkeypatch):
+    data = manifest(
+        actors=_actors(),
+        fixtures={"recipe": "seeded", "command": {"setup": [*py("pass"), SECRET], "teardown": py("pass"), "timeout_seconds": 2}},
+        budgets=manifest()["budgets"] | {"max_seconds": 22},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("LT_TEST_JWT_SECRET", SECRET)
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    fixture = json.loads((tmp_path / "runs" / result["run_id"] / "fixture.json").read_text())
+    assert fixture["setup"]["argv"][-1] == "[redacted]"

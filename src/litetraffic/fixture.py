@@ -12,7 +12,7 @@ import httpx
 
 from litetraffic.auth import redact
 from litetraffic.models import OwnedHttpFixture
-from litetraffic.observation import _pointer
+from litetraffic.observation import DeadlineExceeded, _pointer, bounded_request, failure
 from litetraffic.process import GROUP_SURVIVED, _communicate, _stop_process
 from litetraffic.scenario import ScenarioError, check_pool
 
@@ -34,13 +34,12 @@ def create_fixture(
     if headers is None:
         return {"status": "error", "reason": "fixture bearer token missing", "requests": 0}
     try:
-        with httpx.Client(transport=transport, timeout=5, follow_redirects=False) as client:
-            response = client.post(target + config.create_path, json=config.create_body, headers=headers)
-        if response.status_code not in {200, 201}:
-            return {"status": "error", "reason": f"fixture create HTTP {response.status_code}", "requests": 1}
-        fixture_id = _pointer(response.json(), config.id_pointer)
-    except (httpx.HTTPError, KeyError, ValueError) as exc:
-        return {"status": "error", "reason": f"fixture create unavailable: {type(exc).__name__}", "requests": 1}
+        status, content = bounded_request("POST", target + config.create_path, headers, transport, config.create_body)
+        if status not in {200, 201}:
+            return {"status": "error", "reason": f"fixture create HTTP {status}", "requests": 1}
+        fixture_id = _pointer(json.loads(content), config.id_pointer)
+    except (httpx.HTTPError, KeyError, ValueError, DeadlineExceeded) as exc:
+        return {"status": "error", "reason": f"fixture create unavailable: {failure(exc)}", "requests": 1}
     if not isinstance(fixture_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", fixture_id):
         return {"status": "error", "reason": "invalid fixture id", "requests": 1}
     return {"status": "created", "fixture_id": fixture_id, "requests": 1}
@@ -112,10 +111,9 @@ def cleanup_fixture(
     if headers is None:
         return {"status": "error", "reason": "fixture bearer token missing", "requests": 0}
     try:
-        with httpx.Client(transport=transport, timeout=5, follow_redirects=False) as client:
-            response = client.delete(target + config.delete_path.replace("{fixture_id}", fixture_id), headers=headers)
-    except httpx.HTTPError as exc:
-        return {"status": "error", "reason": f"fixture cleanup unavailable: {type(exc).__name__}", "requests": 1}
-    if response.status_code not in {200, 204}:
-        return {"status": "error", "reason": f"fixture cleanup HTTP {response.status_code}", "requests": 1}
+        status, _ = bounded_request("DELETE", target + config.delete_path.replace("{fixture_id}", fixture_id), headers, transport)
+    except (httpx.HTTPError, ValueError, DeadlineExceeded) as exc:
+        return {"status": "error", "reason": f"fixture cleanup unavailable: {failure(exc)}", "requests": 1}
+    if status not in {200, 204}:
+        return {"status": "error", "reason": f"fixture cleanup HTTP {status}", "requests": 1}
     return {"status": "deleted", "requests": 1}

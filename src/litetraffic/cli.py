@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from litetraffic.activity import up
 from litetraffic.approval import approve, require_approval
+from litetraffic.auth import secret_env_names
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard import serve
 from litetraffic.doctor import run_doctor
@@ -227,11 +228,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 and manifest.fixtures.command.model_dump() | {"hashed_files": list(bundle.command_files)},
             },
             # Names only: the environment is never read here.
-            "secret_env": sorted(
-                {ref for ref in (owned and owned.bearer_token_env, *(item.bearer_token_env for item in observations)) if ref}
-                | {env for item in observations for env in item.headers_env.values()}
-                | {actor.auth.secret_env for actor in manifest.actors if actor.auth}
-            ),
+            "secret_env": sorted(secret_env_names(manifest)),
             "observer": manifest.observer,
             # observation_path/observation_expected describe the first observation; `observations` lists every one.
             "observation_path": observation and observation.path,

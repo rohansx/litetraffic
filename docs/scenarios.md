@@ -35,7 +35,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `allowed_origins_env` | no | Uppercase environment variable holding comma-separated extra origins an `origin_env` may resolve to ([below](#origin-from-the-environment)) |
 | `budgets` | yes | `max_seconds`, `max_requests`, `max_write_attempts`, `max_in_flight`, `max_artifact_bytes` |
 
-`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus 2 s for k6 start-up and in-flight journeys, the fixture deadline (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and the observation deadline (5 s per observation) must fit `max_seconds`. The error names each part and the total, e.g. `scheduled duration (12 s) plus engine start/drain (2 s), fixture (48 s) and observation (10 s) deadlines need 72 s, max_seconds is 70`.
+`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus 2 s for k6 start-up and in-flight journeys, the fixture deadline (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and the observation deadline (5 s per observation) must fit `max_seconds`. The error names each part and the total, e.g. `scheduled duration (12 s) plus engine start/drain (2 s), fixture (48 s) and observation (10 s) deadlines need 72 s, max_seconds is 70`. Each fixture create, fixture cleanup and observation request has a hard 5 s wall-clock deadline covering connect, headers and the full body (a slow or trickling server cannot stretch it), and a response body over 1 MiB is rejected; either failure makes the fixture `error` or the observation `unknown` (`... unavailable: deadline exceeded` / `... unavailable: response body over 1 MiB`).
 
 ## Schedules
 
@@ -154,7 +154,7 @@ An actor may declare an `auth` recipe. Before any fixture work or traffic, the c
 - `ttl_seconds` is 1 to 86400.
 - Two auth actor classes that map to the same `LT_TOKEN_` name are rejected. `LT_TOKEN_*` variables inherited from the calling shell are not passed to k6.
 - A missing or empty `secret_env` makes the run an `error` before any fixture or k6 process starts, with the limitation `auth secret env NAME missing`. A signing key shorter than 8 characters is refused the same way, with `auth secret env NAME is shorter than 8 characters`, because a short value cannot be scrubbed from evidence without corrupting it.
-- Tokens and signing keys are never written by the controller. If a script or command fixture prints one, it is replaced with `[redacted]` in `engine.stdout.log`, `engine.stderr.log`, `console.log`, `metrics.jsonl` and the fixture hook `stderr` in `fixture.json`. `inspect` lists the `secret_env` names.
+- Tokens and signing keys are never written by the controller. Every declared credential value — actor `auth` signing keys, minted `LT_TOKEN_*` JWTs, fixture and observer `bearer_token_env` tokens and observation `headers_env` values — is replaced with `[redacted]` in everything a run keeps or prints: `engine.stdout.log`, `engine.stderr.log`, `console.log` and `metrics.jsonl` are scrubbed as text for the literal value and its JSON-escaped forms (Python's `json.dumps` spellings and Go's `encoding/json` HTML escapes), so script events are scrubbed before assertions read them — their pass flags come from the script. `events/`, `observation.json`, `fixture.json`, `result.json` (and so `report.html`, the dashboard and `verify --json`) are also scrubbed by walking every decoded JSON string, keys included, which catches any other escape spelling; observations and fixtures are evaluated against the real values first. Values shorter than 8 characters are not scrubbed. `inspect` lists the `secret_env` names.
 
 In the script, send the token like any header: `http.get(url, { headers: { Authorization: `Bearer ${__ENV.LT_TOKEN_BUYER}` } })`.
 
@@ -233,7 +233,7 @@ Check the resulting state once, after all journeys finish:
 }
 ```
 
-The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`, which may also name an [`LT_TOKEN_<CLASS>`](#actor-auth) token minted for the run. An unreachable observer yields `unknown`, which prevents a pass; the reason (for example `observer HTTP 503` or `observer bearer token missing`) is kept as the assertion's `reason` in `result.json` and printed after it in the `verify` text summary.
+The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`, which may also name an [`LT_TOKEN_<CLASS>`](#actor-auth) token minted for the run. An unreachable observer yields `unknown`, which prevents a pass; the reason (for example `observer HTTP 503`, `observer bearer token missing` or `observer unavailable: deadline exceeded`) is kept as the assertion's `reason` in `result.json` and printed after it in the `verify` text summary.
 
 ### Matchers
 
@@ -241,7 +241,7 @@ Each `expected` value is either a literal, compared for equality, or a matcher o
 
 | Matcher | Passes when the value at the pointer |
 |---|---|
-| `{"eq": v}` | exists and equals `v` |
+| `{"eq": v}` | exists and equals `v` as JSON: `true`/`false` never equal `1`/`0`, at any depth inside arrays and objects, while `1` equals `1.0` |
 | `{"gte": n}` / `{"lte": n}` | exists, is a number (not a boolean), and is ≥ / ≤ `n` |
 | `{"len": n}` | exists, is an array, string or object, and has `n` items/characters/keys |
 | `{"exists": true\|false}` | is present / absent (a present `null` counts as present) |
@@ -258,7 +258,7 @@ A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is
 
 `inspect` shows the resolved values for its `--seed` as `observation_expected`.
 
-`observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the recorded `actual` value and `pass`. The observation passes only when every check passes.
+`observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the recorded `actual` value and `pass`, plus a `reason` such as `gte needs a number, got boolean` when a `gte`/`lte` check fails because the value is not a number. The observation passes only when every check passes.
 
 The recorded `actual` (in `actual`, `checks` and `result.json`) is compact:
 
@@ -295,7 +295,7 @@ To read state from a second service, such as PostgREST in front of the database,
 ```
 
 - `origin` must be an absolute http(s) URL without credentials, query or fragment; link-local and cloud metadata addresses are rejected, as for targets. A trailing slash is ignored and scheme and host are compared case-insensitively. An origin not listed in `allowed_origins` fails validation. Without `origin` or `origin_env`, the observation reads the target.
-- `headers_env` maps header names to uppercase environment variable names. Values are read at run time and sent only on the observation request; they are never written to artifacts. A missing or empty variable makes the observation `unknown` with reason `observer header env NAME missing` and no request is sent. `inspect` lists the variable names under `secret_env`.
+- `headers_env` maps header names to uppercase environment variable names. Values are read at run time and sent only on the observation request; if the endpoint echoes one back, it is `[redacted]` in every kept artifact and in `verify --json` (see [actor auth](#actor-auth)), though the assertion is evaluated against the real value first. A missing or empty variable makes the observation `unknown` with reason `observer header env NAME missing` and no request is sent. `inspect` lists the variable names under `secret_env`.
 - The run and fixture headers, the `bearer_token_env` token (as `Authorization: Bearer`) and the `headers_env` values are all sent to the other origin.
 
 ### Origin from the environment
