@@ -401,3 +401,48 @@ def test_narrow_tables_scroll_instead_of_splitting_words_and_badges():
 
     assert "overflow-wrap:anywhere" not in STYLE.split("h1{overflow-wrap:anywhere}")[1]
     assert "th,.badge{white-space:nowrap}" in STYLE
+
+
+@pytest.mark.parametrize("path", ["/", "/runs/run_b", "/scenarios/checkout", "/diff?a=run_b&b=run_c", "/about", "/nope"])
+def test_every_page_has_the_sidebar(server, path):
+    _, _, body = get(server, path)
+
+    assert '<aside class="sidebar"' in body and 'aria-label="Dashboard sections"' in body
+    for href in ('href="/"', 'href="/?verdict=fail"', 'href="/?verdict=inconclusive"', 'href="/?verdict=pass"', 'href="/about"'):
+        assert href in body
+    # One trend link per scenario on disk; the hostile scenario name stays escaped in the sidebar too.
+    assert 'href="/scenarios/checkout"' in body
+    assert "<script>alert(1)</script>" not in body.split("<main")[0]
+
+
+def test_misdirected_requests_get_no_sidebar_data(server, runs_dir):
+    request = urllib.request.Request(f"http://127.0.0.1:{server.server_address[1]}/", headers={"Host": "attacker.example"})
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(request)
+    body = exc.value.read().decode()
+
+    assert exc.value.code == 421
+    assert "checkout" not in body and str(runs_dir) not in body
+
+
+def test_sidebar_marks_the_current_page(server):
+    _, _, body = get(server, "/about")
+
+    assert '<a href="/about" aria-current="page">' in body
+    assert '<a href="/" aria-current="page">' not in body
+
+
+def test_about_page_explains_the_dashboard(server, runs_dir):
+    status, _, body = get(server, "/about")
+
+    assert status == 200
+    assert "What is this dashboard" in body
+    for text in ("verdict", "Compare", "trend", "127.0.0.1", str(runs_dir)):
+        assert text in body
+
+
+def test_index_says_what_it_shows(server, runs_dir):
+    _, _, body = get(server, "/")
+
+    assert "Every LiteTraffic run, repeat series and background activity" in body
+    assert str(runs_dir) in body

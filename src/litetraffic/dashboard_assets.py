@@ -8,8 +8,16 @@ STYLE = """
 :root[data-theme="dark"]{--bg:#111513;--fg:#e6ece8;--card:#1a201d;--line:#2f3833;--link:#7ddcaa;--muted:#a3afa8;
 --pass:#7ddcaa;--fail:#ff9a8f;--warn:#f0c96b;--info:#b3bcff;color-scheme:dark}
 *{box-sizing:border-box}
-body{font:15px/1.45 system-ui,sans-serif;max-width:1100px;margin:0 auto;padding:16px;color:var(--fg);background:var(--bg)}
-nav{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+body{font:15px/1.45 system-ui,sans-serif;max-width:1360px;margin:0 auto;padding:16px;color:var(--fg);background:var(--bg)}
+.layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:28px;align-items:start}
+.sidebar{position:sticky;top:16px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-wrap:anywhere}
+.sidebar h2{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 6px}
+.sidebar ul{list-style:none;margin:0;padding:0}.sidebar li{margin:2px 0}
+.sidebar a{display:block;padding:3px 6px;border-radius:6px;text-decoration:none}.sidebar a:hover{background:var(--bg)}
+.sidebar a[aria-current="page"]{background:var(--bg);font-weight:650}
+.sidebar .brand{font-weight:750;font-size:1.1rem;color:var(--fg);padding:0}.sidebar #theme{margin-top:16px;width:100%}
+.small{font-size:.8rem}main{min-width:0}
+@media (max-width:800px){.layout{grid-template-columns:1fr;gap:16px}.sidebar{position:static}}
 a{color:var(--link)}:focus-visible{outline:3px solid var(--link);outline-offset:2px}
 h1{overflow-wrap:anywhere}.muted{color:var(--muted)}
 .scroll{overflow-x:auto;max-width:100%}

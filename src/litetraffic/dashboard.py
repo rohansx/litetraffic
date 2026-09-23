@@ -52,7 +52,7 @@ def _scenarios(runs_dir: Path) -> list[str]:
 
 def _index(runs_dir: Path, query: str) -> str:
     filters = _filters(query)
-    return pages.index(_entries(runs_dir, filters), _scenarios(runs_dir), filters)
+    return pages.index(_entries(runs_dir, filters), _scenarios(runs_dir), filters, runs_dir)
 
 
 def _diff_pair(runs_dir: Path, query: str) -> list[Path | None]:
@@ -70,6 +70,9 @@ def _trend(runs_dir: Path, scenario: str) -> str | None:
 def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: str | bytes, content_type: str = "text/html; charset=utf-8") -> None:
+            # Only requests that passed the Host check see the runs folder and scenario names.
+            if getattr(self, "trusted", False) and isinstance(body, str) and content_type.startswith("text/html"):
+                body = body.replace(pages.SIDEBAR_SLOT, pages.sidebar(_scenarios(runs_dir), self.path, runs_dir), 1)
             data = body.encode("utf-8") if isinstance(body, str) else body
             self.send_response(status)
             self.send_header("Content-Type", content_type)
@@ -84,10 +87,13 @@ def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
             port = self.server.server_address[1]
             if (self.headers.get("Host") or "").lower() not in {f"{name}:{port}" for name in _LOOPBACK_NAMES}:
                 return self._send(421, pages.page("Misdirected request", "<h1>Misdirected request</h1>"))
+            self.trusted = True
             url = urlsplit(self.path)
             parts = [unquote(part) for part in url.path.split("/")[1:]]
             if parts == [""]:
                 return self._send(200, _index(runs_dir, url.query))
+            if parts == ["about"]:
+                return self._send(200, pages.about(runs_dir))
             if parts == ["api", "runs"]:
                 return self._send(200, json.dumps(_entries(runs_dir, _filters(url.query)), sort_keys=True), "application/json")
             if parts == ["api", "scenarios"]:

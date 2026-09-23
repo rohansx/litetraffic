@@ -46,14 +46,62 @@ def _table(head: tuple[str, ...], rows: str, body_id: str = "") -> str:
     return f'<div class="scroll"><table><thead><tr>{ths}</tr></thead>{tbody}{rows}</tbody></table></div>'
 
 
+# The server swaps this for sidebar(); pages rendered without a server keep an empty sidebar.
+SIDEBAR_SLOT = "<!--lt-sidebar-->"
+_VERDICT_LINKS = (("/?verdict=fail", "Failed"), ("/?verdict=inconclusive", "Inconclusive"), ("/?verdict=pass", "Passed"))
+
+
 def page(title: str, body: str, script: str = "") -> str:
     tail = f"<script>(function(){{{script}}})();</script>" if script else ""
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{escape(title)}</title><style>{STYLE}</style><script>{THEME_INIT}</script></head><body>"
-        '<nav><a href="/">All runs</a><button type="button" id="theme" aria-label="Toggle light or dark theme">'
-        f"Theme</button></nav><main>{body}</main><script>{THEME_TOGGLE}</script>{tail}</body></html>"
+        f'<div class="layout"><aside class="sidebar" aria-label="Dashboard sections">{SIDEBAR_SLOT}'
+        '<button type="button" id="theme" aria-label="Toggle light or dark theme">Theme</button></aside>'
+        f"<main>{body}</main></div><script>{THEME_TOGGLE}</script>{tail}</body></html>"
+    )
+
+
+def sidebar(scenarios: list[str], current: str, runs_dir: Path) -> str:
+    def link(href: str, text: str) -> str:
+        mark = ' aria-current="page"' if href == current else ""
+        return f'<li><a href="{escape(href)}"{mark}>{escape(text)}</a></li>'
+
+    runs_links = link("/", "All runs") + "".join(link(href, text) for href, text in _VERDICT_LINKS)
+    scenario_links = "".join(link(_url("scenarios", name), name) for name in scenarios) or '<li class="muted">None yet</li>'
+    return (
+        '<a class="brand" href="/">LiteTraffic</a>'
+        f'<p class="muted small" title="Runs folder">{escape(str(runs_dir))}</p>'
+        f"<h2>Runs</h2><ul>{runs_links}</ul>"
+        f"<h2>Scenario trends</h2><ul>{scenario_links}</ul>"
+        f'<h2>Help</h2><ul>{link("/about", "About this dashboard")}</ul>'
+    )
+
+
+def about(runs_dir: Path) -> str:
+    return page(
+        "About the LiteTraffic dashboard",
+        "<h1>What is this dashboard?</h1>"
+        "<p>A local, read-only view of the results LiteTraffic writes to disk. Every <code>litetraffic verify</code> run, "
+        "<code>--repeat</code> series and <code>up</code> background activity in the runs folder shows up here; nothing is "
+        "sent anywhere and nothing is changed.</p>"
+        f'<p class="muted">Runs folder: <code>{escape(str(runs_dir))}</code></p>'
+        '<div class="card"><h2>Runs</h2><p>Newest first. Each run has a <strong>verdict</strong>: <span class="badge v-pass">PASS</span> '
+        'every declared check held with complete evidence; <span class="badge v-fail">FAIL</span> at least one business check '
+        'definitely failed; <span class="badge v-inconclusive">INCONCLUSIVE</span> evidence was missing or incomplete, so it '
+        'cannot pass; <span class="badge v-error">ERROR</span> the run could not be evaluated (unreachable target, budget or '
+        "fixture failure). Filter by scenario, verdict or seed; the list refreshes every 5 seconds.</p></div>"
+        '<div class="card"><h2>Run page</h2><p>Open a run to see its assertions, the first failing samples with '
+        "<strong>expected vs actual</strong> values, final observations, per-operation latency, the client-side overlap check, "
+        "limitations, and links to <code>report.html</code> and every artifact.</p></div>"
+        '<div class="card"><h2>Compare</h2><p>Tick exactly two runs on the Runs page and press Compare. The older run is the '
+        "baseline. Compare shows whether correctness regressed, whether the runs are comparable (same scenario digest, seed, "
+        "engine and schedule), and the p95 latency change.</p></div>"
+        '<div class="card"><h2>Scenario trends</h2><p>Each scenario in the sidebar opens a trend chart of p95 latency per run '
+        "over time, with verdict markers and the data as a table.</p></div>"
+        '<div class="card"><h2>Safety</h2><p>The dashboard listens on 127.0.0.1 only, answers only requests addressed to '
+        "localhost for its own port, never follows symlinks out of the runs folder, and escapes everything it shows.</p></div>",
     )
 
 
@@ -90,12 +138,15 @@ def _filter_form(scenarios: list[str], filters: dict[str, str]) -> str:
     )
 
 
-def index(entries: list[dict], scenarios: list[str], filters: dict[str, str]) -> str:
+def index(entries: list[dict], scenarios: list[str], filters: dict[str, str], runs_dir: Path) -> str:
     rows = "".join(_index_row(entry) for entry in entries)
     table = _table(("Select", "Run", "Kind", "Scenario", "Lifecycle", "Seed", "Finished", "Verdict"), rows, "rows")
     return page(
         "LiteTraffic runs",
-        f"<h1>Runs</h1>{_filter_form(scenarios, filters)}"
+        "<h1>Runs</h1>"
+        f'<p class="muted">Every LiteTraffic run, repeat series and background activity in <code>{escape(str(runs_dir))}</code>, '
+        'newest first. Open a run for its evidence, or tick two runs to compare them. <a href="/about">How to read this</a></p>'
+        f"{_filter_form(scenarios, filters)}"
         '<form id="select" action="/diff" method="get" aria-label="Compare two runs"><div class="controls">'
         '<button id="compare" disabled>Compare</button><span class="muted">Select exactly two runs.</span>'
         '<label style="flex-direction:row;gap:6px;align-items:center"><input type="checkbox" id="autorefresh" checked> Auto-refresh every 5s</label>'
