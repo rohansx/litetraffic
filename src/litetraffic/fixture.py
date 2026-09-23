@@ -12,6 +12,7 @@ import httpx
 from litetraffic.models import OwnedHttpFixture
 from litetraffic.observation import _pointer
 from litetraffic.process import _communicate, _stop_process
+from litetraffic.scenario import ScenarioError, check_pool
 
 
 def _headers(config: OwnedHttpFixture, run_id: str) -> dict[str, str] | None:
@@ -83,6 +84,17 @@ def fixture_json(stdout: str) -> str | None:
     except ValueError:
         return None
     return json.dumps(value) if isinstance(value, dict) else None
+
+
+def fixture_pool(file_pool: list | None, setup_json: str | None, planned_journeys: int) -> str | None:
+    """LT_FIXTURE_POOL_JSON from the fixtures.pool file or the setup output's "pool" key, if either is set."""
+    setup_pool = json.loads(setup_json).get("pool") if setup_json else None
+    if setup_pool is None:
+        return None if file_pool is None else json.dumps(file_pool)
+    if file_pool is not None:
+        raise ScenarioError("fixture pool is set by both fixtures.pool and the setup output")
+    check_pool(setup_pool, planned_journeys)
+    return json.dumps(setup_pool)
 
 
 def cleanup_fixture(

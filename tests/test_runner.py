@@ -1241,3 +1241,36 @@ def test_bundled_runtime_under_real_k6(tmp_path):
     keys = {event["logical_key"] for event in events}
     assert len(keys) == 3 and all(key.startswith(f"{result['run_id']}-traffic-") for key in keys)
     assert len({event["detail"] for event in events}) == 3  # each iteration draws its own seeded stream
+
+
+@pytest.mark.skipif(shutil.which("k6") is None, reason="real k6 not installed")
+def test_pool_item_under_real_k6(tmp_path):
+    data = manifest(
+        schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 3}]},
+        budgets=manifest()["budgets"] | {"max_artifact_bytes": 1048576},
+    )
+    data["fixtures"]["pool"] = "pool.json"
+    scenario = write_bundle(tmp_path / "scenario", data)
+    (scenario / "pool.json").write_text('["a", "b", "c"]')
+    (scenario / "journeys.js").write_text(
+        'import exec from "k6/execution";\n'
+        'import * as lt from "./litetraffic/runtime.js";\n'
+        "export const options = lt.options();\n"
+        "export default function () {\n"
+        "  const item = lt.poolItem();\n"
+        "  let past = 'no error';\n"
+        "  try { lt.poolItem(3); } catch (e) { past = e.message; }\n"
+        '  lt.evidence("accepted_orders_persist", item === "abc"[exec.scenario.iterationInTest], '
+        "{ expected: 1, actual: 1, detail: item + '|' + past });\n"
+        "}\n"
+    )
+
+    result = verify("http://127.0.0.1:9", scenario, tmp_path / "runs", seed=7)
+
+    assert result["verdict"] == "pass", result["limitations"]
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "runs" / result["run_id"] / "events" / "000001.jsonl").read_text().splitlines()
+    ]
+    past = "fixture pool has no item for journey 3 (pool size 3)"
+    assert sorted(event["detail"] for event in events) == [f"{item}|{past}" for item in "abc"]

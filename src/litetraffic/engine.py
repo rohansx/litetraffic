@@ -1,9 +1,10 @@
-"""Pre-flight checks shared by every run: the k6 executable and the target URL."""
+"""Pre-flight checks shared by every run (the k6 executable and the target URL) and the k6 command line."""
 
 from __future__ import annotations
 
 import shutil
 import subprocess
+from pathlib import Path
 
 from litetraffic.target import validate_target
 
@@ -35,3 +36,11 @@ def _target(value: str) -> str:
         return validate_target(value)
     except ValueError as exc:
         raise RunnerError(str(exc)) from exc
+
+
+def k6_command(executable: str, console_path: Path, metrics_path: Path) -> list[str]:
+    """k6 run arguments, minus the script: raw console output for evidence, JSON metrics, no redirects."""
+    return [
+        executable, "run", "--quiet", "--max-redirects", "0", "--log-format", "raw",
+        "--console-output", str(console_path), "--out", f"json={metrics_path}",
+    ]

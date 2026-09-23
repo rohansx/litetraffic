@@ -63,6 +63,7 @@ class Fixtures(StrictModel):
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     owned_http: OwnedHttpFixture | None = None
     command: CommandFixture | None = None
+    pool: str | None = Field(default=None, min_length=1)  # bundle-relative JSON array file, one item per journey
 
     @model_validator(mode="after")
     def require_one_lifecycle(self) -> "Fixtures":

@@ -124,3 +124,60 @@ def test_missing_setup_executable_is_an_error(tmp_path, monkeypatch):
     assert result["verdict"] == "error"
     assert any(item.startswith("fixture setup failed: ") for item in result["limitations"])
     assert fixture["setup"]["exit_code"] is None
+
+
+def k6_env(tmp_path):
+    return json.loads((tmp_path / "k6-env.json").read_text())
+
+
+def with_pool_file(scenario, items: str):
+    data = json.loads((scenario / "manifest.json").read_text())
+    data["fixtures"]["pool"] = "pool.json"
+    (scenario / "manifest.json").write_text(json.dumps(data))
+    (scenario / "pool.json").write_text(items)
+    return scenario
+
+
+def test_pool_file_is_exported_to_k6(tmp_path, monkeypatch):
+    monkeypatch.setenv("LT_FIXTURE_POOL_JSON", "stale")
+    scenario = with_pool_file(command_bundle(tmp_path, py("pass"), py("pass")), '[{"session": "s0"}]')
+    result, _ = run(tmp_path, monkeypatch, scenario)
+    assert result["verdict"] == "pass", result["limitations"]
+    assert json.loads(k6_env(tmp_path)["LT_FIXTURE_POOL_JSON"]) == [{"session": "s0"}]
+
+
+def test_setup_pool_key_is_exported_to_k6(tmp_path, monkeypatch):
+    monkeypatch.setenv("LT_FIXTURE_POOL_JSON", "stale")
+    scenario = command_bundle(tmp_path, py("print('{\"pool\": [\"p0\", \"p1\"], \"tenant\": \"t\"}')"), py("pass"))
+    result, _ = run(tmp_path, monkeypatch, scenario)
+    assert result["verdict"] == "pass", result["limitations"]
+    assert json.loads(k6_env(tmp_path)["LT_FIXTURE_POOL_JSON"]) == ["p0", "p1"]
+
+
+def test_no_pool_means_no_pool_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("LT_FIXTURE_POOL_JSON", "stale")
+    run(tmp_path, monkeypatch, command_bundle(tmp_path, py("pass"), py("pass")))
+    assert "LT_FIXTURE_POOL_JSON" not in k6_env(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("pool", "limitation"),
+    [
+        ("[]", "fixture pool has 0 items but 1 journeys are planned"),
+        ('"x"', "fixture pool must be a JSON array"),
+    ],
+)
+def test_unusable_setup_pool_is_an_error_without_traffic(tmp_path, monkeypatch, pool, limitation):
+    scenario = command_bundle(tmp_path, py(f"print('{{\"pool\": {pool}}}')"), record("teardown"))
+    result, _ = run(tmp_path, monkeypatch, scenario)
+    assert result["verdict"] == "error"
+    assert limitation in result["limitations"]
+    assert not (tmp_path / "k6-env.json").exists()
+    assert (scenario / "teardown.json").exists()
+
+
+def test_setup_pool_conflicts_with_a_pool_file(tmp_path, monkeypatch):
+    scenario = with_pool_file(command_bundle(tmp_path, py("print('{\"pool\": [1]}')"), py("pass")), "[1]")
+    result, _ = run(tmp_path, monkeypatch, scenario)
+    assert result["verdict"] == "error"
+    assert "fixture pool is set by both fixtures.pool and the setup output" in result["limitations"]

@@ -32,6 +32,29 @@ class ScenarioBundle:
     manifest_data: dict
     files: dict[str, str]  # relative path -> sha256, for the script and its relative import closure
     digest: str  # sha256 over the canonical manifest JSON plus every file hash
+    pool: list | None = None  # the fixtures.pool file's items
+
+
+def check_pool(pool: object, planned_journeys: int) -> None:
+    if not isinstance(pool, list):
+        raise ScenarioError("fixture pool must be a JSON array")
+    if len(pool) < planned_journeys:
+        raise ScenarioError(f"fixture pool has {len(pool)} items but {planned_journeys} journeys are planned")
+
+
+def _load_pool(root: Path, name: str, planned_journeys: int) -> tuple[str, bytes, list]:
+    path = (root / name).resolve()
+    if not path.is_relative_to(root):
+        raise ScenarioError("fixture pool must stay inside the scenario directory")
+    if not path.is_file():
+        raise ScenarioError(f"fixture pool does not exist: {path}")
+    data = path.read_bytes()
+    try:
+        pool = json.loads(data)
+    except ValueError as exc:
+        raise ScenarioError(f"fixture pool is not valid JSON: {exc}") from exc
+    check_pool(pool, planned_journeys)
+    return path.relative_to(root).as_posix(), data, pool
 
 
 def load_scenario(path: Path) -> ScenarioBundle:
@@ -52,6 +75,10 @@ def load_scenario(path: Path) -> ScenarioBundle:
     if not script_path.is_file():
         raise ScenarioError(f"scenario script does not exist: {script_path}")
     files = _import_closure(root, script_path)
+    pool = None
+    if manifest.fixtures.pool:
+        name, data, pool = _load_pool(root, manifest.fixtures.pool, manifest.planned_journeys)
+        files[name] = hashlib.sha256(data).hexdigest()
     digest = hashlib.sha256(json.dumps(raw, sort_keys=True, separators=(",", ":")).encode())
     for name, file_sha in sorted(files.items()):
         digest.update(f"\n{name}\0{file_sha}".encode())
@@ -69,7 +96,7 @@ def load_scenario(path: Path) -> ScenarioBundle:
             f"journey and lifecycle maximum {manifest.maximum_journey_writes + extra_writes}"
         )
 
-    return ScenarioBundle(root, manifest_path, script_path, manifest, raw, files, digest.hexdigest())
+    return ScenarioBundle(root, manifest_path, script_path, manifest, raw, files, digest.hexdigest(), pool)
 
 
 def _import_closure(root: Path, script_path: Path) -> dict[str, str]:

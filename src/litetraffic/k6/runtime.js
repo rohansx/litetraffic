@@ -70,3 +70,18 @@ export function rng(iteration = exec.scenario.iterationInTest) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+let pool;
+
+// The fixture pool item for this journey (default: the k6 iteration index).
+// Throws when LT_FIXTURE_POOL_JSON is unset or has no item at that index.
+export function poolItem(index = exec.scenario.iterationInTest) {
+  if (pool === undefined) {
+    if (!__ENV.LT_FIXTURE_POOL_JSON) throw new Error("no fixture pool: set fixtures.pool or a setup 'pool' key");
+    pool = JSON.parse(__ENV.LT_FIXTURE_POOL_JSON);
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= pool.length) {
+    throw new Error(`fixture pool has no item for journey ${index} (pool size ${pool.length})`);
+  }
+  return pool[index];
+}

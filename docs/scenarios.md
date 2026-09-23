@@ -24,6 +24,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `fixtures.recipe`, `fixtures.parameters` | yes / no | Descriptive fixture label and parameters |
 | `fixtures.owned_http` | no | Run-owned HTTP fixture the controller creates and deletes ([below](#run-owned-fixtures)) |
 | `fixtures.command` | no | Setup and teardown commands run on the controller host ([below](#command-fixtures)); cannot be combined with `owned_http` |
+| `fixtures.pool` | no | Bundle-relative JSON array file with one item per journey ([below](#fixture-pool)) |
 | `journeys` | yes | `[{"name", "max_requests", "max_writes"}]` per-journey maxima used for budget checks |
 | `schedule` | yes | `unit: "journeys_per_second"` plus exactly one of `phases` or `profile` |
 | `assertions` | yes | Assertion IDs that must receive evidence for a pass |
@@ -71,6 +72,7 @@ The script is ordinary k6 JavaScript. The controller passes these environment va
 | `LT_SEED` | Seed, if the script needs deterministic choices |
 | `LT_FIXTURE_ID` | Present only when an `owned_http` fixture was created |
 | `LT_FIXTURE_JSON` | Present only when a `command` fixture's setup printed a JSON object as its last stdout line |
+| `LT_FIXTURE_POOL_JSON` | Present only when a [fixture pool](#fixture-pool) is set; read it with `poolItem()` |
 
 ### Bundled runtime helper
 
@@ -95,6 +97,7 @@ export default function () {
 | `journeyKey()` | `<run_id>-<k6 scenario name>-<iterationInTest>`; the same for every call within one journey and independent of the VU that runs it |
 | `evidence(assertion, passed, {logicalKey, expected, actual, detail})` | Logs one `LT_EVENT` line. `logicalKey` defaults to `journeyKey()`; `expected`/`actual`/`detail` are included only when given; `detail` is cut to 500 characters |
 | `rng(iteration)` | Returns a function yielding numbers in `[0, 1)`, seeded from `LT_SEED` and `iteration` (default: the current `iterationInTest`), so the same seed replays the same choices per journey |
+| `poolItem(index)` | Returns the [fixture pool](#fixture-pool) item for `index` (default: the current `iterationInTest`). Throws when no pool is set or the index is out of range |
 
 All bundled examples use the helper. Scripts that build their own options still work; they must then apply `LT_SCHEDULE_JSON` and `LT_MAX_IN_FLIGHT` themselves. `verify` runs k6 with `--max-redirects 0`, which overrides a script's `maxRedirects` option, so redirects are not followed. A request that sets its own `redirects` parameter still follows them; avoid that unless your journey needs it.
 
@@ -162,6 +165,22 @@ When the app has no create/delete endpoints, seed and reset state with commands 
 - `fixture.json` records each command's `argv`, `exit_code`, `duration_seconds`, `status` and the last 4 KB of its stderr. Stdout is not stored.
 
 `inspect` prints both argv lists and the `scenario_sha256` digest, which covers the whole manifest, so a changed command is visible in the digest and in `scenario.lock.json`.
+
+## Fixture pool
+
+When every journey needs its own pre-seeded row (a session, a payment method, a cart), give the run a pool with one item per journey. Either point `fixtures.pool` at a JSON array file inside the scenario directory:
+
+```json
+"fixtures": {"recipe": "seeded-sessions", "pool": "sessions.json"}
+```
+
+or let a `command` fixture's setup print a JSON object with a `pool` array as its last stdout line, for example `{"pool": [{"session": "s1"}, {"session": "s2"}]}`.
+
+- The pool must hold at least `planned_journeys` items. A short or non-array `fixtures.pool` file makes `inspect` and `verify` exit 3 (`fixture pool has N items but M journeys are planned`). A short or non-array setup `pool` makes the verdict `error` and k6 is not started; teardown still runs.
+- Setting both `fixtures.pool` and a setup `pool` key makes the verdict `error` (`fixture pool is set by both fixtures.pool and the setup output`).
+- The pool file must stay inside the scenario directory. Its sha256 is recorded in the bundle digest and in `scenario.lock.json`, so changing the pool changes `scenario_sha256`.
+- k6 receives the pool as `LT_FIXTURE_POOL_JSON`. In the script, `lt.poolItem()` returns the item for the current journey (`iterationInTest`) and throws if there is none.
+- The pool travels in a single environment variable, so keep it small: Linux caps one variable at 128 KiB, and a larger pool makes k6 fail to start. A setup `pool` is sent twice, inside `LT_FIXTURE_JSON` (the whole setup object) and as `LT_FIXTURE_POOL_JSON`, so each stays under that cap but the total environment roughly doubles; prefer a `fixtures.pool` file for large pools.
 
 ## Final observation
 

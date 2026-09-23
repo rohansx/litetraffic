@@ -9,13 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from litetraffic.artifacts import MANIFEST, artifact_files
-from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target  # noqa: F401 (re-exported)
+from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, target_unreachable
-from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, run_fixture_command
+from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
 from litetraffic.observation import observe
 from litetraffic.process import _communicate, _stop_process
 from litetraffic.report import render_report
-from litetraffic.scenario import load_scenario, staged
+from litetraffic.scenario import ScenarioError, load_scenario, staged
 from litetraffic.series import aggregate_verdict, dispersion
 
 K6_THRESHOLDS_FAILED = 99  # k6 exit code: the run completed but a threshold was crossed
@@ -93,21 +93,9 @@ def verify(
 
     console_path = run_dir / "console.log"
     metrics_path = run_dir / "metrics.jsonl"
-    command = [
-        executable,
-        "run",
-        "--quiet",
-        "--max-redirects",
-        "0",
-        "--log-format",
-        "raw",
-        "--console-output",
-        str(console_path),
-        "--out",
-        f"json={metrics_path}",
-    ]
+    command = k6_command(executable, console_path, metrics_path)
     environment = os.environ.copy()
-    for name in ("LT_FIXTURE_ID", "LT_FIXTURE_JSON"):
+    for name in ("LT_FIXTURE_ID", "LT_FIXTURE_JSON", "LT_FIXTURE_POOL_JSON"):
         environment.pop(name, None)
     environment.update({"LT_RUN_ID": run_id, "LT_TARGET": target, "LT_SEED": str(seed)})
     hook_environment = dict(environment)  # command fixtures see only the run identity, not the schedule
@@ -132,6 +120,14 @@ def verify(
             environment["LT_FIXTURE_JSON"] = hook_environment["LT_FIXTURE_JSON"] = fixture_json(setup_stdout)
         lifecycle = {"ok": "running", "cancelled": "cancelled"}.get(setup["status"], "crashed")
         engine_error = setup.get("reason", "")
+    if lifecycle == "running":
+        try:
+            pool_json = fixture_pool(bundle.pool, environment.get("LT_FIXTURE_JSON"), bundle.manifest.planned_journeys)
+        except ScenarioError as exc:
+            lifecycle, engine_error = "crashed", str(exc)
+        else:
+            if pool_json:
+                environment["LT_FIXTURE_POOL_JSON"] = pool_json
     if bundle.manifest.fixtures.owned_http:
         try:
             fixture = {"create": create_fixture(target, bundle.manifest.fixtures.owned_http, run_id)}

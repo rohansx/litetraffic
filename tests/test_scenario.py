@@ -428,3 +428,38 @@ def test_bundled_runtime_exports_the_helper_api():
     source = RUNTIME.read_text()
     for name in ("options()", "evidence(assertion, passed", "journeyKey()", "rng(iteration"):
         assert f"export function {name}" in source, name
+
+
+def pool_bundle(tmp_path, items, pool="pool.json"):
+    path = write_bundle(tmp_path, manifest(fixtures={"recipe": "seeded", "pool": pool}))
+    (path / "pool.json").write_text(json.dumps(items))
+    return path
+
+
+def test_fixture_pool_file_is_loaded_and_covered_by_the_digest(tmp_path):
+    path = pool_bundle(tmp_path, [{"session": f"s{i}"} for i in range(20)])
+    bundle = load_scenario(path)
+    assert bundle.pool[19] == {"session": "s19"}
+    assert "pool.json" in bundle.files
+    first = bundle.digest
+    (path / "pool.json").write_text(json.dumps([{"session": f"t{i}"} for i in range(20)]))
+    assert load_scenario(path).digest != first
+
+
+@pytest.mark.parametrize(
+    ("items", "pool", "message"),
+    [
+        (list(range(19)), "pool.json", "fixture pool has 19 items but 20 journeys are planned"),
+        ({"a": 1}, "pool.json", "fixture pool must be a JSON array"),
+        (list(range(20)), "missing.json", "fixture pool does not exist"),
+        (list(range(20)), "../pool.json", "fixture pool must stay inside the scenario directory"),
+    ],
+)
+def test_rejects_unusable_fixture_pools(tmp_path, items, pool, message):
+    (tmp_path / "pool.json").write_text(json.dumps(list(range(20))))
+    with pytest.raises(ScenarioError, match=message):
+        load_scenario(pool_bundle(tmp_path / "scenario", items, pool))
+
+
+def test_bundled_runtime_exports_pool_item():
+    assert "export function poolItem(" in RUNTIME.read_text()
