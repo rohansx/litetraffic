@@ -5,19 +5,14 @@ import random
 import re
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
+from pydantic import Field, JsonValue, computed_field, model_validator
 
 from litetraffic.auth import token_env_name
-from litetraffic.expression import NAMES, evaluate, is_expression
+from litetraffic.modelbase import ENV_NAME, StrictModel
+from litetraffic.observation_config import FinalObservation, as_matcher, resolve_expected  # noqa: F401 (re-exported)
 from litetraffic.process import STOP_GRACE_SECONDS
-from litetraffic.target import validate_target
+from litetraffic.target import normalize_origin
 
-
-class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-
-ENV_NAME = r"[A-Z_][A-Z0-9_]*"
 AUTH_PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 AUTH_NAMES = {"run_id", "actor_index"}
 
@@ -109,76 +104,6 @@ class Fixtures(StrictModel):
         if self.command:  # setup and teardown may each run to their timeout and then be stopped
             return 2 * (self.command.timeout_seconds + STOP_GRACE_SECONDS)
         return 10 if self.owned_http else 0
-
-
-MATCHER_KEYS = {"eq", "gte", "lte", "len", "exists"}
-
-
-def as_matcher(expected: JsonValue) -> dict[str, JsonValue]:
-    """A dict whose keys are all matcher keys is a matcher; any other value means equality."""
-    if isinstance(expected, dict) and expected and set(expected) <= MATCHER_KEYS:
-        return expected
-    return {"eq": expected}
-
-
-def resolve_expected(expected: dict[str, JsonValue], variables: dict[str, int]) -> dict[str, JsonValue]:
-    """Evaluate `${...}` literals and matcher operands; every other value is kept as written."""
-    resolved = {}
-    for pointer, value in expected.items():
-        matcher = as_matcher(value)
-        (op, operand), = matcher.items()  # validation already rejected multi-key matchers
-        if is_expression(operand):
-            operand = evaluate(operand, variables)
-            value = operand if matcher is not value else {op: operand}
-        resolved[pointer] = value
-    return resolved
-
-
-def _check_matcher(pointer: str, matcher: dict[str, JsonValue]) -> None:
-    if len(matcher) != 1:
-        raise ValueError(f"{pointer}: matcher must have exactly one of {sorted(MATCHER_KEYS)}")
-    (op, operand), number = next(iter(matcher.items())), (int, float)
-    if op != "exists" and is_expression(operand):
-        return
-    if op in {"gte", "lte"} and (isinstance(operand, bool) or not isinstance(operand, number)):
-        raise ValueError(f"{pointer}: {op} matcher needs a number")
-    if op == "len" and (isinstance(operand, bool) or not isinstance(operand, int) or operand < 0):
-        raise ValueError(f"{pointer}: len matcher needs a non-negative integer")
-    if op == "exists" and not isinstance(operand, bool):
-        raise ValueError(f"{pointer}: exists matcher needs true or false")
-
-
-class FinalObservation(StrictModel):
-    path: str = Field(min_length=1)
-    assertion: str = Field(min_length=1)
-    expected: dict[str, JsonValue] = Field(min_length=1)
-    bearer_token_env: str | None = None
-    origin: str | None = None
-    headers_env: dict[str, str] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def require_safe_read(self) -> "FinalObservation":
-        if not self.path.startswith("/") or self.path.startswith("//") or "#" in self.path:
-            raise ValueError("observation path must be a same-origin relative path")
-        if any(pointer and not pointer.startswith("/") for pointer in self.expected):
-            raise ValueError("expected keys must be JSON Pointers")
-        for pointer, value in self.expected.items():
-            if as_matcher(value) is value:
-                _check_matcher(pointer, value)
-        try:
-            resolve_expected(self.expected, dict.fromkeys(NAMES, 0))
-        except ValueError as exc:
-            raise ValueError(f"expected {exc}") from None
-        if self.bearer_token_env and not re.fullmatch(ENV_NAME, self.bearer_token_env):
-            raise ValueError("bearer_token_env must name an uppercase environment variable")
-        for header, env in self.headers_env.items():
-            if not re.fullmatch(r"[A-Za-z0-9!#$%&'*+.^_`|~-]+", header):
-                raise ValueError(f"headers_env key {header!r} is not a valid header name")
-            if not re.fullmatch(ENV_NAME, env):
-                raise ValueError(f"headers_env {header} must name an uppercase environment variable")
-        if self.origin is not None:
-            self.origin = validate_target(self.origin, "observation origin")
-        return self
 
 
 class Journey(StrictModel):
@@ -361,7 +286,9 @@ class ScenarioManifest(StrictModel):
     assertions: list[str] = Field(min_length=1)
     observer: str = Field(min_length=1)
     observation: FinalObservation | None = None
+    observations: list[FinalObservation] = Field(default_factory=list)  # the legacy `observation` becomes its only entry
     allowed_origins: list[str] = Field(default_factory=list)
+    allowed_origins_env: str | None = None  # names a variable holding comma-separated extra origins for origin_env
     budgets: Budgets
 
     @model_validator(mode="after")
@@ -374,16 +301,29 @@ class ScenarioManifest(StrictModel):
         fixture_seconds = self.fixtures.reserved_seconds
         if fixture_seconds and scheduled_seconds + fixture_seconds > self.budgets.max_seconds:
             raise ValueError(f"scheduled duration plus {fixture_seconds}-second fixture deadline exceeds max_seconds budget")
-        if self.observation and scheduled_seconds + fixture_seconds + 5 > self.budgets.max_seconds:
-            raise ValueError("scheduled duration plus fixture and 5-second observation deadline exceeds max_seconds budget")
-        if self.observation and self.observation.assertion not in self.assertions:
+        if self.observation and self.observations:
+            raise ValueError("use observation or observations, not both")
+        if self.observation:
+            self.observations = [self.observation]
+        observation_seconds = 5 * len(self.observations)
+        if observation_seconds and scheduled_seconds + fixture_seconds + observation_seconds > self.budgets.max_seconds:
+            raise ValueError(
+                f"scheduled duration plus fixture and {observation_seconds}-second observation deadline exceeds max_seconds budget"
+            )
+        observed = [observation.assertion for observation in self.observations]
+        if any(assertion not in self.assertions for assertion in observed):
             raise ValueError("observation assertion must be declared in assertions")
+        if len(set(observed)) != len(observed):
+            raise ValueError("observation assertions must be distinct")
+        if self.allowed_origins_env is not None and not re.fullmatch(ENV_NAME, self.allowed_origins_env):
+            raise ValueError("allowed_origins_env must name an uppercase environment variable")
         token_envs = [token_env_name(actor.actor_class) for actor in self.actors if actor.auth]
         if len(set(token_envs)) != len(token_envs):
             raise ValueError(f"actor classes with auth must map to distinct token variables: {', '.join(token_envs)}")
-        self.allowed_origins = [validate_target(origin, "allowed_origins entry") for origin in self.allowed_origins]
-        if self.observation and self.observation.origin and self.observation.origin not in self.allowed_origins:
-            raise ValueError(f"observation origin {self.observation.origin} must be listed in allowed_origins")
+        self.allowed_origins = [normalize_origin(origin, "allowed_origins entry") for origin in self.allowed_origins]
+        for observation in self.observations:
+            if observation.origin and observation.origin not in self.allowed_origins:
+                raise ValueError(f"observation origin {observation.origin} must be listed in allowed_origins")
         return self
 
     @computed_field

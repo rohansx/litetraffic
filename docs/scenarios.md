@@ -30,10 +30,12 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `assertions` | yes | Assertion IDs that must receive evidence for a pass |
 | `observer` | yes | Descriptive label for how the effect is observed |
 | `observation` | no | Final read-only HTTP check ([below](#final-observation)) |
-| `allowed_origins` | no | Absolute http(s) origins the observation may read besides the target ([below](#observing-another-origin)) |
+| `observations` | no | List of final checks, each shaped like `observation` ([below](#multiple-observations)); cannot be combined with `observation` |
+| `allowed_origins` | no | Absolute http(s) origins an observation may read besides the target ([below](#observing-another-origin)) |
+| `allowed_origins_env` | no | Uppercase environment variable holding comma-separated extra origins an `origin_env` may resolve to ([below](#origin-from-the-environment)) |
 | `budgets` | yes | `max_seconds`, `max_requests`, `max_write_attempts`, `max_in_flight`, `max_artifact_bytes` |
 
-`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and observation (5 s) deadlines must fit `max_seconds`.
+`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and observation (5 s per observation) deadlines must fit `max_seconds`.
 
 ## Schedules
 
@@ -252,7 +254,26 @@ A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is
 
 `inspect` shows the resolved values for its `--seed` as `observation_expected`.
 
-`observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the `actual` value (`null` when missing) and `pass`. The observation passes only when every check passes.
+`observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the recorded `actual` value and `pass`. The observation passes only when every check passes.
+
+The recorded `actual` (in `actual`, `checks` and `result.json`) is compact:
+
+- `exists`: `true` or `false` (whether the pointer was found).
+- `len`: `{"type", "length"}` of the value, where `type` is its JSON type (`array`, `string`, `object`, `number`, `boolean`, `null`) and `length` is present only for arrays, strings and objects; the value itself is never stored.
+- any other matcher: the value, or `null` when missing. When its JSON form exceeds 2048 bytes it is replaced by a string of its first bytes ending in `...[truncated]`, 2048 bytes in total. Matching always uses the full value.
+
+### Multiple observations
+
+To check several things after the run, use `observations` instead of `observation`:
+
+```json
+"observations": [
+  {"path": "/reports/ledger", "assertion": "ledger_matches_fixture", "expected": {"/total": 1000}},
+  {"path": "/reports/audit", "assertion": "audit_complete", "expected": {"/entries": {"len": 20}}}
+]
+```
+
+Each entry has its own `assertion`; every one must be listed in `assertions` and they must be distinct. They run one after another, in order, after k6 finishes; each gets 5 s and one request in the budgets. `observation.json` is then a list with one entry per observation, in order, and each assertion gets its own row in `result.json`. A legacy single `observation` still writes a single object. If k6 did not finish, every observation is `unknown` with reason `engine did not finish`.
 
 ### Observing another origin
 
@@ -269,9 +290,21 @@ To read state from a second service, such as PostgREST in front of the database,
 }
 ```
 
-- `origin` must be an absolute http(s) URL without credentials; link-local and cloud metadata addresses are rejected, as for targets. A trailing slash is ignored. An origin not listed in `allowed_origins` fails validation. Without `origin`, the observation reads the target.
+- `origin` must be an absolute http(s) URL without credentials, query or fragment; link-local and cloud metadata addresses are rejected, as for targets. A trailing slash is ignored and scheme and host are compared case-insensitively. An origin not listed in `allowed_origins` fails validation. Without `origin` or `origin_env`, the observation reads the target.
 - `headers_env` maps header names to uppercase environment variable names. Values are read at run time and sent only on the observation request; they are never written to artifacts. A missing or empty variable makes the observation `unknown` with reason `observer header env NAME missing` and no request is sent. `inspect` lists the variable names under `secret_env`.
 - The run and fixture headers, the `bearer_token_env` token (as `Authorization: Bearer`) and the `headers_env` values are all sent to the other origin.
+
+### Origin from the environment
+
+When the origin differs per environment, set `origin_env` (instead of `origin`) to an uppercase environment variable holding it:
+
+```json
+"allowed_origins": ["https://db.staging.example.test"],
+"allowed_origins_env": "DB_ALLOWED_ORIGINS",
+"observation": {"origin_env": "DB_ORIGIN", "path": "/rest/v1/orders", "assertion": "paid_orders_persist", "expected": {"": {"len": 20}}}
+```
+
+At run time the value must pass the same checks as `origin` and match, by scheme and host case-insensitively, an entry of `allowed_origins` or of the comma-separated list in the `allowed_origins_env` variable. Otherwise the observation is `unknown` without sending a request, with reason `observer origin env DB_ORIGIN missing` (unset or empty) or `observer origin env DB_ORIGIN is not an allowed origin`; an invalid entry in the list gives `observer allowed_origins_env DB_ALLOWED_ORIGINS holds an invalid origin`. Reasons name the variables, never their values.
 
 ## Validating a new scenario
 

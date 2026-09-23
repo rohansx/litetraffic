@@ -16,7 +16,7 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 | `metrics.jsonl` | Raw k6 JSON metrics, if emitted |
 | `console.log` | Raw k6 console output, if emitted |
 | `engine.stdout.log`, `engine.stderr.log` | Captured engine diagnostics |
-| `observation.json` | Optional final observer expectations, selected actual fields, per-pointer `checks` (matcher, actual, pass), and `expressions` (the original `${...}` forms of resolved expected values, only when used) |
+| `observation.json` | Optional final observer expectations, compact recorded actual fields, per-pointer `checks` (matcher, actual, pass), and `expressions` (the original `${...}` forms of resolved expected values, only when used); a list with one such entry per observation when the manifest uses `observations` |
 | `fixture.json` | Optional fixture outcomes: `owned_http` create/cleanup, or `command` setup/teardown argv, exit code, duration and stderr tail |
 | `artifacts.json` | Finalization manifest, written last: `{"schema_version", "run_id", "files", "total_bytes"}`, where `files` lists every other run file as `{path, bytes, sha256}` sorted by path and `total_bytes` is their sum. It excludes itself; the `max_artifact_bytes` budget is summed over the same file set |
 
@@ -35,7 +35,7 @@ Lifecycle is `finished`, `timed_out`, `cancelled`, or `crashed`, independently o
 
 When k6 made requests but every `http_req_failed` point is a transport-level failure (k6 tag `status` of `"0"`, meaning no HTTP response arrived; HTTP 4xx/5xx responses also carry an `error_code` tag but are not counted as transport failures), the verdict is `error`, failing assertions become `unknown`, and `limitations` contains `target unreachable: all N requests failed before an HTTP response`. `metrics.http_req_failed_rate.transport` counts those failures when any occur. A run that receives any HTTP response, including HTTP 500, is judged normally.
 
-For ordinary journey assertions, each declared assertion must have exactly one sample per planned journey. A final-observer assertion instead receives one aggregate observation. Missing samples and delivered/planned journey mismatches prevent a pass. Inspect `limitations`, `completeness`, and each assertion's sample count when diagnosing a result.
+For ordinary journey assertions, each declared assertion must have exactly one sample per planned journey. Each final-observer assertion instead receives one aggregate observation. Missing samples and delivered/planned journey mismatches prevent a pass. Inspect `limitations`, `completeness`, and each assertion's sample count when diagnosing a result.
 
 Each entry in `result.json` `assertions` has `id`, `status`, and `samples`. A failing journey assertion also has `failures`: up to the first three failing samples, each `{sequence, logical_key, expected, actual, detail}` taken from the event (`null` when the event omitted a field; `sequence` matches `events/000001.jsonl`). A final-observer assertion that was evaluated also carries the observer's `expected` and `actual` values from `observation.json`. A final-observer assertion that is `unknown` carries the observer's `reason` instead (for example `observer HTTP 503`). When the target is unreachable, failing rows become `unknown` and drop these details. `report.html` shows a "Failing samples" table (sample, logical key, expected, actual, detail) for every failing assertion; all values are HTML-escaped.
 

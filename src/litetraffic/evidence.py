@@ -39,13 +39,14 @@ def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
 
 
 def evaluate_assertions(
-    assertion_ids: list[str], events: list[dict], observation: dict | None, planned_journeys: int
+    assertion_ids: list[str], events: list[dict], observations: list[dict], planned_journeys: int
 ) -> tuple[list[dict], list[str], list[str], list[str], bool]:
     """Summarize each declared assertion; return rows, missing ids, partial labels, duplicate keys, definite failure."""
     rows, missing, partial, duplicates = [], [], [], []
     definite_failure = False
+    observed = {observation["assertion"]: observation for observation in observations}
     for assertion_id in assertion_ids:
-        if observation and assertion_id == observation["assertion"]:
+        if observation := observed.get(assertion_id):
             status = observation["status"]
             if status == "fail":
                 definite_failure = True

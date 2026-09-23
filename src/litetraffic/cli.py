@@ -192,7 +192,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         bundle = load_scenario(args.scenario)
         manifest = bundle.manifest
         resolved_schedule = manifest.schedule.resolve(args.seed)
-        owned, observation = manifest.fixtures.owned_http, manifest.observation
+        owned, observations = manifest.fixtures.owned_http, manifest.observations
+        plan = {"planned_journeys": manifest.planned_journeys, "seed": args.seed}
+        observation = observations[0] if observations else None
         payload = {
             "ok": True,
             "name": manifest.name,
@@ -201,7 +203,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "scenario_sha256": bundle.digest,
             "planned_journeys": manifest.planned_journeys,
             "maximum_journey_requests": manifest.maximum_journey_requests,
-            "maximum_observation_requests": int(manifest.observation is not None),
+            "maximum_observation_requests": len(observations),
             "maximum_journey_writes": manifest.maximum_journey_writes,
             "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,
@@ -214,14 +216,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             },
             # Names only: the environment is never read here.
             "secret_env": sorted(
-                {ref for ref in (owned and owned.bearer_token_env, observation and observation.bearer_token_env) if ref}
-                | set(observation.headers_env.values() if observation else ())
+                {ref for ref in (owned and owned.bearer_token_env, *(item.bearer_token_env for item in observations)) if ref}
+                | {env for item in observations for env in item.headers_env.values()}
                 | {actor.auth.secret_env for actor in manifest.actors if actor.auth}
             ),
             "observer": manifest.observer,
+            # observation_path/observation_expected describe the first observation; `observations` lists every one.
             "observation_path": observation and observation.path,
-            "observation_expected": observation
-            and resolve_expected(observation.expected, {"planned_journeys": manifest.planned_journeys, "seed": args.seed}),
+            "observation_expected": observation and resolve_expected(observation.expected, plan),
+            "observations": [
+                {"assertion": item.assertion, "path": item.path, "expected": resolve_expected(item.expected, plan)} for item in observations
+            ],
         }
         _emit(payload, args.json, format_inspect)
         return 0

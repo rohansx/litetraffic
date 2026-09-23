@@ -50,3 +50,12 @@ def validate_target(value: str, label: str = "target") -> str:
     if _blocked(parsed.hostname or ""):
         raise ValueError(f"{label} {parsed.hostname}: link-local/metadata address not allowed")
     return value.rstrip("/")
+
+
+def normalize_origin(value: str, label: str) -> str:
+    """Validate an origin like a target, reject query/fragment, and lowercase scheme and host for comparison."""
+    value = validate_target(value, label)
+    parsed = urlsplit(value)
+    if "?" in value or "#" in value:
+        raise ValueError(f"{label} must not contain a query or fragment")
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path}"

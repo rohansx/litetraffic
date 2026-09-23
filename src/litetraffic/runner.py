@@ -13,7 +13,7 @@ from litetraffic.auth import AuthError, mint_tokens, redact, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
-from litetraffic.observation import observe
+from litetraffic.observation import observe, sent_request
 from litetraffic.process import _communicate, _stop_process
 from litetraffic.report import render_report
 from litetraffic.scenario import ScenarioError, load_scenario, staged
@@ -166,7 +166,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     else:
         _record_stage(run_dir, run, "running")
         try:
-            engine_seconds = bundle.manifest.budgets.max_seconds - (5 if bundle.manifest.observation else 0) - bundle.manifest.fixtures.reserved_seconds
+            engine_seconds = bundle.manifest.budgets.max_seconds - 5 * len(bundle.manifest.observations) - bundle.manifest.fixtures.reserved_seconds
             engine_started = _now()
             # k6 runs a staged copy so the bundled runtime helper sits next to the script.
             with staged(bundle) as root:
@@ -207,26 +207,32 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     _write_text(events_path, "".join(json.dumps(event, sort_keys=True) + "\n" for event in events))
 
     _record_stage(run_dir, run, "observing")
-    observation = None
-    if bundle.manifest.observation:
-        observed = lifecycle == "finished"
-        observation = {"assertion": bundle.manifest.observation.assertion, "status": "unknown", "reason": "engine did not finish"}
-        if observed:
+    observations, engine_finished_ok = [], lifecycle == "finished"
+    for config in bundle.manifest.observations:  # sequentially, each after k6 has finished
+        record = {"assertion": config.assertion, "status": "unknown", "reason": "engine did not finish", "requested": False}
+        if engine_finished_ok and lifecycle == "cancelled":
+            record["reason"] = "observation cancelled"
+        elif engine_finished_ok:
             try:
-                observation = observe(
+                record = observe(
                     target,
-                    bundle.manifest.observation,
+                    config,
                     run_id,
                     fixture_id=environment.get("LT_FIXTURE_ID"),
                     variables={"planned_journeys": bundle.manifest.planned_journeys, "seed": seed},
                     environ=environment,  # includes the LT_TOKEN_<CLASS> tokens minted for this run
+                    allowed_origins=bundle.manifest.allowed_origins,
+                    allowed_origins_env=bundle.manifest.allowed_origins_env,
                 )
+                record["requested"] = sent_request(record)
             except KeyboardInterrupt:
                 lifecycle = "cancelled"
-                observation["reason"] = "observation cancelled"
-        _write_json(run_dir / "observation.json", observation)
-        # A missing bearer token or header env stops the observer before it sends a request.
-        metrics["observer_requests"] = int(observed and not str(observation.get("reason", "")).endswith(" missing"))
+                record.update(reason="observation cancelled", requested=True)
+        observations.append(record)
+    if observations:
+        metrics["observer_requests"] = sum(record.pop("requested") for record in observations)
+        # The legacy single `observation` keeps its single-object observation.json.
+        _write_json(run_dir / "observation.json", observations[0] if bundle.manifest.observation else observations)
     if fixture:
         if fixture["create"]["status"] == "created":
             fixture_id = fixture["create"]["fixture_id"]
@@ -246,7 +252,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         _write_json(run_dir / "fixture.json", hooks)
     # Fixture create (POST) and cleanup (DELETE) are writes; the observer only reads.
     metrics["write_attempts"] = metrics.get("write_attempts", 0) + metrics.get("fixture_requests", 0)
-    if fixture or observation:
+    if fixture or observations:
         metrics["total_http_reqs"] = float(metrics.get("http_reqs", 0)) + metrics.get("observer_requests", 0) + metrics.get("fixture_requests", 0)
     _record_stage(run_dir, run, "finalizing")
     finished = _now()
@@ -261,7 +267,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / engine_window, 3)
 
     assertions, missing, partial, duplicates, definite_failure = evaluate_assertions(
-        bundle.manifest.assertions, events, observation, bundle.manifest.planned_journeys
+        bundle.manifest.assertions, events, observations, bundle.manifest.planned_journeys
     )
 
     limitations = []

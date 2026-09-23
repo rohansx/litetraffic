@@ -106,7 +106,7 @@ def test_matchers_record_matcher_actual_and_pass_per_pointer():
     assert result["checks"]["/total"] == {"matcher": {"eq": 1000}, "actual": 1000, "pass": True}
     assert result["checks"]["/count"] == {"matcher": {"gte": 3}, "actual": 3, "pass": True}
     assert result["checks"]["/max"] == {"matcher": {"lte": 10}, "actual": 11, "pass": False}
-    assert result["checks"]["/gone"] == {"matcher": {"exists": False}, "actual": None, "pass": True}
+    assert result["checks"]["/gone"] == {"matcher": {"exists": False}, "actual": False, "pass": True}
     assert all(result["checks"][p]["pass"] for p in ("/items", "/name", "/meta", "/here", "/status"))
 
 
