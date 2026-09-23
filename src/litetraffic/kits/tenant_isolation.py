@@ -31,6 +31,7 @@ HEADER_NAME = r"[A-Za-z0-9!#$%&'*+.^_`|~-]+"
 Status = Annotated[int, Field(strict=True, ge=100, le=599)]
 KEY = r"[A-Za-z_][A-Za-z0-9_]*"
 JOURNEY = "journey"  # `{journey}` is filled with lt.journeyKey()
+ATTACK_SUFFIX = "-lt-attack-{journey}"
 PLACEHOLDER = re.compile(r"\{(" + KEY + r")\}")
 Ref = Annotated[str, Field(min_length=1)] | Annotated[dict[Annotated[str, Field(pattern=f"^{KEY}$")], Annotated[str, Field(min_length=1)]], Field(min_length=1)]
 
@@ -46,6 +47,20 @@ def _strings(value: JsonValue):
             yield from _strings(item)
 
 
+def _attack_body(value: JsonValue, keys: set[str]) -> JsonValue:
+    """`value` with every string suffixed, so the attacker never writes what a check_own owner just wrote.
+
+    Strings naming a resource key are left alone: they address the victim's resource, and changing them would aim elsewhere.
+    """
+    if isinstance(value, str):
+        return value if set(PLACEHOLDER.findall(value)) & keys else value + ATTACK_SUFFIX
+    if isinstance(value, list):
+        return [_attack_body(item, keys) for item in value]
+    if isinstance(value, dict):
+        return {key: _attack_body(item, keys) for key, item in value.items()}
+    return value
+
+
 class Identity(StrictModel):
     name: str = Field(min_length=1)
     auth: JwtAuth | None = None  # `kind` defaults to jwt_hs256
@@ -53,6 +68,8 @@ class Identity(StrictModel):
     headers: dict[str, str] = Field(default_factory=dict)  # plain, non-secret headers such as a tenant id
     # Each resource is an id (the `{id}` placeholder) or named placeholders, e.g. {"id": org, "position": pos}.
     resources: list[Ref] = Field(min_length=1)
+    # Strings that only this identity's private data contains (a seeded secret, a row id); no other caller's response may contain one.
+    markers: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -84,6 +101,8 @@ class Endpoint(StrictModel):
     path: str = Field(min_length=1)
     kind: Literal["read", "write"]
     body: JsonValue = None
+    # What the attacker writes; default: `body` with every string suffixed by ATTACK_SUFFIX (see _attack_body).
+    attack_body: JsonValue = None
     expected_statuses: list[Status] | None = Field(default=None, min_length=1)  # own-access success statuses
     # Also run the write as the owner. Only for idempotent writes: concurrent journeys otherwise race the read-back compare.
     check_own: bool = False
@@ -99,8 +118,8 @@ class Endpoint(StrictModel):
             raise ValueError("read endpoints must use GET or HEAD")
         if self.kind == "write" and self.method in {"GET", "HEAD"}:
             raise ValueError("write endpoints must use POST, PUT, PATCH or DELETE")
-        if self.kind == "read" and (self.body is not None or self.check_own or self.read_back is not None):
-            raise ValueError("read endpoints take no body, check_own or read_back")
+        if self.kind == "read" and (self.body is not None or self.check_own or self.read_back is not None or "attack_body" in self.model_fields_set):
+            raise ValueError("read endpoints take no body, attack_body, check_own or read_back")
         return self
 
     @property
@@ -132,7 +151,8 @@ class KitConfig(StrictModel):
         if len(set(named)) != len(named):
             raise ValueError(f"endpoint names must be distinct: {', '.join(named)}")
         for endpoint in self.endpoints:
-            self.read_back_index(endpoint)  # raises on a bad reference
+            if endpoint.kind == "write":
+                self.read_back_index(endpoint)  # raises on a bad reference
         generated = set(_journey_assertions(self))
         if clash := [o.assertion for o in self.observations if o.assertion in generated]:
             raise ValueError(f"observation assertion {clash[0]!r} collides with a generated assertion")
@@ -151,16 +171,31 @@ class KitConfig(StrictModel):
             used = {name for text in [endpoint.path, *_strings(endpoint.body)] for name in PLACEHOLDER.findall(text)}
             if not used & keys:
                 raise ValueError(f"{endpoint.method} {endpoint.path} uses no resource placeholder in its path or body")
+            # A bodyless write with no owner run (a plain DELETE) has no owner payload to pre-match.
+            bodyless = endpoint.body is None and not endpoint.check_own and "attack_body" not in endpoint.model_fields_set
+            if endpoint.kind == "write" and not bodyless and self.attack_body(endpoint) == endpoint.body:
+                raise ValueError(f"{endpoint.method} {endpoint.path}: the attacker body equals the owner body (no string to vary); "
+                                 "set attack_body to a payload the owner never writes")
         return self
+
+    def attack_body(self, endpoint: Endpoint) -> JsonValue:
+        if "attack_body" in endpoint.model_fields_set:
+            return endpoint.attack_body
+        return _attack_body(endpoint.body, set(self.identities[0].refs[0]))
 
     def read_back_index(self, endpoint: Endpoint) -> int:
         reference = endpoint.read_back
         if reference is None:
-            return next(i for i, candidate in enumerate(self.endpoints) if candidate.kind == "read")
+            index = next((i for i, candidate in enumerate(self.endpoints) if candidate.kind == "read" and candidate.method == "GET"), None)
+            if index is None:
+                raise ValueError(f"{endpoint.method} {endpoint.path}: read_back needs a GET read endpoint (HEAD has no body to compare)")
+            return index
         names = {candidate.name: i for i, candidate in enumerate(self.endpoints) if candidate.name}
         index = names.get(reference) if isinstance(reference, str) else reference
         if index is None or not 0 <= index < len(self.endpoints) or self.endpoints[index].kind != "read":
             raise ValueError(f"{endpoint.method} {endpoint.path}: read_back {reference!r} is not a read endpoint")
+        if self.endpoints[index].method != "GET":
+            raise ValueError(f"{endpoint.method} {endpoint.path}: read_back {reference!r} must be a GET read (HEAD has no body to compare)")
         return index
 
 
@@ -170,7 +205,14 @@ def _journey_assertions(config: KitConfig) -> list[str]:
         names += ["cross_tenant_write_blocked", "victim_unchanged"]
     if config.unauthenticated_probe:
         names.append("unauthenticated_rejected")
+    if any(identity.markers for identity in config.identities):
+        names.append("no_foreign_data_in_own_responses")
     return names
+
+
+def warnings(config: KitConfig) -> list[str]:
+    return [f"identity {identity.name!r} declares no markers: status-only checks cannot detect data returned in denial bodies"
+            for identity in config.identities if not identity.markers]
 
 
 def _journey(config: KitConfig) -> dict:
@@ -232,6 +274,9 @@ def build_manifest(config: KitConfig, raw: dict) -> dict:
     }
     if observations:
         manifest["observations"] = observations
+    token_envs = [identity.token_env for identity in config.identities if identity.token_env]
+    if token_envs:
+        manifest["secret_env"] = token_envs
     manifest |= origins
     return manifest
 
@@ -246,20 +291,21 @@ def build_script(config: KitConfig) -> str:
                 "headers": identity.headers,
                 "token_env": token_env_name(identity.name) if identity.auth else identity.token_env,
                 "resources": identity.refs,
+                "markers": identity.markers,
             }
             for identity in config.identities
         ],
         "endpoints": [
             {"method": e.method, "path": e.path, "kind": e.kind, "body": e.body, "statuses": e.statuses, "check_own": e.check_own,
              "journey_in_path": e.journey_in_path}
-            | ({"read_back": config.read_back_index(e)} if e.kind == "write" else {})
+            | ({"read_back": config.read_back_index(e), "attack_body": config.attack_body(e)} if e.kind == "write" else {})
             for e in config.endpoints
         ],
     }
     return SCRIPT.replace("__KIT__", json.dumps(kit, indent=2))
 
 
-def generate(config_path: Path, out: Path) -> ScenarioBundle:
+def generate(config_path: Path, out: Path) -> tuple[ScenarioBundle, list[str]]:
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -269,7 +315,7 @@ def generate(config_path: Path, out: Path) -> ScenarioBundle:
     out.mkdir(parents=True, exist_ok=True)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     (out / "journeys.js").write_text(build_script(config), encoding="utf-8")
-    return load_scenario(out)
+    return load_scenario(out), warnings(config)
 
 
 SCRIPT = """\
@@ -292,19 +338,40 @@ function fill(value, ref, encode) {
   return value;
 }
 
-function send(identity, endpoint, ref, operation) {
+function send(identity, endpoint, ref, operation, template = endpoint.body) {
   const headers = { "X-LiteTraffic-Run": __ENV.LT_RUN_ID, ...identity.headers };
   if (__ENV.LT_FIXTURE_ID) headers["X-LiteTraffic-Fixture"] = __ENV.LT_FIXTURE_ID;
   const token = identity.token_env && __ENV[identity.token_env];
   if (token) headers.Authorization = `Bearer ${token}`;
   let body = null;
-  if (endpoint.body !== null) {
+  if (template !== null) {
     headers["Content-Type"] = "application/json";
-    body = JSON.stringify(fill(endpoint.body, { ...ref, journey: lt.journeyKey() }, (text) => text));
+    body = JSON.stringify(fillBody(template, ref));
   }
   const pathValues = endpoint.journey_in_path ? { ...ref, journey: lt.journeyKey() } : ref;
   const url = __ENV.LT_TARGET + fill(endpoint.path, pathValues, encodeURIComponent);
-  return http.request(endpoint.method, url, body, { headers, tags: { operation } });
+  return http.request(endpoint.method, url, body, { headers, tags: { operation }, jar: identity.jar });
+}
+
+function fillBody(template, ref) {
+  return fill(template, { ...ref, journey: lt.journeyKey() }, (text) => text);
+}
+
+// True when every field of `part` already holds that value in `state`: writing `part` could not change it.
+// True when `state` cannot show `part` being written: every key of `part` that the state also has (at least one)
+// already holds `part`'s value. Keys the state lacks (fields the server ignores) cannot reveal the write either.
+function holds(state, part) {
+  if (part && typeof part === "object" && !Array.isArray(part) && state && typeof state === "object" && !Array.isArray(state)) {
+    const shared = Object.keys(part).filter((key) => key in state);
+    return shared.length > 0 && shared.every((key) => holds(state[key], part[key]));
+  }
+  return lt.deepEqual(state, part);
+}
+
+function empty(response) {
+  const state = content(response);
+  return response.body === null || response.body === undefined || response.body === "" || state === null ||
+    (typeof state === "object" && Object.keys(state).length === 0);
 }
 
 function content(response) {
@@ -320,46 +387,75 @@ function where(identity, endpoint, ref, status) {
   return { identity: identity.name, method: endpoint.method, path: endpoint.path, id: ref, status };
 }
 
+// Indexes of `victim`'s markers in the raw response body (any status). Evidence gets the indexes, never the values.
+function leaked(response, victim) {
+  const body = typeof response.body === "string" ? response.body : "";
+  return victim.markers.flatMap((marker, index) => (body.includes(marker) ? [index] : []));
+}
+
+// Fails `assertion` when the status is wrong or the body carries one of `victim`'s markers.
+function check(failures, assertion, statusOk, response, victim, entry) {
+  const markers = leaked(response, victim);
+  if (markers.length) failures[assertion].push({ ...entry, markers: { identity: victim.name, indexes: markers } });
+  else if (!statusOk) failures[assertion].push(entry);
+}
+
 export default function tenantIsolation() {
   const failures = Object.fromEntries(KIT.assertions.map((name) => [name, []]));
-  KIT.identities.forEach((owner, index) => {
-    const attacker = KIT.identities[1 - index];
+  // victim_unchanged checks whose read-back could not show the attack: an empty state, or one the attacker body already holds.
+  let inconclusive = 0;
+  // One cookie jar per identity per journey, never k6's shared VU jar: a session cookie set for one identity must not ride along on another's requests.
+  const identities = KIT.identities.map((identity) => ({ ...identity, jar: new http.CookieJar() }));
+  identities.forEach((owner, index) => {
+    const attacker = identities[1 - index];
+    // No owner response may carry the other identity's markers (the assertion exists whenever markers do).
+    const ownBody = (response, endpoint, ref) =>
+      check(failures, "no_foreign_data_in_own_responses", true, response, attacker, where(owner, endpoint, ref, response.status));
     for (const ref of owner.resources) {
       for (const endpoint of KIT.endpoints) {
         if (endpoint.kind === "write" && !endpoint.check_own) continue;
         const own = send(owner, endpoint, ref, "own");
         if (!endpoint.statuses.includes(own.status)) failures.own_access.push(where(owner, endpoint, ref, own.status));
+        ownBody(own, endpoint, ref);
       }
       for (const endpoint of KIT.endpoints) {
         if (endpoint.kind === "read") {
           const cross = send(attacker, endpoint, ref, "cross_tenant");
-          if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_read_blocked.push(where(attacker, endpoint, ref, cross.status));
+          check(failures, "cross_tenant_read_blocked", KIT.rejected.includes(cross.status), cross, owner, where(attacker, endpoint, ref, cross.status));
           if (failures.unauthenticated_rejected) {
-            const anonymous = send(ANONYMOUS, endpoint, ref, "unauthenticated");
-            if (!KIT.rejected.includes(anonymous.status)) failures.unauthenticated_rejected.push(where(ANONYMOUS, endpoint, ref, anonymous.status));
+            const anonymous = send({ ...ANONYMOUS, jar: new http.CookieJar() }, endpoint, ref, "unauthenticated");  // an empty jar: no cookies at all
+            check(failures, "unauthenticated_rejected", KIT.rejected.includes(anonymous.status), anonymous, owner,
+              where(ANONYMOUS, endpoint, ref, anonymous.status));
           }
           continue;
         }
         const readBack = KIT.endpoints[endpoint.read_back];
         const before = send(owner, readBack, ref, "own");
-        const cross = send(attacker, endpoint, ref, "cross_tenant");
+        const cross = send(attacker, endpoint, ref, "cross_tenant", endpoint.attack_body);
         const after = send(owner, readBack, ref, "own");
-        if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_write_blocked.push(where(attacker, endpoint, ref, cross.status));
+        ownBody(before, readBack, ref);
+        ownBody(after, readBack, ref);
+        check(failures, "cross_tenant_write_blocked", KIT.rejected.includes(cross.status), cross, owner, where(attacker, endpoint, ref, cross.status));
         const unchanged = readBack.statuses.includes(before.status) && after.status === before.status && lt.deepEqual(content(before), content(after));
         if (!unchanged) {
           failures.victim_unchanged.push({ ...where(attacker, endpoint, ref, cross.status), before: before.status, after: after.status });
+        } else if (empty(before) || holds(content(before), fillBody(endpoint.attack_body, ref))) {
+          inconclusive += 1;
         }
       }
     }
   });
   const expected = {
     own_access: "every owner request returns one of its endpoint's statuses",
-    cross_tenant_read_blocked: KIT.rejected,
-    cross_tenant_write_blocked: KIT.rejected,
-    unauthenticated_rejected: KIT.rejected,
+    cross_tenant_read_blocked: { statuses: KIT.rejected, body: "none of the owner's markers" },
+    cross_tenant_write_blocked: { statuses: KIT.rejected, body: "none of the owner's markers" },
+    unauthenticated_rejected: { statuses: KIT.rejected, body: "none of the owner's markers" },
     victim_unchanged: "the owner's read-back is identical before and after each cross-tenant write",
+    no_foreign_data_in_own_responses: "no owner response contains the other identity's markers",
   };
   for (const [assertion, failed] of Object.entries(failures)) {
+    // No event makes this journey's evidence missing, so the assertion reports unknown rather than a pass it cannot back.
+    if (assertion === "victim_unchanged" && failed.length === 0 && inconclusive > 0) continue;
     lt.evidence(assertion, failed.length === 0, {
       expected: expected[assertion],
       actual: { failures: failed.length, samples: failed.slice(0, MAX_SAMPLES) },

@@ -28,7 +28,7 @@ With a target, it first applies the same URL checks as `verify` (link-local and 
 litetraffic init tenant-isolation --config KIT_JSON --out DIR [--json]
 ```
 
-Generates a scenario bundle in `DIR` (created if missing; `manifest.json` and `journeys.js` are overwritten) from a kit config, then loads it the way `inspect` does. Returns `ok`, `scenario`, `files`, and `scenario_sha256`. An unreadable or invalid config exits `3` with `cannot read kit config: ...` or `invalid kit config: field.path: message`, and writes nothing. The same config always produces the same files. The config format and the generated checks are described in [Tenant isolation in 10 minutes](scenarios.md#tenant-isolation-in-10-minutes).
+Generates a scenario bundle in `DIR` (created if missing; `manifest.json` and `journeys.js` are overwritten) from a kit config, then loads it the way `inspect` does. Returns `ok`, `scenario`, `files`, `scenario_sha256`, and `warnings`: one line per identity that declares no `markers` (`identity 'NAME' declares no markers: status-only checks cannot detect data returned in denial bodies`), otherwise empty. An unreadable or invalid config exits `3` with `cannot read kit config: ...` or `invalid kit config: field.path: message`, and writes nothing. The same config always produces the same files. The config format and the generated checks are described in [Tenant isolation in 10 minutes](scenarios.md#tenant-isolation-in-10-minutes).
 
 ## `inspect`
 

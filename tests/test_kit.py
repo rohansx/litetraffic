@@ -101,7 +101,8 @@ def test_resources_name_placeholders_for_path_and_body(tmp_path, capsys):
     endpoints = [
         {"method": "GET", "path": "/orgs/{id}", "kind": "read"},
         {"method": "POST", "path": "/positions", "kind": "write", "body": {"organization_id": "{id}", "note": "{literal}"}},
-        {"method": "PUT", "path": "/positions/{position}", "kind": "write", "body": {"organization_id": "{id}"}},
+        {"method": "PUT", "path": "/positions/{position}", "kind": "write", "body": {"organization_id": "{id}"},
+         "attack_body": {"organization_id": "{id}", "title": "attack"}},
     ]
     code, result = _init(tmp_path, _config(identities=identities, endpoints=endpoints), capsys)
     assert code == 0, result
@@ -146,7 +147,7 @@ READS = [
 
 @pytest.mark.parametrize(("read_back", "index"), [(None, 0), (1, 1), ("meta", 1)])
 def test_write_endpoints_pick_their_read_back(tmp_path, capsys, read_back, index):
-    write = {"method": "PUT", "path": "/notes/{id}/meta", "kind": "write", "body": {"m": 1}}
+    write = {"method": "PUT", "path": "/notes/{id}/meta", "kind": "write", "body": {"m": "1"}}
     if read_back is not None:
         write["read_back"] = read_back
     code, result = _init(tmp_path, _config(endpoints=[*READS, write]), capsys)
@@ -186,7 +187,7 @@ def test_journey_placeholder_in_body_and_declared_paths(tmp_path, capsys):
     write = {"method": "POST", "path": "/notes", "kind": "write", "body": {"id": "{id}", "tag": "{journey}"}}
     code, result = _init(tmp_path, _config(endpoints=[READS[0], write]), capsys)
     assert code == 0, result
-    tagged = {"method": "PUT", "path": "/notes/{id}/{journey}", "kind": "write", "body": {}}
+    tagged = {"method": "PUT", "path": "/notes/{id}/{journey}", "kind": "write", "body": {"text": "x"}}
     code, result = _init(tmp_path, _config(endpoints=[READS[0], tagged]), capsys)
     assert code == 3 and "{journey}" in result["error"] and "journey_in_path" in result["error"], result
     code, result = _init(tmp_path, _config(endpoints=[READS[0], tagged | {"journey_in_path": True}]), capsys)
@@ -200,3 +201,153 @@ def test_journey_is_not_a_resource_key(tmp_path, capsys):
     assert code == 3 and "journey" in result["error"], result
     code, result = _init(tmp_path, _config(endpoints=[{"method": "GET", "path": "/j", "kind": "read"} | {"journey_in_path": True, "path": "/j/{journey}"}]), capsys)
     assert code == 3 and "no resource placeholder" in result["error"], result
+
+
+def test_script_isolates_cookie_jars(tmp_path, capsys):
+    code, result = _init(tmp_path, _config(unauthenticated_probe=True), capsys)
+    assert code == 0, result
+    script = (tmp_path / "out" / "journeys.js").read_text()
+    assert "jar: identity.jar" in script  # every request names its jar; none falls back to k6's shared VU jar
+    assert "KIT.identities.map((identity) => ({ ...identity, jar: new http.CookieJar() }))" in script
+    assert "send({ ...ANONYMOUS, jar: new http.CookieJar() }, " in script and "send(ANONYMOUS," not in script
+
+
+def test_markers_add_the_foreign_data_assertion_and_silence_the_warning(tmp_path, capsys):
+    identities = [identity | {"markers": [f"secret-{identity['name']}"]} for identity in _config()["identities"]]
+    code, result = _init(tmp_path, _config(identities=identities), capsys)
+    assert code == 0, result
+    assert "no_foreign_data_in_own_responses" in load_scenario(tmp_path / "out").manifest.assertions
+    assert [identity["markers"] for identity in _kit(tmp_path)["identities"]] == [["secret-alice"], ["secret-bob"]]
+    assert result["warnings"] == []
+
+
+def test_missing_markers_warn_that_status_only_checks_miss_denial_bodies(tmp_path, capsys):
+    identities = _config()["identities"]
+    code, result = _init(tmp_path, _config(identities=[identities[0] | {"markers": ["secret-alice"]}, identities[1]]), capsys)
+    assert code == 0, result
+    assert len(result["warnings"]) == 1 and "'bob'" in result["warnings"][0]
+    assert "status-only checks cannot detect data returned in denial bodies" in result["warnings"][0]
+    code, result = _init(tmp_path, _config(), capsys)
+    assert len(result["warnings"]) == 2
+    assert "no_foreign_data_in_own_responses" not in load_scenario(tmp_path / "out").manifest.assertions
+    assert [identity["markers"] for identity in _kit(tmp_path)["identities"]] == [[], []]
+
+
+def test_markers_must_be_non_empty_strings(tmp_path, capsys):
+    identities = _config()["identities"]
+    code, result = _init(tmp_path, _config(identities=[identities[0] | {"markers": [""]}, identities[1]]), capsys)
+    assert code == 3 and "markers" in result["error"], result
+
+
+@pytest.mark.parametrize("read_back", [None, 0, "head"])
+def test_head_read_back_is_rejected(tmp_path, capsys, read_back):
+    """HEAD has no body: two empty read-backs compare equal even after the victim's record changed."""
+    head = {"method": "HEAD", "path": "/notes/{id}", "kind": "read", "name": "head"}
+    write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": {"text": "x"}}
+    if read_back is not None:
+        write["read_back"] = read_back
+    code, result = _init(tmp_path, _config(endpoints=[head, write]), capsys)
+    assert code == 3 and "GET" in result["error"] and "HEAD" in result["error"], result
+
+
+def test_head_only_reads_without_writes_are_accepted(tmp_path, capsys):
+    """read_back only matters for writes: a HEAD-only read config with no writes stays valid."""
+    head = {"method": "HEAD", "path": "/notes/{id}", "kind": "read"}
+    code, result = _init(tmp_path, _config(endpoints=[head]), capsys)
+    assert code == 0, result
+
+
+def test_named_head_read_back_is_rejected_even_with_a_get_read(tmp_path, capsys):
+    head = {"method": "HEAD", "path": "/notes/{id}", "kind": "read", "name": "head"}
+    write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": {"text": "x"}, "read_back": "head"}
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], head, write]), capsys)
+    assert code == 3 and "'head' must be a GET read" in result["error"], result
+
+
+def test_bodyless_write_without_check_own_needs_no_attack_body(tmp_path, capsys):
+    """A plain cross-tenant DELETE sends no body; with no owner write there is nothing for the attacker to pre-match."""
+    delete = {"method": "DELETE", "path": "/notes/{id}", "kind": "write"}
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], delete]), capsys)
+    assert code == 0, result
+    assert _kit(tmp_path)["endpoints"][1]["attack_body"] is None
+
+
+def test_default_read_back_is_the_first_get_read(tmp_path, capsys):
+    head = {"method": "HEAD", "path": "/notes/{id}", "kind": "read"}
+    write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": {"text": "x"}}
+    code, result = _init(tmp_path, _config(endpoints=[head, READS[0], write]), capsys)
+    assert code == 0, result
+    assert _kit(tmp_path)["endpoints"][2]["read_back"] == 1
+
+
+def test_attacker_body_differs_from_the_owner_body(tmp_path, capsys):
+    """Every string is suffixed so a check_own owner write never pre-writes the attacker's payload; resource placeholders stay put."""
+    body = {"text": "x", "tags": ["a", {"deep": "b"}], "n": 1, "note": "{id}", "tag": "t-{journey}"}
+    write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": body, "check_own": True}
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], write]), capsys)
+    assert code == 0, result
+    suffix = "-lt-attack-{journey}"
+    assert _kit(tmp_path)["endpoints"][1]["attack_body"] == {
+        "text": "x" + suffix, "tags": ["a" + suffix, {"deep": "b" + suffix}], "n": 1, "note": "{id}", "tag": "t-{journey}" + suffix,
+    }
+
+
+@pytest.mark.parametrize("body,check_own", [(None, True), ({"n": 1}, False), ({"note": "{id}"}, False), ({}, False)])
+def test_writes_without_a_distinct_attacker_body_need_attack_body(tmp_path, capsys, body, check_own):
+    write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": body, "check_own": check_own}
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], write]), capsys)
+    assert code == 3 and "attack_body" in result["error"], result
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], write | {"attack_body": {"n": 2}}]), capsys)
+    assert code == 0, result
+    assert _kit(tmp_path)["endpoints"][1]["attack_body"] == {"n": 2}
+
+
+def test_attack_body_must_differ_and_is_only_for_writes(tmp_path, capsys):
+    write = {"method": "PUT", "path": "/notes/{id}", "kind": "write", "body": {"text": "x"}, "attack_body": {"text": "x"}}
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], write]), capsys)
+    assert code == 3 and "attacker body equals the owner body" in result["error"], result
+    code, result = _init(tmp_path, _config(endpoints=[READS[0] | {"attack_body": {"a": "b"}}, write | {"attack_body": {"text": "y"}}]), capsys)
+    assert code == 3 and "read endpoints take no body, attack_body" in result["error"], result
+
+
+def test_script_reports_victim_unchanged_unknown_when_inconclusive(tmp_path, capsys):
+    code, result = _init(tmp_path, _config(), capsys)
+    assert code == 0, result
+    script = (tmp_path / "out" / "journeys.js").read_text()
+    assert "endpoint.attack_body" in script and "inconclusive" in script
+
+
+def test_kit_token_env_is_a_declared_secret(tmp_path, capsys):
+    code, result = _init(tmp_path, _config(), capsys)
+    assert code == 0, result
+    assert load_scenario(tmp_path / "out").manifest.secret_env == ["ALICE_TOKEN"]
+    assert main(["inspect", str(tmp_path / "out"), "--json"]) == 0
+    assert "ALICE_TOKEN" in json.loads(capsys.readouterr().out)["secret_env"]
+
+
+def test_echoed_kit_token_is_redacted_everywhere(tmp_path, monkeypatch, capsys):
+    import httpx
+
+    from litetraffic.observation import observe
+    from test_runner import fake_k6
+
+    token = "alice-bearer-token-value"
+    echo = httpx.MockTransport(lambda request: httpx.Response(200, json={"leak": token}))
+    monkeypatch.setattr("litetraffic.runner.observe", lambda *args, **kwargs: observe(*args, transport=echo, **kwargs))
+    observation = {"path": "/echo", "assertion": "echoed", "expected": {"/leak": {"exists": True}, "": {"eq": None}}}  # `eq` records the whole echoed body
+    code, result = _init(tmp_path, _config(observations=[observation]), capsys)
+    assert code == 0, result
+    monkeypatch.setenv("ALICE_TOKEN", token)
+    monkeypatch.setenv("JWT_SECRET", "kit-signing-secret-value")
+    monkeypatch.setenv("FAKE_K6_EVENTS", "[]")
+    k6 = fake_k6(tmp_path, [], echo_env=("ALICE_TOKEN",))
+
+    main(["verify", "--target", "http://example.test", "--scenario", str(tmp_path / "out"), "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--json"])
+
+    stdout = capsys.readouterr().out
+    run_dir = tmp_path / "runs" / json.loads(stdout)["run_id"]
+    observed = json.loads((run_dir / "observation.json").read_text())[0]
+    assert observed["checks"]["/leak"]["pass"] and observed["actual"][""] == {"leak": "[redacted]"}
+    assert (run_dir / "engine.stdout.log").read_text().strip() == "[redacted]"
+    for text in [stdout, *(p.read_text(errors="replace") for p in run_dir.rglob("*") if p.is_file())]:
+        assert token not in text

@@ -163,11 +163,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.command == "init":
             try:
-                bundle = tenant_isolation.generate(args.config, args.out)
+                bundle, warnings = tenant_isolation.generate(args.config, args.out)
             except ValidationError as exc:
                 raise ValueError(_manifest_error(exc, "invalid kit config")) from None
             files = ["manifest.json", "journeys.js"]
-            _emit({"ok": True, "scenario": str(args.out), "files": files, "scenario_sha256": bundle.digest}, args.json)
+            payload = {"ok": True, "scenario": str(args.out), "files": files, "scenario_sha256": bundle.digest, "warnings": warnings}
+            _emit(payload, args.json)
             return 0
 
         if args.command in {"inspect", "verify", "approve", "up"}:

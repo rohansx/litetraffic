@@ -54,6 +54,13 @@ def test_auth_recipe_validation(auth, message):
         Actor.model_validate({"class": "buyer", "count": 1, "auth_recipe": "jwt", "auth": auth})
 
 
+def test_manifest_secret_env_names_are_declared_credentials():
+    with pytest.raises(ValidationError, match="secret_env entries must name uppercase"):
+        ScenarioManifest.model_validate(manifest(secret_env=["lower"]))
+    parsed = ScenarioManifest.model_validate(manifest(secret_env=["KIT_TOKEN"]))
+    assert secret_values(parsed, {"KIT_TOKEN": "kit-token-value"}, {}) == ["kit-token-value"]
+
+
 def test_actor_classes_must_not_share_a_token_variable():
     data = manifest(actors=_actors({"class": "BUYER", "count": 1, "auth_recipe": "jwt", "auth": AUTH}))
     with pytest.raises(ValidationError, match="LT_TOKEN_BUYER"):

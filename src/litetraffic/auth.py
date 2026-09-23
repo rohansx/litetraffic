@@ -92,12 +92,13 @@ def minted_tokens(tokens: Mapping[str, str]) -> set[str]:
 
 
 def secret_env_names(manifest) -> set[str]:
-    """Every environment variable a manifest declares as a credential: signing keys, bearer tokens and headers."""
+    """Every environment variable a manifest declares as a credential: signing keys, bearer tokens, headers and `secret_env`."""
     owned, observations = manifest.fixtures.owned_http, manifest.observations
     return (
         {ref for ref in (owned and owned.bearer_token_env, *(item.bearer_token_env for item in observations)) if ref}
         | {env for item in observations for env in item.headers_env.values()}
         | {actor.auth.secret_env for actor in manifest.actors if actor.auth}
+        | set(manifest.secret_env)
     )
 
 
