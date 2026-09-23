@@ -1,6 +1,6 @@
 # LiteTraffic
 
-**Stateful application traffic. Repeatable runs. Evidence of what changed.**
+**Verify critical API invariants against a running app, with repeatable scenarios and inspectable evidence.**
 
 [Documentation](docs/README.md) · [Installation](docs/installation.md) · [Quickstart](docs/quickstart.md) · [CLI reference](docs/cli.md) · [MIT license](LICENSE)
 
@@ -16,16 +16,16 @@ Use it while changing an API, from a coding-agent harness, or in CI. Your applic
 
 - Runs stateful k6 journeys with identities, response chaining, retries, and declared business assertions.
 - Resolves explicit phases or seeded **spiky**, **random-burst**, and **sustained-burst** traffic profiles.
-- Checks declared request, write, and duration budgets before running; after the run, checks requests, writes, k6 `vus_max` against the concurrency budget, and artifact size, and reconciles delivered journeys and collected evidence.
+- Checks declared request, write, and duration budgets before running; after the run, checks requests, writes, k6 `vus_max` against the concurrency budget, and artifact size, and reconciles delivered journeys and collected evidence. Budgets are declared bounds checked before and after the run, not hard containment: a script that ignores them can overrun before the controller notices (only the `max_seconds` deadline is enforced while k6 runs). `up` budgets apply per slice, not to the whole activity.
 - Sets up run state with run-owned HTTP fixtures, `fixtures.command` setup/teardown commands, or a per-journey `fixtures.pool`.
-- Mints an HS256 JWT per actor class from an actor's `auth` recipe.
-- Checks final state with one HTTP observation: equality or `eq`/`gte`/`lte`/`len`/`exists` matchers, expected values written as `${planned_journeys}` expressions, and an optional second origin listed in `allowed_origins`.
-- Reports peak in-flight requests per operation and holds back a pass when a journey's `min_overlap` was not reached; `expected_statuses` separates intended HTTP rejections from unexpected failures.
+- Mints an HS256 JWT per actor class from an actor's `auth` recipe, or with `per_identity` one per actor (`count` distinct identities).
+- Checks final state with HTTP observations, optionally polled with `until` until they converge or a bounded deadline passes: equality or `eq`/`gte`/`lte`/`len`/`exists` matchers, expected values written as `${planned_journeys}` expressions, and an optional second origin listed in `allowed_origins`.
+- Runs a client-side overlap check: reports peak in-flight requests per operation and holds back a pass when a journey's `min_overlap` was not reached. It shows requests were in flight together, not that the server executed them concurrently; `expected_statuses` separates intended HTTP rejections from unexpected failures.
 - Preserves run metadata, the manifest, metrics, assertion events, diagnostics, and a readable report.
 - Repeats across consecutive (or the same) seeds and compares compatible baseline/candidate runs, with an optional p95 regression gate.
 - Targets localhost, reachable HTTP/HTTPS previews, or an existing E2B sandbox's application port.
 
-The vision is **users as an API**: give an application a believable population and return evidence about the system they exercised. [Current scope and next steps](docs/roadmap.md) explain how the preview fits that goal.
+[Current scope, next steps, and the longer-term vision](docs/roadmap.md) explain where the preview is headed.
 
 ## Requirements
 

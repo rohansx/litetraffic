@@ -24,7 +24,7 @@ LiteTraffic sends real requests, including writes, to the target you give it. Tr
 | `max_in_flight` | Passed to the script as `LT_MAX_IN_FLIGHT`; the script must apply it (the examples use it as `preAllocatedVUs` and `maxVUs`). After the run, the highest k6 `vus_max` point is recorded as `metrics.vus_max`; a value above the budget makes the verdict `error` (`in-flight budget exceeded: N > M`). `vus_max` is the VU capacity k6 allocated, not a count of concurrent requests |
 | `max_artifact_bytes` | Checked after the run; an overrun makes the verdict `error` |
 
-Budgets are a declared envelope, not a sandbox: a script that ignores its declared maxima can still send more traffic before the controller notices. Keep isolation on the target side.
+Budgets are declared bounds checked before and after the run, not hard containment: a script that ignores its declared maxima can still send more traffic before the controller notices, and only the `max_seconds` deadline is enforced while k6 runs. `up` budgets apply per slice: each slice is an ordinary `verify` run checked against the manifest's budgets, and nothing caps the activity's total. Keep isolation on the target side.
 
 ## Cleanup
 

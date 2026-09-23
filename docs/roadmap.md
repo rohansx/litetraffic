@@ -15,9 +15,9 @@ The long-term goal is **users as an API**: give an application a believable, sta
 - Declared budgets with static and post-run checks, including counted write attempts and k6 `vus_max`
 - Assertion evidence, verdicts, lifecycle, HTML report
 - Run-owned HTTP fixtures, `fixtures.command` setup/teardown hooks, and a per-journey `fixtures.pool`
-- Final observations with matchers, `${planned_journeys}` expected-value expressions, and a second origin from `allowed_origins` with `headers_env` secrets
+- Final observations with matchers, bounded `until` polling for eventually consistent effects, `${planned_journeys}` expected-value expressions, and a second origin from `allowed_origins` with `headers_env` secrets
 - Actor `auth` recipes: per-actor-class HS256 JWTs passed to k6 as `LT_TOKEN_<CLASS>` (or, with `per_identity`, `count` distinct identities as `LT_TOKENS_<CLASS>`, picked with `tokenFor()`), redacted, with every declared credential, from kept artifacts and output
-- Concurrency proof: observed peak in-flight requests per operation (`metrics.overlap`) checked against journey `min_overlap`
+- `min_overlap` as a client-side overlap check: observed peak in-flight requests per operation (`metrics.overlap`) checked against journey `min_overlap`. It shows requests were in flight together, not that the server executed them concurrently
 - Per-operation `expected_statuses` and `metrics.unexpected_http_failure_rate`
 - Examples emit expected/actual values on failing evidence samples
 - Repeated seeds (consecutive or `--same-seed`) with dispersion stats, and baseline/candidate comparison with an optional p95 gate and per-operation p95

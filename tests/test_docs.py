@@ -78,7 +78,7 @@ def test_cli_doc_states_the_dashboard_default_port():
 
 # Manifest features shipped after the first docs sweep; the README feature list and the roadmap's
 # "Available now" must name each one.
-SHIPPED = ["fixtures.command", "fixtures.pool", "allowed_origins", "${planned_journeys}", "auth", "min_overlap", "expected_statuses"]
+SHIPPED = ["fixtures.command", "fixtures.pool", "allowed_origins", "${planned_journeys}", "auth", "min_overlap", "expected_statuses", "per_identity", "until"]
 
 
 def test_readme_feature_list_and_roadmap_name_shipped_manifest_features():
@@ -101,3 +101,35 @@ def test_second_origin_docs_name_every_header_sent_there():
     for text in (bullet, origin_notes):
         assert "`bearer_token_env`" in text
         assert "`headers_env`" in text
+
+
+def _docs() -> dict[str, str]:
+    paths = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
+    return {path.name if path.parent == ROOT else f"docs/{path.name}": path.read_text() for path in paths}
+
+
+def test_overlap_is_called_a_client_side_check_not_a_concurrency_proof():
+    docs = _docs()
+    for name, text in docs.items():
+        assert "Concurrency proof" not in text, name
+    for name in ("README.md", "docs/roadmap.md", "docs/results.md", "docs/scenarios.md"):
+        assert "client-side overlap check" in docs[name], name
+        assert "not that the server executed them concurrently" in docs[name], name
+
+
+def test_budgets_are_described_as_declared_bounds_not_containment():
+    docs = _docs()
+    for name in ("README.md", "docs/safety.md"):
+        assert "declared bounds checked before and after the run, not hard containment" in docs[name], name
+        assert "`up` budgets apply per slice" in docs[name], name
+
+
+def test_readme_leads_with_the_present_tense_promise_and_roadmap_keeps_the_vision():
+    docs = _docs()
+    readme = docs["README.md"]
+    lead = readme.split("\n\n", 1)[1].lstrip()
+    assert lead.startswith(
+        "**Verify critical API invariants against a running app, with repeatable scenarios and inspectable evidence.**"
+    )
+    assert "users as an API" not in readme
+    assert "users as an API" in docs["docs/roadmap.md"]
