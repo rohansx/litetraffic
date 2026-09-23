@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -291,3 +292,41 @@ def test_kit_unauthenticated_probe(tmp_path, anonymous_allowed, verdict):
     result = _serve_kit(tmp_path, config, Handler)
     assert _failed(result) == ({"unauthenticated_rejected"} if anonymous_allowed else set()), result
     assert result["verdict"] == verdict, result
+
+
+def test_kit_fills_journey_placeholder(tmp_path):
+    """`{journey}` becomes lt.journeyKey(): in body strings always, in a path only with journey_in_path."""
+    from http.server import BaseHTTPRequestHandler
+
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def _reply(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            seen.append((self.command, self.path, json.loads(body) if body else None))
+            own = self.headers.get("X-Tenant") == self.path.split("/")[2]
+            self.send_response(200 if own and self.command == "GET" else 403)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        do_GET = do_PUT = _reply
+
+        def log_message(self, *args):
+            return
+
+    config = {
+        "name": "journey-key",
+        "identities": [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"]},
+                       {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"]}],
+        "endpoints": [{"method": "GET", "path": "/notes/{id}", "kind": "read"},
+                      {"method": "PUT", "path": "/notes/{id}/{journey}", "kind": "write", "journey_in_path": True,
+                       "body": {"tag": "{journey}", "note": "{id}"}}],
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, Handler)
+    assert result["verdict"] == "pass", result
+    writes = [(path, body) for method, path, body in seen if method == "PUT"]
+    assert len(writes) == 2
+    for path, body in writes:
+        assert body["tag"].startswith(result["run_id"]) and path.endswith("/" + quote(body["tag"], safe="")), (path, body)

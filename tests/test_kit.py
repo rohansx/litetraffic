@@ -160,3 +160,23 @@ def test_unauthenticated_probe_adds_an_assertion_and_its_requests(tmp_path, caps
     assert manifest.journeys[0].expected_statuses["unauthenticated"] == [401, 403, 404]
     code, result = _init(tmp_path, _config(), capsys)
     assert "unauthenticated_rejected" not in load_scenario(tmp_path / "out").manifest.assertions
+
+
+def test_journey_placeholder_in_body_and_declared_paths(tmp_path, capsys):
+    write = {"method": "POST", "path": "/notes", "kind": "write", "body": {"id": "{id}", "tag": "{journey}"}}
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], write]), capsys)
+    assert code == 0, result
+    tagged = {"method": "PUT", "path": "/notes/{id}/{journey}", "kind": "write", "body": {}}
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], tagged]), capsys)
+    assert code == 3 and "{journey}" in result["error"] and "journey_in_path" in result["error"], result
+    code, result = _init(tmp_path, _config(endpoints=[READS[0], tagged | {"journey_in_path": True}]), capsys)
+    assert code == 0, result
+    assert _kit(tmp_path)["endpoints"][1]["journey_in_path"] is True
+
+
+def test_journey_is_not_a_resource_key(tmp_path, capsys):
+    identities = [identity | {"resources": [{"id": "n", "journey": "j"}]} for identity in _config()["identities"]]
+    code, result = _init(tmp_path, _config(identities=identities), capsys)
+    assert code == 3 and "journey" in result["error"], result
+    code, result = _init(tmp_path, _config(endpoints=[{"method": "GET", "path": "/j", "kind": "read"} | {"journey_in_path": True, "path": "/j/{journey}"}]), capsys)
+    assert code == 3 and "no resource placeholder" in result["error"], result

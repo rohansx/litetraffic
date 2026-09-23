@@ -29,6 +29,7 @@ MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 HEADER_NAME = r"[A-Za-z0-9!#$%&'*+.^_`|~-]+"
 Status = Annotated[int, Field(strict=True, ge=100, le=599)]
 KEY = r"[A-Za-z_][A-Za-z0-9_]*"
+JOURNEY = "journey"  # `{journey}` is filled with lt.journeyKey()
 PLACEHOLDER = re.compile(r"\{(" + KEY + r")\}")
 Ref = Annotated[str, Field(min_length=1)] | Annotated[dict[Annotated[str, Field(pattern=f"^{KEY}$")], Annotated[str, Field(min_length=1)]], Field(min_length=1)]
 
@@ -87,6 +88,7 @@ class Endpoint(StrictModel):
     check_own: bool = False
     # The read endpoint (index into `endpoints` or its `name`) that reads this write's resource back; default: the first read.
     read_back: Annotated[int, Field(strict=True)] | str | None = None
+    journey_in_path: bool = False  # allows `{journey}` (the journey key) in the path; body strings always get it
 
     @model_validator(mode="after")
     def require_safe_template(self) -> "Endpoint":
@@ -133,9 +135,13 @@ class KitConfig(StrictModel):
         keys = set(refs[0])
         if any(set(ref) != keys for ref in refs):
             raise ValueError("resources must all have the same keys")
+        if JOURNEY in keys:
+            raise ValueError(f"resource key {JOURNEY!r} is reserved for the journey key placeholder")
         for endpoint in self.endpoints:
             for name in re.findall(r"\{([^{}]*)\}", endpoint.path):
-                if name not in keys:
+                if name == JOURNEY and not endpoint.journey_in_path:
+                    raise ValueError(f"{endpoint.method} {endpoint.path}: {{journey}} in a path needs journey_in_path: true")
+                if name not in keys | {JOURNEY}:
                     raise ValueError(f"path placeholder {{{name}}} is not a resource key ({', '.join(sorted(keys))})")
             used = {name for text in [endpoint.path, *_strings(endpoint.body)] for name in PLACEHOLDER.findall(text)}
             if not used & keys:
@@ -239,7 +245,8 @@ def build_script(config: KitConfig) -> str:
             for identity in config.identities
         ],
         "endpoints": [
-            {"method": e.method, "path": e.path, "kind": e.kind, "body": e.body, "statuses": e.statuses, "check_own": e.check_own}
+            {"method": e.method, "path": e.path, "kind": e.kind, "body": e.body, "statuses": e.statuses, "check_own": e.check_own,
+             "journey_in_path": e.journey_in_path}
             | ({"read_back": config.read_back_index(e)} if e.kind == "write" else {})
             for e in config.endpoints
         ],
@@ -272,7 +279,7 @@ const PLACEHOLDER = /\\{([A-Za-z_][A-Za-z0-9_]*)\\}/g;
 
 export const options = lt.options();
 
-// Replace {name} with the resource's value in every string; names the resource lacks stay literal.
+// Replace {name} with the resource's value (or the journey key for {journey}) in every string; names the resource lacks stay literal.
 function fill(value, ref, encode) {
   if (typeof value === "string") return value.replace(PLACEHOLDER, (match, name) => (name in ref ? encode(ref[name]) : match));
   if (Array.isArray(value)) return value.map((item) => fill(item, ref, encode));
@@ -288,9 +295,10 @@ function send(identity, endpoint, ref, operation) {
   let body = null;
   if (endpoint.body !== null) {
     headers["Content-Type"] = "application/json";
-    body = JSON.stringify(fill(endpoint.body, ref, (text) => text));
+    body = JSON.stringify(fill(endpoint.body, { ...ref, journey: lt.journeyKey() }, (text) => text));
   }
-  const url = __ENV.LT_TARGET + fill(endpoint.path, ref, encodeURIComponent);
+  const pathValues = endpoint.journey_in_path ? { ...ref, journey: lt.journeyKey() } : ref;
+  const url = __ENV.LT_TARGET + fill(endpoint.path, pathValues, encodeURIComponent);
   return http.request(endpoint.method, url, body, { headers, tags: { operation } });
 }
 
