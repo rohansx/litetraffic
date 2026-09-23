@@ -540,3 +540,23 @@ def test_rejects_unusable_command_fixture_inputs(tmp_path, name, message):
 
 def test_bundled_runtime_exports_deep_equal():
     assert "export function deepEqual(a, b)" in RUNTIME.read_text()
+
+
+def test_command_fixture_split_timeouts_default_to_timeout_seconds_and_sum_into_the_budget(tmp_path):
+    # 10 s schedule + 2 s engine + (1 s setup + 4 s grace) + (5 s teardown default + 4 s grace)
+    command = COMMAND | {"setup_timeout_seconds": 1}
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 25})
+    with pytest.raises(ValidationError, match=r"fixture \(14 s\) and observation \(0 s\) deadlines need 26 s, max_seconds is 25"):
+        load_scenario(write_bundle(tmp_path, data))
+    data["budgets"]["max_seconds"] = 26
+    loaded = load_scenario(write_bundle(tmp_path, data)).manifest.fixtures.command
+    assert (loaded.setup_timeout_seconds, loaded.teardown_timeout_seconds) == (1, 5)
+
+
+def test_command_fixture_split_timeouts_replace_timeout_seconds(tmp_path):
+    command = {k: v for k, v in COMMAND.items() if k != "timeout_seconds"} | {"setup_timeout_seconds": 30, "teardown_timeout_seconds": 2}
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 52})
+    assert load_scenario(write_bundle(tmp_path, data)).manifest.fixtures.reserved_seconds == 40
+    del command["teardown_timeout_seconds"]
+    with pytest.raises(ValidationError, match="teardown_timeout_seconds"):
+        load_scenario(write_bundle(tmp_path, manifest(fixtures={"recipe": "seeded", "command": command}, budgets=data["budgets"])))

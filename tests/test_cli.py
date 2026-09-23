@@ -523,7 +523,7 @@ def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
 
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
     first = json.loads(capsys.readouterr().out)
-    assert first["fixture"]["command"] == command | {"cwd": "bundle", "inputs": [], "hashed_files": []}
+    assert first["fixture"]["command"] == command | {"setup_timeout_seconds": 2, "teardown_timeout_seconds": 2, "cwd": "bundle", "inputs": [], "hashed_files": []}
 
     data["fixtures"]["command"]["setup"] = ["psql", "-f", "other.sql"]
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
@@ -748,3 +748,34 @@ def test_verify_passes_plan_variables_to_the_observer(tmp_path, monkeypatch, cap
     main(["verify", str(scenario), "--target", "http://example.test", "--seed", "9", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(fake_k6(tmp_path, events)), "--json"])
 
     assert seen == {"planned_journeys": 20, "seed": 9}
+
+
+def test_version_prints_the_package_version(capsys, monkeypatch):
+    from importlib.metadata import PackageNotFoundError
+
+    from litetraffic import __version__
+
+    def missing(name):  # a source checkout run with PYTHONPATH=src has no package metadata
+        raise PackageNotFoundError(name)
+
+    monkeypatch.setattr("importlib.metadata.version", missing)
+    monkeypatch.setattr("litetraffic.cli.version", missing, raising=False)
+    with pytest.raises(SystemExit) as exit_info:
+        main(["--version"])
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out.strip() == f"litetraffic {__version__}"
+
+
+def test_inspect_shows_observation_origin_env_names(tmp_path, capsys):
+    data = manifest(allowed_origins_env="LT_EXTRA_ORIGINS", budgets=manifest()["budgets"] | {"max_seconds": 17, "max_requests": 61})
+    data["observation"] = {"path": "/stats", "assertion": "accepted_orders_persist", "expected": {"/count": 1}, "origin_env": "LT_OBSERVER_ORIGIN"}
+    path = write_bundle(tmp_path, data)
+
+    assert main(["inspect", str(path), "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["allowed_origins_env"] == "LT_EXTRA_ORIGINS"
+    assert output["observations"][0]["origin_env"] == "LT_OBSERVER_ORIGIN"
+    assert main(["inspect", str(path)]) == 0
+    text = capsys.readouterr().out
+    assert "allowed origins env: LT_EXTRA_ORIGINS" in text
+    assert "observation accepted_orders_persist origin env: LT_OBSERVER_ORIGIN" in text
