@@ -16,6 +16,7 @@ from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard import serve
 from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
+from litetraffic.kits import tenant_isolation
 from litetraffic.models import resolve_expected
 from litetraffic.human import format_diff, format_inspect, format_verify
 from litetraffic.runner import RunnerError, verify
@@ -52,6 +53,12 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--k6-path")
     doctor.add_argument("--output-dir", type=Path, default=Path(".litetraffic/runs"))
     doctor.add_argument("--json", action="store_true")
+
+    init = commands.add_parser("init", help="generate a scenario bundle from a kit config")
+    init.add_argument("kit", choices=["tenant-isolation"])
+    init.add_argument("--config", type=Path, required=True, metavar="KIT_JSON")
+    init.add_argument("--out", type=Path, required=True, metavar="DIR")
+    init.add_argument("--json", action="store_true")
 
     inspect = commands.add_parser("inspect", help="validate and explain a scenario bundle")
     _add_scenario(inspect)
@@ -154,6 +161,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, args.json, text)
             return 0 if failure is None else 3
 
+        if args.command == "init":
+            try:
+                bundle = tenant_isolation.generate(args.config, args.out)
+            except ValidationError as exc:
+                raise ValueError(_manifest_error(exc, "invalid kit config")) from None
+            files = ["manifest.json", "journeys.js"]
+            _emit({"ok": True, "scenario": str(args.out), "files": files, "scenario_sha256": bundle.digest}, args.json)
+            return 0
+
         if args.command in {"inspect", "verify", "approve", "up"}:
             args.scenario = _scenario(args)
 
@@ -249,14 +265,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 3
 
 
-def _manifest_error(exc: ValidationError) -> str:
+def _manifest_error(exc: ValidationError, prefix: str = "invalid manifest") -> str:
     """One line per problem, `field.path: message`, without pydantic's input dump and docs link."""
     problems = []
     for error in exc.errors():
         message = error["msg"].removeprefix("Value error, ")
         where = ".".join(str(part) for part in error["loc"])
         problems.append(f"{where}: {message}" if where else message)
-    return "invalid manifest: " + "; ".join(problems)
+    return f"{prefix}: " + "; ".join(problems)
 
 
 def entrypoint() -> None:

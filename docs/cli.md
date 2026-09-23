@@ -22,6 +22,14 @@ Runs these checks, each reported with `name`, `ok`, and `detail`:
 
 With a target, it first applies the same URL checks as `verify` (link-local and metadata targets exit `3` without a request), then sends one GET with a three-second HTTP timeout and no redirect following. Any other status fails with `reachable but not ready (HTTP N)`. This command does not install dependencies or write to the target.
 
+## `init`
+
+```text
+litetraffic init tenant-isolation --config KIT_JSON --out DIR [--json]
+```
+
+Generates a scenario bundle in `DIR` (created if missing; `manifest.json` and `journeys.js` are overwritten) from a kit config, then loads it the way `inspect` does. Returns `ok`, `scenario`, `files`, and `scenario_sha256`. An unreadable or invalid config exits `3` with `cannot read kit config: ...` or `invalid kit config: field.path: message`, and writes nothing. The same config always produces the same files. The config format and the generated checks are described in [Tenant isolation in 10 minutes](scenarios.md#tenant-isolation-in-10-minutes).
+
 ## `inspect`
 
 ```text

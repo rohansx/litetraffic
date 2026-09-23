@@ -1,0 +1,282 @@
+"""`litetraffic init tenant-isolation`: a complete scenario bundle from a small JSON config."""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Annotated, Literal
+
+from pydantic import Field, JsonValue, model_validator
+
+from litetraffic.auth import token_env_name
+from litetraffic.modelbase import ENV_NAME, StrictModel
+from litetraffic.models import ENGINE_SLACK_SECONDS, Fixtures, JwtAuth, Schedule
+from litetraffic.observation_config import FinalObservation
+from litetraffic.scenario import ScenarioBundle, load_scenario
+
+REJECTED_STATUSES = [401, 403, 404]
+DEFAULT_STATUSES = {"read": [200], "write": [200, 201, 204]}
+DEFAULT_SCHEDULE = {
+    "unit": "journeys_per_second",
+    "phases": [
+        {"name": "warmup", "seconds": 1, "rate": 1},
+        {"name": "measure", "seconds": 4, "rate": 2},
+        {"name": "recovery", "seconds": 1, "rate": 1},
+    ],
+}
+MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
+HEADER_NAME = r"[A-Za-z0-9!#$%&'*+.^_`|~-]+"
+Status = Annotated[int, Field(strict=True, ge=100, le=599)]
+
+
+class Identity(StrictModel):
+    name: str = Field(min_length=1)
+    auth: JwtAuth | None = None  # `kind` defaults to jwt_hs256
+    token_env: str | None = None  # names a variable holding a ready bearer token
+    headers: dict[str, str] = Field(default_factory=dict)  # plain, non-secret headers such as a tenant id
+    resources: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def default_auth_kind(cls, data):
+        if isinstance(data, dict) and isinstance(data.get("auth"), dict):
+            return data | {"auth": {"kind": "jwt_hs256"} | data["auth"]}
+        return data
+
+    @model_validator(mode="after")
+    def require_one_credential(self) -> "Identity":
+        if self.auth and self.token_env:
+            raise ValueError("identity takes auth or token_env, not both")
+        if not (self.auth or self.token_env or self.headers):
+            raise ValueError("identity needs auth, token_env or headers to tell it apart")
+        if self.token_env and not re.fullmatch(ENV_NAME, self.token_env):
+            raise ValueError("token_env must name an uppercase environment variable")
+        if bad := [name for name in self.headers if not re.fullmatch(HEADER_NAME, name)]:
+            raise ValueError(f"invalid header name {bad[0]!r}")
+        return self
+
+
+class Endpoint(StrictModel):
+    method: Literal["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
+    path: str = Field(min_length=1)
+    kind: Literal["read", "write"]
+    body: JsonValue = None
+    expected_statuses: list[Status] | None = Field(default=None, min_length=1)  # own-access success statuses
+    # Also run the write as the owner. Only for idempotent writes: concurrent journeys otherwise race the read-back compare.
+    check_own: bool = False
+
+    @model_validator(mode="after")
+    def require_safe_template(self) -> "Endpoint":
+        if not self.path.startswith("/") or self.path.startswith("//") or any(char in self.path for char in "#"):
+            raise ValueError("path must be a same-origin path")
+        if "{id}" not in self.path:
+            raise ValueError("path must contain the {id} placeholder")
+        if self.kind == "read" and self.method not in {"GET", "HEAD"}:
+            raise ValueError("read endpoints must use GET or HEAD")
+        if self.kind == "write" and self.method in {"GET", "HEAD"}:
+            raise ValueError("write endpoints must use POST, PUT, PATCH or DELETE")
+        if self.kind == "read" and (self.body is not None or self.check_own):
+            raise ValueError("read endpoints take no body or check_own")
+        return self
+
+    @property
+    def statuses(self) -> list[int]:
+        return self.expected_statuses or DEFAULT_STATUSES[self.kind]
+
+
+class KitConfig(StrictModel):
+    name: str = Field(min_length=1)
+    identities: list[Identity] = Field(min_length=2, max_length=2)
+    endpoints: list[Endpoint] = Field(min_length=1)
+    fixtures: Fixtures | None = None
+    observations: list[FinalObservation] = Field(default_factory=list)
+    schedule: Schedule | None = None
+    max_in_flight: int = Field(default=6, gt=0)
+
+    @model_validator(mode="after")
+    def require_distinct_identities_and_a_read(self) -> "KitConfig":
+        names = [identity.name for identity in self.identities]
+        if len(set(names)) != 2 or len({token_env_name(name) for name in names}) != 2:
+            raise ValueError(f"identity names must be distinct: {', '.join(names)}")
+        if not any(endpoint.kind == "read" for endpoint in self.endpoints):
+            raise ValueError("endpoints need at least one read endpoint (the first one reads back victim state)")
+        return self
+
+
+def _journey_assertions(config: KitConfig) -> list[str]:
+    names = ["own_access", "cross_tenant_read_blocked"]
+    if any(endpoint.kind == "write" for endpoint in config.endpoints):
+        names += ["cross_tenant_write_blocked", "victim_unchanged"]
+    return names
+
+
+def _journey(config: KitConfig) -> dict:
+    resources = sum(len(identity.resources) for identity in config.identities)
+    reads = sum(endpoint.kind == "read" for endpoint in config.endpoints)
+    writes = sum(endpoint.kind == "write" for endpoint in config.endpoints)
+    own_writes = sum(endpoint.check_own for endpoint in config.endpoints)
+    own_statuses = {status for endpoint in config.endpoints for status in endpoint.statuses}
+    return {
+        "name": "tenant-isolation",
+        # own reads (+ own writes), cross-tenant reads, and per cross-tenant write: read before, write, read after
+        "max_requests": resources * (reads + own_writes + reads + 3 * writes),
+        "max_writes": resources * (own_writes + writes),
+        "expected_statuses": {"own": sorted(own_statuses), "cross_tenant": REJECTED_STATUSES},
+    }
+
+
+def build_manifest(config: KitConfig, raw: dict) -> dict:
+    """The manifest dict; passthrough sections (fixtures, schedule, observations) are copied as written."""
+    fixtures = raw.get("fixtures", {"recipe": "static-resources"})
+    schedule = raw.get("schedule", DEFAULT_SCHEDULE)
+    observations = raw.get("observations", [])
+    journey = _journey(config)
+    phases = Schedule.model_validate(schedule).resolve(seed=0)
+    planned, seconds = sum(phase.admitted_journeys for phase in phases), sum(phase.seconds for phase in phases)
+    reserved = Fixtures.model_validate(fixtures)
+    lifecycle = 2 * int(reserved.owned_http is not None)
+    actors = []
+    for identity, written in zip(config.identities, raw["identities"]):
+        actor = {"class": identity.name, "count": 1, "auth_recipe": "kit-headers"}
+        if identity.auth:
+            actor |= {"auth_recipe": "kit-jwt", "auth": {"kind": "jwt_hs256"} | written["auth"]}
+        elif identity.token_env:
+            actor["auth_recipe"] = "kit-bearer-env"
+        actors.append(actor)
+    manifest = {
+        "schema_version": 1,
+        "name": config.name,
+        "script": "journeys.js",
+        "actors": actors,
+        "fixtures": fixtures,
+        "journeys": [journey],
+        "schedule": schedule,
+        "assertions": _journey_assertions(config) + [observation.assertion for observation in config.observations],
+        "observer": "tenant-isolation-kit",
+        "budgets": {
+            "max_seconds": seconds + ENGINE_SLACK_SECONDS + reserved.reserved_seconds + 5 * len(observations),
+            "max_requests": planned * journey["max_requests"] + len(observations) + lifecycle,
+            "max_write_attempts": planned * journey["max_writes"] + lifecycle,
+            "max_in_flight": config.max_in_flight,
+            "max_artifact_bytes": MAX_ARTIFACT_BYTES,
+        },
+    }
+    if observations:
+        manifest["observations"] = observations
+    return manifest
+
+
+def build_script(config: KitConfig) -> str:
+    kit = {
+        "assertions": _journey_assertions(config),
+        "rejected": REJECTED_STATUSES,
+        "identities": [
+            {
+                "name": identity.name,
+                "headers": identity.headers,
+                "token_env": token_env_name(identity.name) if identity.auth else identity.token_env,
+                "resources": identity.resources,
+            }
+            for identity in config.identities
+        ],
+        "endpoints": [
+            {"method": e.method, "path": e.path, "kind": e.kind, "body": e.body, "statuses": e.statuses, "check_own": e.check_own}
+            for e in config.endpoints
+        ],
+    }
+    return SCRIPT.replace("__KIT__", json.dumps(kit, indent=2))
+
+
+def generate(config_path: Path, out: Path) -> ScenarioBundle:
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"cannot read kit config: {exc}") from exc
+    config = KitConfig.model_validate(raw)  # ValidationError: the CLI reports it as an invalid kit config
+    manifest = build_manifest(config, raw)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (out / "journeys.js").write_text(build_script(config), encoding="utf-8")
+    return load_scenario(out)
+
+
+SCRIPT = """\
+// Generated by `litetraffic init tenant-isolation`. Edit the kit config and regenerate instead of editing this file.
+import http from "k6/http";
+import * as lt from "./litetraffic/runtime.js";
+
+const KIT = __KIT__;
+const MAX_SAMPLES = 3;
+
+export const options = lt.options();
+
+function send(identity, endpoint, ref, operation) {
+  const headers = { "X-LiteTraffic-Run": __ENV.LT_RUN_ID, ...identity.headers };
+  if (__ENV.LT_FIXTURE_ID) headers["X-LiteTraffic-Fixture"] = __ENV.LT_FIXTURE_ID;
+  const token = identity.token_env && __ENV[identity.token_env];
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let body = null;
+  if (endpoint.body !== null) {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(endpoint.body);
+  }
+  const url = __ENV.LT_TARGET + endpoint.path.split("{id}").join(encodeURIComponent(ref));
+  return http.request(endpoint.method, url, body, { headers, tags: { operation } });
+}
+
+function content(response) {
+  try {
+    return response.json();
+  } catch (_) {
+    return response.body;
+  }
+}
+
+// Evidence never carries response bodies: only who, what and the status.
+function where(identity, endpoint, ref, status) {
+  return { identity: identity.name, method: endpoint.method, path: endpoint.path, id: ref, status };
+}
+
+export default function tenantIsolation() {
+  const failures = Object.fromEntries(KIT.assertions.map((name) => [name, []]));
+  const readBack = KIT.endpoints.find((endpoint) => endpoint.kind === "read");
+  KIT.identities.forEach((owner, index) => {
+    const attacker = KIT.identities[1 - index];
+    for (const ref of owner.resources) {
+      for (const endpoint of KIT.endpoints) {
+        if (endpoint.kind === "write" && !endpoint.check_own) continue;
+        const own = send(owner, endpoint, ref, "own");
+        if (!endpoint.statuses.includes(own.status)) failures.own_access.push(where(owner, endpoint, ref, own.status));
+      }
+      for (const endpoint of KIT.endpoints) {
+        if (endpoint.kind === "read") {
+          const cross = send(attacker, endpoint, ref, "cross_tenant");
+          if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_read_blocked.push(where(attacker, endpoint, ref, cross.status));
+          continue;
+        }
+        const before = send(owner, readBack, ref, "own");
+        const cross = send(attacker, endpoint, ref, "cross_tenant");
+        const after = send(owner, readBack, ref, "own");
+        if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_write_blocked.push(where(attacker, endpoint, ref, cross.status));
+        const unchanged = readBack.statuses.includes(before.status) && after.status === before.status && lt.deepEqual(content(before), content(after));
+        if (!unchanged) {
+          failures.victim_unchanged.push({ ...where(attacker, endpoint, ref, cross.status), before: before.status, after: after.status });
+        }
+      }
+    }
+  });
+  const expected = {
+    own_access: "every owner request returns one of its endpoint's statuses",
+    cross_tenant_read_blocked: KIT.rejected,
+    cross_tenant_write_blocked: KIT.rejected,
+    victim_unchanged: "the owner's read-back is identical before and after each cross-tenant write",
+  };
+  for (const [assertion, failed] of Object.entries(failures)) {
+    lt.evidence(assertion, failed.length === 0, {
+      expected: expected[assertion],
+      actual: { failures: failed.length, samples: failed.slice(0, MAX_SAMPLES) },
+    });
+  }
+}
+"""

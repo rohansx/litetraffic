@@ -12,6 +12,54 @@ my-scenario/
 
 The fastest start is to copy the bundled example closest to your case and change its API calls and expectations. Validate every change with `litetraffic inspect`.
 
+## Tenant isolation in 10 minutes
+
+`litetraffic init tenant-isolation` writes a complete bundle (`manifest.json` plus a `journeys.js` built on the bundled runtime helper) from a small JSON config, so you describe *who owns what* instead of writing k6 code. [`examples/tenant_api/kit.json`](../examples/tenant_api/kit.json) is a working config:
+
+```json
+{
+  "name": "tenant-isolation-kit",
+  "identities": [
+    {"name": "tenant-a", "headers": {"X-Actor-Tenant": "a"}, "resources": ["a"]},
+    {"name": "tenant-b", "headers": {"X-Actor-Tenant": "b"}, "resources": ["b"]}
+  ],
+  "endpoints": [
+    {"method": "GET", "path": "/tenants/{id}/records/1", "kind": "read"},
+    {"method": "PUT", "path": "/tenants/{id}/records/1", "kind": "write", "body": {"value": "mallory"}}
+  ],
+  "fixtures": {"recipe": "owned-overlapping-tenant-records", "owned_http": {"...": "as in the manifest"}},
+  "observations": [{"path": "/tenant/state", "assertion": "tenant_fixture_intact", "expected": {"/tenant_count": 2}}]
+}
+```
+
+```bash
+litetraffic init tenant-isolation --config examples/tenant_api/kit.json --out my-isolation
+litetraffic inspect my-isolation
+python examples/tenant_api/server.py --port 8769 &
+litetraffic verify my-isolation --target http://127.0.0.1:8769   # pass; --wrong-leak, --deny-all or --wrong-silent-write fail
+```
+
+Config fields:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `name` | yes | Scenario name |
+| `identities` | yes | Exactly two, each `{"name", "resources", "auth"?, "token_env"?, "headers"?}`. `resources` are the ids this identity owns, substituted (URL-encoded) for `{id}`. Give `auth` (an [actor auth](#actor-auth) recipe; `kind` defaults to `jwt_hs256`) or `token_env` (a variable holding a ready bearer token), not both; `headers` are plain, non-secret headers. At least one of the three is required |
+| `endpoints` | yes | `[{"method", "path", "kind": "read"\|"write", "body"?, "expected_statuses"?, "check_own"?}]`. `path` must contain `{id}`; reads use `GET`/`HEAD`, writes `POST`/`PUT`/`PATCH`/`DELETE` with an optional JSON `body`. `expected_statuses` are the owner's success statuses (default `[200]` for reads, `[200, 201, 204]` for writes). At least one read is required; the first read is the read-back |
+| `fixtures`, `schedule`, `observations` | no | Copied into the manifest as written. Defaults: `{"recipe": "static-resources"}`, the 6-second warmup/measure/recovery schedule of the tenant example, and none |
+| `max_in_flight` | no | Default `6` |
+
+Each journey, for each identity as owner and each owned id:
+
+- `own_access`: the owner reads the resource through every read endpoint (and writes with `check_own: true` writes) and gets one of the endpoint's `expected_statuses`.
+- `cross_tenant_read_blocked`: the other identity reads it and gets `401`, `403` or `404`.
+- `cross_tenant_write_blocked` (only with write endpoints): the other identity writes it and gets `401`, `403` or `404`.
+- `victim_unchanged` (only with write endpoints): the owner reads the resource back before and after each cross-tenant write; the statuses and bodies must match (`deepEqual`). This catches a server that answers `403` but applies the write anyway.
+
+Requests are tagged `operation: own` or `cross_tenant`, and the journey declares those tags' `expected_statuses`, so rejected probes do not count as unexpected HTTP failures. The generator computes `journeys[].max_requests`/`max_writes` and all budgets from the config; generation is deterministic, so the same config gives the same digest. Evidence carries identity, method, path template, id and statuses, never response bodies.
+
+Limits: owner writes are off by default because a concurrent journey's owner write would race another journey's read-back compare; set `check_own` only for idempotent writes. A `token_env` value is sent to k6 but is not a declared credential, so it is not scrubbed from kept artifacts; the generated script never writes it to evidence. Prefer `auth` when the app accepts controller-minted JWTs. Resource ids are static; regenerate after editing the config rather than editing the generated files.
+
 ## Manifest
 
 Unknown fields are rejected. `schema_version` must be `1`.

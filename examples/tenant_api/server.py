@@ -10,6 +10,7 @@ from threading import Lock
 class TenantHandler(BaseHTTPRequestHandler):
     wrong_leak = False
     deny_all = False
+    wrong_silent_write = False
     fixtures: dict[str, dict] = {}
     lock = Lock()
 
@@ -43,6 +44,23 @@ class TenantHandler(BaseHTTPRequestHandler):
             return
         record = fixture["records"].get(requested_tenant, {}).get("1")
         self._send(200, {"tenant": requested_tenant, "local_id": "1", "value": record}) if record else self._send(404, {})
+
+    def do_PUT(self) -> None:
+        fixture = self._owned_fixture()
+        parts = self.path.strip("/").split("/")
+        body = self._body()
+        if fixture is None or len(parts) != 4 or parts[0] != "tenants" or parts[2] != "records" or parts[3] != "1":
+            self._send(404, {})
+            return
+        records = fixture["records"].get(parts[1])
+        if records is None or not isinstance(body.get("value"), str):
+            self._send(404, {})
+            return
+        allowed = not self.deny_all and (self.wrong_leak or self.headers.get("X-Actor-Tenant") == parts[1])
+        if allowed or self.wrong_silent_write:
+            with self.lock:
+                records["1"] = body["value"]
+        self._send(200, {"tenant": parts[1], "local_id": "1", "value": body["value"]}) if allowed else self._send(403, {})
 
     def do_DELETE(self) -> None:
         run_id = self.headers.get("X-LiteTraffic-Run")
@@ -81,9 +99,11 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8769)
     parser.add_argument("--wrong-leak", action="store_true")
     parser.add_argument("--deny-all", action="store_true")
+    parser.add_argument("--wrong-silent-write", action="store_true", help="reject cross-tenant writes with 403 but apply them")
     args = parser.parse_args()
     TenantHandler.wrong_leak = args.wrong_leak
     TenantHandler.deny_all = args.deny_all
+    TenantHandler.wrong_silent_write = args.wrong_silent_write
     ThreadingHTTPServer(("127.0.0.1", args.port), TenantHandler).serve_forever()
 
 
