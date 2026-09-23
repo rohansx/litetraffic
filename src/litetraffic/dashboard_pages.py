@@ -86,7 +86,7 @@ def _filter_form(scenarios: list[str], filters: dict[str, str]) -> str:
 
     return (
         '<form class="controls" action="/" method="get" aria-label="Filter runs">'
-        f'<label>Scenario <select name="scenario">{options(scenarios, filters.get("scenario"))}</select></label>'
+        f'<label>Scenario <select name="scenario" id="scenario-filter">{options(scenarios, filters.get("scenario"))}</select></label>'
         f'<label>Verdict <select name="verdict">{options(VERDICTS, filters.get("verdict"))}</select></label>'
         f'<label>Seed <input name="seed" inputmode="numeric" size="8" value="{escape(filters.get("seed", ""))}"></label>'
         '<button>Filter</button> <a href="/">Clear</a></form>'
@@ -207,7 +207,7 @@ def _chart(scenario: str, points: list[tuple[dict, float | None]]) -> str:
         f'<title id="chart-title">p95 latency per run for {escape(scenario)}</title><desc id="chart-desc">{escape(summary)} '
         "Marker colour shows the verdict; the table below lists every value.</desc>"
         f'<line x1="{_PAD}" y1="{_H - _PAD}" x2="{_W - _PAD}" y2="{_H - _PAD}"/><line x1="{_PAD}" y1="{_PAD}" x2="{_PAD}" y2="{_H - _PAD}"/>'
-        f'<text x="4" y="{_PAD + 4}">{top:g} ms</text><text x="4" y="{_H - _PAD + 4}">0</text>'
+        f'<text x="4" y="{_PAD - 14}">{top:g} ms</text><text x="4" y="{_H - _PAD + 4}">0</text>'
         f'<text x="{_PAD}" y="{_H - 12}">oldest</text><text x="{_W - _PAD}" y="{_H - 12}" text-anchor="end">newest</text>'
         f'<polyline points="{line}"/>{markers}</svg>'
     )

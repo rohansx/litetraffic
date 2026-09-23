@@ -43,10 +43,13 @@ def _entries(runs_dir: Path, filters: dict[str, str]) -> list[dict]:
     return [entry for entry in list_runs(runs_dir) if all(pages.plain(entry[key]) == value for key, value in filters.items())]
 
 
+def _scenarios(runs_dir: Path) -> list[str]:
+    return sorted({entry["scenario"] for entry in list_runs(runs_dir) if isinstance(entry["scenario"], str)})
+
+
 def _index(runs_dir: Path, query: str) -> str:
-    scenarios = sorted({entry["scenario"] for entry in list_runs(runs_dir) if isinstance(entry["scenario"], str)})
     filters = _filters(query)
-    return pages.index(_entries(runs_dir, filters), scenarios, filters)
+    return pages.index(_entries(runs_dir, filters), _scenarios(runs_dir), filters)
 
 
 def _diff_pair(runs_dir: Path, query: str) -> list[Path | None]:
@@ -70,7 +73,8 @@ def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
             self.send_header("Content-Length", str(len(data)))
             self.send_header("X-Content-Type-Options", "nosniff")
             self.end_headers()
-            self.wfile.write(data)
+            if self.command != "HEAD":
+                self.wfile.write(data)
 
         def do_GET(self) -> None:  # noqa: N802 - http.server naming
             url = urlsplit(self.path)
@@ -79,6 +83,8 @@ def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
                 return self._send(200, _index(runs_dir, url.query))
             if parts == ["api", "runs"]:
                 return self._send(200, json.dumps(_entries(runs_dir, _filters(url.query)), sort_keys=True), "application/json")
+            if parts == ["api", "scenarios"]:
+                return self._send(200, json.dumps(_scenarios(runs_dir)), "application/json")
             if parts == ["diff"] and all(pair := _diff_pair(runs_dir, url.query)):
                 return self._send(200, pages.diff(*pair))
             if len(parts) == 2 and parts[0] == "scenarios" and (body := _trend(runs_dir, parts[1])):
@@ -90,6 +96,8 @@ def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
                     kind = _TYPES.get(artifact.suffix, "text/plain")
                     return self._send(200, artifact.read_bytes(), f"{kind}; charset=utf-8")
             self._send(404, pages.page("Not found", "<h1>Not found</h1>"))
+
+        do_HEAD = do_GET  # noqa: N815 - same routes and headers; _send skips the body
 
         def log_message(self, format: str, *args: object) -> None:  # noqa: A002 - quiet by default
             pass

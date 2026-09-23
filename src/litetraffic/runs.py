@@ -73,7 +73,10 @@ def _sort_key(entry: dict) -> str:
     if isinstance(stamp, str):
         return stamp
     # ponytail: unfinished/unreadable runs sort by mtime, which assumes ISO UTC finished_at stamps.
-    return datetime.fromtimestamp(Path(entry["path"]).stat().st_mtime, UTC).isoformat()
+    try:
+        return datetime.fromtimestamp(Path(entry["path"]).stat().st_mtime, UTC).isoformat()
+    except OSError:  # deleted since it was listed: sorts last
+        return ""
 
 
 def list_runs(runs_dir: Path) -> list[dict]:

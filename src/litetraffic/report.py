@@ -8,8 +8,13 @@ def _count(value: object) -> str:
     return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
 
 
+_LONG, _PREVIEW = 300, 80
+
+
 def _cell(value: object) -> str:
     text = "" if value is None else value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+    if len(text) > _LONG:
+        return f"<td><details><summary>{escape(text[:_PREVIEW])}… ({len(text)} chars)</summary>{escape(text)}</details></td>"
     return f"<td>{escape(text)}</td>"
 
 

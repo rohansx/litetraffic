@@ -21,7 +21,9 @@ button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}
 .controls{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:end;margin:12px 0}.controls label{display:flex;flex-direction:column;font-size:.85rem}
 .badge{display:inline-block;padding:1px 8px;border:1px solid currentColor;border-radius:999px;font-size:.8rem;font-weight:650;color:var(--info)}
 .verdict{font-size:1.6rem}.v-pass{color:var(--pass)}.v-fail,.v-error{color:var(--fail)}.v-inconclusive,.v-unreadable{color:var(--warn)}
-svg.chart{width:100%;height:auto;max-width:720px}svg.chart text{fill:var(--muted);font-size:12px}
+svg.chart{width:100%;height:auto;max-width:720px}svg.chart text{fill:var(--muted);font-size:14px}
+/* The 640-wide viewBox shrinks with the screen; keep chart text >= 11px rendered down to 375px. */
+@media (max-width:560px){svg.chart text{font-size:22px}}
 svg.chart polyline{fill:none;stroke:var(--link);stroke-width:2}svg.chart line{stroke:var(--line)}
 svg.chart circle{fill:currentColor;stroke:var(--card);stroke-width:2}
 """
@@ -67,7 +69,15 @@ function refresh(){
   .then(function(entries){
     var checked=new Set(Array.from(form.querySelectorAll('input[name=run]:checked'),function(i){return i.value}));
     rows.replaceChildren.apply(rows,entries.map(function(e){return row(e,checked)}));sync();note.textContent=''})
-  .catch(function(err){note.textContent='Refresh failed: '+err.message})}
+  .catch(function(err){note.textContent='Refresh failed: '+err.message});
+  fetch('/api/scenarios').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})
+  .then(options).catch(function(err){note.textContent='Refresh failed: '+err.message})}
+var pick=document.getElementById('scenario-filter');
+function options(names){
+  var chosen=pick.value;if(chosen&&names.indexOf(chosen)<0)names.push(chosen);
+  var any=document.createElement('option');any.value='';any.textContent='Any';
+  pick.replaceChildren.apply(pick,[any].concat(names.map(function(n){
+    var o=document.createElement('option');o.value=n;o.textContent=n;return o})));pick.value=chosen}
 var timer=null;
 function schedule(){clearInterval(timer);timer=auto.checked?setInterval(refresh,5000):null}
 auto.addEventListener('change',schedule);schedule();
