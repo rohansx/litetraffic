@@ -1,13 +1,14 @@
-import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { api } from "@/api/client";
 import type { RunListEntry, ScenarioList } from "@/api/types";
 import { Page } from "@/components/page";
+import { ChartAreaInteractive } from "@/components/chart-area-interactive";
+import { SectionCards } from "@/components/section-cards";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VerdictBadge, VerdictStrip } from "@/components/verdict";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatRelative } from "@/lib/format";
 import { JUDGED, oldestFirst, summarizeScenarios } from "@/lib/runs";
 import { useApi } from "@/lib/use-api";
 
@@ -28,20 +29,6 @@ export function OverviewPage() {
   );
 }
 
-function Kpi({ label, value, detail }: { label: string; value: ReactNode; detail: ReactNode }) {
-  return (
-    <Card className="gap-4 py-4">
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-1">
-        <p className="font-heading text-3xl leading-none font-semibold tabular-nums">{value}</p>
-        <p className="truncate text-xs text-muted-foreground">{detail}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: ScenarioList }) {
   const verifyRuns = runs.filter((run) => run.kind === "run");
   if (!runs.length) {
@@ -52,41 +39,20 @@ function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: Scenar
     );
   }
 
-  const judged = verifyRuns.filter((run) => JUDGED.has(run.verdict));
-  const passed = judged.filter((run) => run.verdict === "pass").length;
   const summaries = summarizeScenarios(runs, scenarios);
-  const failing = summaries.filter((s) => s.latest && (s.latest.verdict === "fail" || s.latest.verdict === "error"));
-  const newest = oldestFirst(verifyRuns.filter((run) => run.finished_at)).at(-1);
   const problems = oldestFirst(verifyRuns.filter((run) => run.verdict !== "pass" && JUDGED.has(run.verdict)))
     .reverse()
     .slice(0, 5);
-  const others = runs.length - verifyRuns.length;
 
   return (
     <>
-      <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Runs" value={verifyRuns.length} detail={others ? `Plus ${others} series and activities` : "Verify runs on disk"} />
-        <Kpi
-          label="Pass rate"
-          value={judged.length ? `${Math.round((passed / judged.length) * 100)}%` : "n/a"}
-          detail={`${passed} of ${judged.length} judged runs passed`}
-        />
-        <Kpi
-          label="Failing scenarios"
-          value={failing.length}
-          detail={`Latest run failed, of ${summaries.length} scenarios`}
-        />
-        <Kpi
-          label="Last run"
-          value={<span className="text-2xl">{formatRelative(newest?.finished_at)}</span>}
-          detail={newest ? <span title={formatDateTime(newest.finished_at)}>{newest.scenario}</span> : "No finished runs"}
-        />
-      </section>
+      <SectionCards runs={runs} summaries={summaries} />
+      <ChartAreaInteractive runs={runs} />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid gap-4 md:gap-6 @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card>
           <CardHeader>
-            <CardTitle className="font-heading text-lg font-semibold">Scenarios</CardTitle>
+            <CardTitle>Scenarios</CardTitle>
             <CardDescription>Latest verdict and recent history, oldest bar first.</CardDescription>
             <CardAction>
               <Button asChild variant="ghost" size="sm">
@@ -123,7 +89,7 @@ function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: Scenar
 
         <Card>
           <CardHeader>
-            <CardTitle className="font-heading text-lg font-semibold">Needs attention</CardTitle>
+            <CardTitle>Needs attention</CardTitle>
             <CardDescription>Most recent runs that did not pass.</CardDescription>
           </CardHeader>
           <CardContent>

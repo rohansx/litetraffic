@@ -7,13 +7,13 @@ import type { AssertionStatus, ListVerdict } from "@/api/types";
 type Tone = ListVerdict | AssertionStatus;
 
 const STYLE: Record<Tone, { label: string; icon: LucideIcon; badge: string; dot: string }> = {
-  pass: { label: "Pass", icon: CircleCheck, badge: "bg-pass-muted text-pass", dot: "bg-pass" },
-  fail: { label: "Fail", icon: CircleX, badge: "bg-fail-muted text-fail", dot: "bg-fail" },
-  inconclusive: { label: "Inconclusive", icon: CircleHelp, badge: "bg-inconclusive-muted text-inconclusive", dot: "bg-inconclusive" },
-  error: { label: "Error", icon: OctagonAlert, badge: "bg-error-muted text-error", dot: "bg-error" },
-  unknown: { label: "Unknown", icon: CircleHelp, badge: "bg-inconclusive-muted text-inconclusive", dot: "bg-inconclusive" },
-  unreadable: { label: "Unreadable", icon: CircleDashed, badge: "bg-muted text-muted-foreground", dot: "bg-muted-foreground" },
-  background: { label: "Activity", icon: Radio, badge: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground" },
+  pass: { label: "Pass", icon: CircleCheck, badge: "bg-pass-muted text-pass", dot: "bg-primary" },
+  fail: { label: "Fail", icon: CircleX, badge: "bg-fail-muted text-fail", dot: "bg-destructive" },
+  inconclusive: { label: "Inconclusive", icon: CircleHelp, badge: "bg-inconclusive-muted text-inconclusive", dot: "bg-muted-foreground/60" },
+  error: { label: "Error", icon: OctagonAlert, badge: "bg-error-muted text-error", dot: "bg-destructive" },
+  unknown: { label: "Unknown", icon: CircleHelp, badge: "bg-inconclusive-muted text-inconclusive", dot: "bg-muted-foreground/60" },
+  unreadable: { label: "Unreadable", icon: CircleDashed, badge: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/60" },
+  background: { label: "Activity", icon: Radio, badge: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground/60" },
 };
 
 export const VERDICT_MEANING: Record<"pass" | "fail" | "inconclusive" | "error", string> = {
@@ -35,7 +35,7 @@ export function verdictLabel(verdict: string): string {
 export function VerdictBadge({ verdict, className }: { verdict: string; className?: string }) {
   const { label, icon: Icon, badge } = styleOf(verdict);
   return (
-    <Badge className={cn("gap-1 rounded-md font-semibold", badge, className)}>
+    <Badge className={cn(badge, className)}>
       <Icon aria-hidden />
       {label}
     </Badge>

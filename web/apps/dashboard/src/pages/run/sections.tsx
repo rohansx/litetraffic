@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { VerdictBadge } from "@/components/verdict";
 import { formatBytes, formatMs, formatNumber, formatRate } from "@/lib/format";
 
-const title = "font-heading text-lg font-semibold";
 
 export function Observations({ observation, fixture }: { observation?: Observation; fixture?: Fixture }) {
   const records = observation ? (Array.isArray(observation) ? observation : [observation]) : [];
@@ -38,7 +37,7 @@ export function Observations({ observation, fixture }: { observation?: Observati
                     <p className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                       Actual <VerdictBadge verdict={check.pass ? "pass" : "fail"} />
                     </p>
-                    <Value value={check.actual} className={check.pass ? undefined : "text-fail"} />
+                    <Value value={check.actual} className={check.pass ? undefined : "text-destructive"} />
                   </div>
                 </div>
               ))}
@@ -73,7 +72,7 @@ function FixtureCard({ fixture }: { fixture: Fixture }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className={title}>Fixture</CardTitle>
+        <CardTitle>Fixture</CardTitle>
         <CardDescription>State prepared before traffic and cleaned up after it.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -81,7 +80,7 @@ function FixtureCard({ fixture }: { fixture: Fixture }) {
           {steps.map(([step, status, detail]) => (
             <li key={step} className="grid gap-1 sm:grid-cols-[6rem_6rem_1fr] sm:items-baseline">
               <span className="font-medium">{step}</span>
-              <span className={status === "error" ? "text-fail" : "text-muted-foreground"}>{status}</span>
+              <span className={status === "error" ? "text-destructive" : "text-muted-foreground"}>{status}</span>
               <code className="truncate font-mono text-xs text-muted-foreground" title={detail}>
                 {detail}
               </code>
@@ -103,7 +102,7 @@ export function Metrics({ metrics }: { metrics: RunMetrics }) {
     <div className="grid grid-cols-1 gap-4">
       <Card>
         <CardHeader>
-          <CardTitle className={title}>Latency and throughput</CardTitle>
+          <CardTitle>Latency and throughput</CardTitle>
           <CardDescription>All HTTP requests the engine sent, including observer requests.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -127,7 +126,7 @@ export function Metrics({ metrics }: { metrics: RunMetrics }) {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className={title}>Per operation</CardTitle>
+          <CardTitle>Per operation</CardTitle>
           <CardDescription>Peak in flight is the client-side count of concurrent journeys for that operation.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -168,8 +167,8 @@ export function Limitations({ result }: { result: RunResult }) {
       {result.limitations.length ? (
         <ul className="grid gap-2" aria-label="Limitations">
           {result.limitations.map((text) => (
-            <li key={text} className="flex gap-2 rounded-lg border border-inconclusive/40 bg-inconclusive-muted p-3 text-sm">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-inconclusive" aria-hidden />
+            <li key={text} className="flex gap-2 rounded-lg border bg-card p-3 text-sm">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
               {text}
             </li>
           ))}

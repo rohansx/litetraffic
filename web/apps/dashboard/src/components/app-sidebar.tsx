@@ -1,13 +1,14 @@
-import { FolderOpen, GitCompareArrows, Info, LayoutDashboard, ListChecks, Workflow, type LucideIcon } from "lucide-react";
-import { NavLink, useLocation } from "react-router";
+import type { ComponentProps } from "react";
+import { GitCompareArrows, Info, LayoutDashboard, ListChecks, Workflow } from "lucide-react";
+import { Link } from "react-router";
 import { api } from "@/api/client";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { NavFooter } from "@/components/nav-footer";
+import { NavMain, type NavItem } from "@/components/nav-main";
+import { NavSecondary } from "@/components/nav-secondary";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -17,13 +18,14 @@ import {
 } from "@/components/ui/sidebar";
 import { useApi } from "@/lib/use-api";
 
-const NAV: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
-  { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/runs", label: "Runs", icon: ListChecks },
-  { to: "/scenarios", label: "Scenarios", icon: Workflow },
-  { to: "/compare", label: "Compare", icon: GitCompareArrows },
-  { to: "/about", label: "About", icon: Info },
+const NAV_MAIN: NavItem[] = [
+  { title: "Overview", url: "/", icon: LayoutDashboard, end: true },
+  { title: "Runs", url: "/runs", icon: ListChecks },
+  { title: "Scenarios", url: "/scenarios", icon: Workflow },
+  { title: "Compare", url: "/compare", icon: GitCompareArrows },
 ];
+
+const NAV_SECONDARY: NavItem[] = [{ title: "About", url: "/about", icon: Info }];
 
 export function BrandMark({ className }: { className?: string }) {
   return (
@@ -33,71 +35,35 @@ export function BrandMark({ className }: { className?: string }) {
   );
 }
 
-export function AppSidebar() {
-  const { pathname } = useLocation();
-  const { setOpenMobile } = useSidebar();
+export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   const meta = useApi("meta", (signal) => api.meta(signal));
+  const { setOpenMobile } = useSidebar();
 
   return (
-    <Sidebar collapsible="icon" aria-label="Main">
+    <Sidebar collapsible="icon" aria-label="Main" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild tooltip="LiteTraffic">
-              <NavLink to="/" onClick={() => setOpenMobile(false)}>
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <BrandMark className="size-5" />
+              <Link to="/" aria-label="LiteTraffic home" onClick={() => setOpenMobile(false)}>
+                <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <BrandMark className="size-4" />
                 </span>
-                <span className="grid leading-tight">
-                  <span className="font-heading text-lg font-semibold">LiteTraffic</span>
-                  <span className="text-xs text-muted-foreground">
-                    {meta.data ? `Local dashboard v${meta.data.version}` : "Local dashboard"}
-                  </span>
+                <span className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-heading font-semibold">LiteTraffic</span>
+                  <span className="truncate text-xs text-muted-foreground">Local dashboard</span>
                 </span>
-              </NavLink>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {NAV.map(({ to, label, icon: Icon, end }) => {
-                const active = end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
-                return (
-                  <SidebarMenuItem key={to}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={active}
-                      tooltip={label}
-                      className="data-[active=true]:shadow-[inset_2px_0_0_var(--brand)]"
-                    >
-                      <NavLink to={to} end={end} onClick={() => setOpenMobile(false)}>
-                        <Icon aria-hidden />
-                        <span>{label}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <NavMain label="Verification" items={NAV_MAIN} />
+        <NavSecondary items={NAV_SECONDARY} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
-          <div className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-1.5 text-xs group-data-[collapsible=icon]:hidden">
-            <FolderOpen className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-            <div className="min-w-0">
-              <p className="text-muted-foreground">Runs folder</p>
-              <p className="truncate font-mono" title={meta.data?.runs_dir}>
-                {meta.data?.runs_dir ?? (meta.error ? "Unavailable" : "Loading")}
-              </p>
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
+        <NavFooter meta={meta.data} error={meta.error} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

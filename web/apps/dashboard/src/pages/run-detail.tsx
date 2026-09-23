@@ -94,16 +94,16 @@ function VerifyRun({ id, detail, crumbs }: { id: string; detail: RunDetail; crum
       {result ? (
         <Tabs defaultValue="assertions" className="gap-4">
           <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-            <TabsList variant="line">
+            <TabsList>
               <TabsTrigger value="assertions">
                 Assertions
-                <span className="text-muted-foreground tabular-nums">{result.assertions.length}</span>
+                <Badge variant="secondary" className="tabular-nums">{result.assertions.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="observations">Observations</TabsTrigger>
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
               <TabsTrigger value="limitations">
                 Limitations
-                {result.limitations.length > 0 && <span className="text-inconclusive tabular-nums">{result.limitations.length}</span>}
+                {result.limitations.length > 0 && <Badge variant="secondary" className="tabular-nums">{result.limitations.length}</Badge>}
               </TabsTrigger>
               <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
             </TabsList>

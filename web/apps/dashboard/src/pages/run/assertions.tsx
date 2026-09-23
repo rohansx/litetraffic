@@ -93,7 +93,7 @@ function FailureDetail({ assertion }: { assertion: AssertionResult }) {
           </div>
           <div>
             <p className="mb-1 text-xs text-muted-foreground">Actual</p>
-            <Value value={assertion.actual} className="text-fail" />
+            <Value value={assertion.actual} className="text-destructive" />
           </div>
         </div>
       )}
@@ -116,7 +116,7 @@ function FailureDetail({ assertion }: { assertion: AssertionResult }) {
                 </div>
                 <div>
                   <p className="mb-1 text-xs text-muted-foreground">Actual</p>
-                  <Value value={failure.actual} className="text-fail" />
+                  <Value value={failure.actual} className="text-destructive" />
                 </div>
               </li>
             ))}

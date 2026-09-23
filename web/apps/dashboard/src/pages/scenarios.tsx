@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { api, ApiError } from "@/api/client";
 import type { TrendPoint } from "@/api/types";
 import { Page } from "@/components/page";
@@ -13,7 +13,6 @@ import { formatDateTime, formatMs, formatRelative } from "@/lib/format";
 import { summarizeScenarios } from "@/lib/runs";
 import { useApi } from "@/lib/use-api";
 
-const title = "font-heading text-lg font-semibold";
 
 export function ScenariosPage() {
   const { data, error, reload } = useApi("scenarios", async (signal) => {
@@ -65,14 +64,7 @@ export function ScenariosPage() {
   );
 }
 
-const chartConfig = { p95: { label: "p95", color: "var(--chart-1)" } } satisfies ChartConfig;
-
-const VERDICT_FILL: Record<string, string> = {
-  pass: "var(--pass)",
-  fail: "var(--fail)",
-  inconclusive: "var(--inconclusive)",
-  error: "var(--error)",
-};
+const chartConfig = { p95: { label: "p95", color: "var(--primary)" } } satisfies ChartConfig;
 
 interface DotProps {
   cx?: number;
@@ -89,9 +81,10 @@ function VerdictDot({ cx, cy, index, payload }: DotProps) {
       cx={cx}
       cy={cy}
       r={4}
-      fill={VERDICT_FILL[payload.verdict] ?? "var(--muted-foreground)"}
-      stroke="var(--card)"
-      strokeWidth={1.5}
+      // Shape, not color: passing runs are solid dots, every other verdict a hollow ring.
+      fill={payload.verdict === "pass" ? "var(--color-p95)" : "var(--card)"}
+      stroke="var(--color-p95)"
+      strokeWidth={2}
     />
   );
 }
@@ -110,7 +103,7 @@ export function ScenarioPage() {
     <Page
       title={name}
       crumbs={[{ label: "Scenarios", to: "/scenarios" }, { label: name }]}
-      description="p95 latency of every run of this scenario over time. Dot color marks the verdict; the table below has the same data."
+      description="p95 latency of every run of this scenario over time. Solid dots passed, hollow ones did not; the table below has the same data."
       actions={
         <Button asChild variant="outline">
           <Link to={`/runs?scenario=${encodeURIComponent(name)}`}>View runs</Link>
@@ -129,12 +122,18 @@ export function ScenarioPage() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className={title}>p95 latency per run</CardTitle>
+              <CardTitle>p95 latency per run</CardTitle>
               <CardDescription>{data.length} runs, oldest on the left.</CardDescription>
             </CardHeader>
             <CardContent>
               <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full" aria-hidden>
-                <LineChart data={points} margin={{ left: 4, right: 12, top: 8 }}>
+                <AreaChart data={points} margin={{ left: 4, right: 12, top: 8 }}>
+                  <defs>
+                    <linearGradient id="fillP95" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-p95)" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="var(--color-p95)" stopOpacity={0.1} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
                   <YAxis tickLine={false} axisLine={false} width={48} tickFormatter={(value: number) => `${value} ms`} />
@@ -148,14 +147,14 @@ export function ScenarioPage() {
                       />
                     }
                   />
-                  <Line dataKey="p95" type="linear" stroke="var(--color-p95)" strokeWidth={2} dot={VerdictDot} activeDot={{ r: 6 }} isAnimationActive={false} />
-                </LineChart>
+                  <Area dataKey="p95" type="monotone" fill="url(#fillP95)" stroke="var(--color-p95)" strokeWidth={2} dot={VerdictDot} activeDot={{ r: 6 }} isAnimationActive={false} />
+                </AreaChart>
               </ChartContainer>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className={title}>Data</CardTitle>
+              <CardTitle>Data</CardTitle>
             </CardHeader>
             <CardContent>
               <Table aria-label="Trend data">
