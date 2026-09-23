@@ -39,7 +39,7 @@ def _load_run(path: Path) -> tuple[dict, dict]:
     metrics = result.get("metrics")
     assertions = result.get("assertions")
     if (
-        result.get("verdict") not in {"pass", "fail", "inconclusive", "error"}
+        result.get("verdict") not in ("pass", "fail", "inconclusive", "error")  # tuple: [] or {} must not raise TypeError
         or not isinstance(metrics, dict)
         or not isinstance(assertions, list)
         or not all(isinstance(item, dict) for item in assertions)

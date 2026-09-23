@@ -30,7 +30,7 @@ def read_json(path: Path) -> dict | None:
 
 def _entry(path: Path, run_id: str, kind: str, data: dict, verdict: object, **fields: object) -> dict:
     # Anything we cannot trust is reported as unreadable rather than raised.
-    readable = verdict in {"pass", "fail", "inconclusive", "error"}
+    readable = verdict in ("pass", "fail", "inconclusive", "error")  # tuple: unhashable JSON verdicts compare, never raise
     entry = {
         "run_id": run_id,
         "kind": kind,

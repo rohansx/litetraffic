@@ -283,3 +283,16 @@ def test_compare_runs_rejects_a_non_object_operation_breakdown(tmp_path):
 
     with pytest.raises(ComparisonError):
         compare_runs(baseline, write_run(tmp_path / "candidate", "candidate"))
+
+
+@pytest.mark.parametrize("verdict", [[], {}, 5, None])
+def test_compare_runs_rejects_non_string_verdicts(tmp_path, verdict):
+    baseline = write_run(tmp_path / "baseline", "baseline")
+    candidate = write_run(tmp_path / "candidate", "candidate")
+    result_path = candidate / "result.json"
+    result = json.loads(result_path.read_text())
+    result["verdict"] = verdict
+    result_path.write_text(json.dumps(result))
+
+    with pytest.raises(ComparisonError, match="invalid result artifact"):
+        compare_runs(baseline, candidate)

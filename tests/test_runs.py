@@ -196,3 +196,17 @@ def test_prune_command_reports_and_deletes(tmp_path, capsys):
 def test_prune_command_without_retention_is_an_error(tmp_path, capsys):
     assert main(["prune", "--runs-dir", str(tmp_path), "--json"]) == 3
     assert json.loads(capsys.readouterr().out)["ok"] is False
+
+
+@pytest.mark.parametrize("verdict", [[], {}, 5, None])
+def test_list_runs_marks_non_string_verdicts_unreadable(tmp_path, verdict):
+    run = write_run(tmp_path / "run_bad", "run_bad")
+    result = json.loads((run / "result.json").read_text())
+    result["verdict"] = verdict
+    (run / "result.json").write_text(json.dumps(result))
+    (tmp_path / "series_bad.json").write_text(json.dumps({"scenario": "s", "verdict": verdict}))
+
+    runs = {entry["run_id"]: entry for entry in list_runs(tmp_path)}
+
+    assert runs["run_bad"]["verdict"] == "unreadable"
+    assert runs["series_bad"]["verdict"] == "unreadable"
