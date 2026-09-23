@@ -1030,6 +1030,48 @@ def test_cancel_during_fixture_cleanup_is_an_error(tmp_path, monkeypatch):
     assert "fixture cleanup cancelled; fixture owned-1 may remain" in result["limitations"]
 
 
+@pytest.mark.parametrize(
+    ("stage", "name"),
+    [
+        ("fixture", "fixture_pool"),
+        ("engine", "staged"),
+        ("parsing", "_read_events"),
+        ("observing", "observe"),
+        ("finalizing", "evaluate_assertions"),
+        ("redaction", "redact"),
+        ("report", "render_report"),
+    ],
+)
+def test_cancel_at_any_stage_finalizes_the_run_as_cancelled(tmp_path, monkeypatch, stage, name):
+    import litetraffic.runner as runner
+
+    scenario = owned_fixture_observed_bundle(tmp_path)
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps([assertion("accepted_orders_persist")]))
+    monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "created", "fixture_id": "owned-1", "requests": 1})
+    monkeypatch.setattr(runner, "observe", lambda *args, **kwargs: {"assertion": "ledger_total", "status": "pass"})
+    cleaned = []
+    monkeypatch.setattr(runner, "cleanup_fixture", lambda *args: cleaned.append(args[-1]) or {"status": "deleted", "requests": 1})
+    original, interrupted = getattr(runner, name), []
+
+    def interrupt_once(*args, **kwargs):
+        if not interrupted:
+            interrupted.append(stage)
+            raise KeyboardInterrupt
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner, name, interrupt_once)
+    result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [], iterations=1)))
+
+    run_dir = tmp_path / "runs" / result["run_id"]
+    assert interrupted == [stage]
+    assert result["lifecycle"] == "cancelled"
+    assert result["verdict"] == "inconclusive"
+    assert "run cancelled by user" in result["limitations"]
+    assert cleaned == ([] if stage == "fixture" else ["owned-1"])  # the pool is built before the fixture exists
+    assert json.loads((run_dir / "result.json").read_text()) == result
+    assert json.loads((run_dir / "run.json").read_text())["lifecycle"] == "cancelled"
+
+
 def test_run_json_records_each_lifecycle_stage_as_it_happens(tmp_path, monkeypatch):
     import litetraffic.runner as runner
 
