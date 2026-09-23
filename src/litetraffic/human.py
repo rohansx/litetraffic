@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -67,4 +68,6 @@ def format_inspect(result: dict) -> list[str]:
     if command:
         # ponytail: space-joined for reading, not shell-quoted; --json has the exact argv.
         lines += [f"fixture {stage}: {' '.join(command[stage])}" for stage in ("setup", "teardown")]
+    if result.get("observation_expected"):
+        lines.append(f"observation expected: {json.dumps(result['observation_expected'])}")
     return lines

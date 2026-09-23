@@ -193,7 +193,13 @@ def verify(
         observation = {"assertion": bundle.manifest.observation.assertion, "status": "unknown", "reason": "engine did not finish"}
         if observed:
             try:
-                observation = observe(target, bundle.manifest.observation, run_id, fixture_id=environment.get("LT_FIXTURE_ID"))
+                observation = observe(
+                    target,
+                    bundle.manifest.observation,
+                    run_id,
+                    fixture_id=environment.get("LT_FIXTURE_ID"),
+                    variables={"planned_journeys": bundle.manifest.planned_journeys, "seed": seed},
+                )
             except KeyboardInterrupt:
                 lifecycle = "cancelled"
                 observation["reason"] = "observation cancelled"

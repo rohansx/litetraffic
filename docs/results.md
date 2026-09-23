@@ -16,7 +16,7 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 | `metrics.jsonl` | Raw k6 JSON metrics, if emitted |
 | `console.log` | Raw k6 console output, if emitted |
 | `engine.stdout.log`, `engine.stderr.log` | Captured engine diagnostics |
-| `observation.json` | Optional final observer expectations, selected actual fields, and per-pointer `checks` (matcher, actual, pass) |
+| `observation.json` | Optional final observer expectations, selected actual fields, per-pointer `checks` (matcher, actual, pass), and `expressions` (the original `${...}` forms of resolved expected values, only when used) |
 | `fixture.json` | Optional fixture outcomes: `owned_http` create/cleanup, or `command` setup/teardown argv, exit code, duration and stderr tail |
 | `artifacts.json` | Finalization manifest, written last: `{"schema_version", "run_id", "files", "total_bytes"}`, where `files` lists every other run file as `{path, bytes, sha256}` sorted by path and `total_bytes` is their sum. It excludes itself; the `max_artifact_bytes` budget is summed over the same file set |
 

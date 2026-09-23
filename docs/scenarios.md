@@ -190,7 +190,17 @@ Each `expected` value is either a literal, compared for equality, or a matcher o
 
 An object is treated as a matcher only when all its keys are matcher keys; any other object is a literal. Wrap a literal object that looks like a matcher in `eq`, e.g. `{"eq": {"len": 2}}`. A matcher with more than one key or a wrongly typed operand fails validation. The empty pointer `""` addresses the whole response body, for example `{"": {"len": 2}}` on an array.
 
-`observation.json` keeps `expected` and `actual`, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the `actual` value (`null` when missing) and `pass`. The observation passes only when every check passes.
+### Plan-aware expected values
+
+A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is an expression, evaluated before the comparison. `EXPR` may use non-negative integer literals, `+`, `-` (binary or unary), `*`, parentheses, and only the names `planned_journeys` (the manifest's planned journey count) and `seed` (the run's `--seed`). It is parsed by a small dedicated parser, never Python `eval`. Any other name, operator or number form (for example `/`, `**`, `1.5`, `run_id`) fails manifest validation, so `inspect` rejects it. Strings that only contain `${` elsewhere, and values nested inside literal objects or arrays, stay literal.
+
+```json
+"expected": {"/balance": "${planned_journeys * 100}", "/orders": {"gte": "${planned_journeys - 1}"}}
+```
+
+`inspect` shows the resolved values for its `--seed` as `observation_expected`.
+
+`observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the `actual` value (`null` when missing) and `pass`. The observation passes only when every check passes.
 
 ### Observing another origin
 

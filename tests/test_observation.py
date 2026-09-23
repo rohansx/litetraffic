@@ -185,3 +185,44 @@ def test_missing_header_env_is_unknown_naming_the_variable_only(monkeypatch):
 def test_unsafe_observation_origins_and_header_refs_are_rejected(fields, message):
     with pytest.raises(ValidationError, match=message):
         FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": 1}, **fields)
+
+
+def test_expected_expressions_resolve_against_plan_and_record_both():
+    config = FinalObservation(
+        path="/rows",
+        assertion="rows_ok",
+        expected={
+            "/balance": "${planned_journeys * 10 + seed}",
+            "/count": {"gte": "${(planned_journeys - 1) * 2}"},
+            "/debt": "${-planned_journeys}",
+            "/note": "total ${planned_journeys}",
+        },
+    )
+    body = {"balance": 203, "count": 38, "debt": -20, "note": "total ${planned_journeys}"}
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=body))
+
+    result = observe("http://example.test", config, "run-1", transport=transport, variables={"planned_journeys": 20, "seed": 3})
+
+    assert result["status"] == "pass"
+    assert result["expected"] == {"/balance": 203, "/count": {"gte": 38}, "/debt": -20, "/note": "total ${planned_journeys}"}
+    assert result["checks"]["/balance"]["matcher"] == {"eq": 203}
+    assert result["expressions"] == {
+        "/balance": "${planned_journeys * 10 + seed}",
+        "/count": {"gte": "${(planned_journeys - 1) * 2}"},
+        "/debt": "${-planned_journeys}",
+    }
+
+
+def test_observation_without_expressions_records_no_expressions():
+    config = FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": 1})
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"n": 1}))
+    assert "expressions" not in observe("http://example.test", config, "run-1", transport=transport)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["${planned_journeys / 2}", "${os}", "${__import__('os')}", "${1 +}", "${2 ** 3}", "${}", "${1.5}", {"lte": "${seed.real}"}, "${(1}"],
+)
+def test_invalid_expected_expressions_are_rejected(value):
+    with pytest.raises(ValidationError, match="expression"):
+        FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": value})

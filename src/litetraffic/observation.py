@@ -4,7 +4,7 @@ import os
 
 import httpx
 
-from litetraffic.models import FinalObservation, as_matcher
+from litetraffic.models import FinalObservation, as_matcher, resolve_expected
 
 
 def _pointer(document: object, path: str) -> object:
@@ -41,6 +41,7 @@ def observe(
     run_id: str,
     transport: httpx.BaseTransport | None = None,
     fixture_id: str | None = None,
+    variables: dict[str, int] | None = None,
 ) -> dict:
     headers = {"X-LiteTraffic-Run": run_id}
     if fixture_id:
@@ -65,8 +66,9 @@ def observe(
     except (httpx.HTTPError, ValueError) as exc:
         return {"assertion": config.assertion, "status": "unknown", "reason": f"observer unavailable: {type(exc).__name__}"}
 
+    expected_values = resolve_expected(config.expected, variables or {})
     actual, missing, checks = {}, [], {}
-    for pointer, expected in config.expected.items():
+    for pointer, expected in expected_values.items():
         try:
             actual[pointer] = _pointer(document, pointer)
         except KeyError:
@@ -77,10 +79,13 @@ def observe(
     result = {
         "assertion": config.assertion,
         "status": "pass" if all(check["pass"] for check in checks.values()) else "fail",
-        "expected": config.expected,
+        "expected": expected_values,
         "actual": actual,
         "checks": checks,
     }
+    expressions = {pointer: value for pointer, value in config.expected.items() if expected_values[pointer] != value}
+    if expressions:
+        result["expressions"] = expressions
     if missing:
         result["missing"] = missing
     return result

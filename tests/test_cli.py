@@ -634,3 +634,46 @@ def test_up_rejects_zero_max_slices(tmp_path, capsys):
 
     assert status == 3
     assert "max-slices" in json.loads(capsys.readouterr().out)["error"]
+
+
+def _expression_manifest(expected):
+    return manifest(
+        assertions=["accepted_orders_persist", "ledger_total"],
+        observation={"path": "/ledger", "assertion": "ledger_total", "expected": expected},
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+
+
+def test_inspect_shows_resolved_expected_values_for_the_seed(tmp_path, capsys):
+    data = _expression_manifest({"/total": "${planned_journeys * 50 + seed}", "/n": {"gte": "${planned_journeys}"}})
+    scenario = str(write_bundle(tmp_path, data))
+
+    assert main(["inspect", scenario, "--seed", "7", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["observation_expected"] == {"/total": 1007, "/n": {"gte": 20}}
+
+    assert main(["inspect", scenario, "--seed", "7"]) == 0
+    assert '"/total": 1007' in capsys.readouterr().out
+
+
+def test_inspect_rejects_unknown_expression_names(tmp_path, capsys):
+    data = _expression_manifest({"/total": "${planned_journeys + run_id}"})
+    assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 3
+    assert "run_id" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_verify_passes_plan_variables_to_the_observer(tmp_path, monkeypatch, capsys):
+    import litetraffic.runner as runner
+
+    seen = {}
+
+    def observe(*args, **kwargs):
+        seen.update(kwargs["variables"])
+        return {"assertion": "ledger_total", "status": "pass"}
+
+    monkeypatch.setattr(runner, "observe", observe)
+    scenario = write_bundle(tmp_path / "scenario", _expression_manifest({"/total": "${planned_journeys}"}))
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    main(["verify", str(scenario), "--target", "http://example.test", "--seed", "9", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(fake_k6(tmp_path, events)), "--json"])
+
+    assert seen == {"planned_journeys": 20, "seed": 9}

@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
 
+from litetraffic.expression import NAMES, evaluate, is_expression
 from litetraffic.target import validate_target
 
 
@@ -88,10 +89,25 @@ def as_matcher(expected: JsonValue) -> dict[str, JsonValue]:
     return {"eq": expected}
 
 
+def resolve_expected(expected: dict[str, JsonValue], variables: dict[str, int]) -> dict[str, JsonValue]:
+    """Evaluate `${...}` literals and matcher operands; every other value is kept as written."""
+    resolved = {}
+    for pointer, value in expected.items():
+        matcher = as_matcher(value)
+        (op, operand), = matcher.items()  # validation already rejected multi-key matchers
+        if is_expression(operand):
+            operand = evaluate(operand, variables)
+            value = operand if matcher is not value else {op: operand}
+        resolved[pointer] = value
+    return resolved
+
+
 def _check_matcher(pointer: str, matcher: dict[str, JsonValue]) -> None:
     if len(matcher) != 1:
         raise ValueError(f"{pointer}: matcher must have exactly one of {sorted(MATCHER_KEYS)}")
     (op, operand), number = next(iter(matcher.items())), (int, float)
+    if op != "exists" and is_expression(operand):
+        return
     if op in {"gte", "lte"} and (isinstance(operand, bool) or not isinstance(operand, number)):
         raise ValueError(f"{pointer}: {op} matcher needs a number")
     if op == "len" and (isinstance(operand, bool) or not isinstance(operand, int) or operand < 0):
@@ -117,6 +133,10 @@ class FinalObservation(StrictModel):
         for pointer, value in self.expected.items():
             if as_matcher(value) is value:
                 _check_matcher(pointer, value)
+        try:
+            resolve_expected(self.expected, dict.fromkeys(NAMES, 0))
+        except ValueError as exc:
+            raise ValueError(f"expected {exc}") from None
         if self.bearer_token_env and not re.fullmatch(ENV_NAME, self.bearer_token_env):
             raise ValueError("bearer_token_env must name an uppercase environment variable")
         for header, env in self.headers_env.items():

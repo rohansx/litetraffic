@@ -14,6 +14,7 @@ from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard import serve
 from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
+from litetraffic.models import resolve_expected
 from litetraffic.human import format_diff, format_inspect, format_verify
 from litetraffic.runner import RunnerError, repeat_verify, verify
 from litetraffic.runs import prune, resolve
@@ -217,6 +218,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             "observer": manifest.observer,
             "observation_path": observation and observation.path,
+            "observation_expected": observation
+            and resolve_expected(observation.expected, {"planned_journeys": manifest.planned_journeys, "seed": args.seed}),
         }
         _emit(payload, args.json, format_inspect)
         return 0
