@@ -124,12 +124,9 @@ def test_budgets_are_described_as_declared_bounds_not_containment():
         assert "`up` budgets apply per slice" in docs[name], name
 
 
-def test_readme_leads_with_the_present_tense_promise_and_roadmap_keeps_the_vision():
-    docs = _docs()
-    readme = docs["README.md"]
+def test_readme_leads_with_users_as_an_api():
+    # Owner decision (2026-09-23): "Users as an API" is the only headline.
+    readme = _docs()["README.md"]
     lead = readme.split("\n\n", 1)[1].lstrip()
-    assert lead.startswith(
-        "**Verify critical API invariants against a running app, with repeatable scenarios and inspectable evidence.**"
-    )
-    assert "users as an API" not in readme
-    assert "users as an API" in docs["docs/roadmap.md"]
+    assert lead.startswith("**Users as an API.**")
+    assert "Verify critical API invariants" not in readme

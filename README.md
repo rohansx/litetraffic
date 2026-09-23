@@ -1,6 +1,6 @@
 # LiteTraffic
 
-**Verify critical API invariants against a running app, with repeatable scenarios and inspectable evidence.**
+**Users as an API.** Stateful application traffic, repeatable runs, and evidence of what changed.
 
 [Documentation](docs/README.md) · [Installation](docs/installation.md) · [Quickstart](docs/quickstart.md) · [CLI reference](docs/cli.md) · [MIT license](LICENSE)
 
