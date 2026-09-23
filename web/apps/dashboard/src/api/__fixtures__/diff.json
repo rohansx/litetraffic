@@ -1,0 +1,62 @@
+{
+  "baseline_run_id": "run_20260923T023428Z_18a37cb2",
+  "candidate_run_id": "run_20260923T023634Z_93a6e662",
+  "comparable": true,
+  "correctness": {
+    "assertion_regressions": [],
+    "baseline_verdict": "inconclusive",
+    "candidate_verdict": "pass",
+    "regression": false
+  },
+  "incompatibilities": [],
+  "performance": {
+    "by_operation": {
+      "observer:postgrest": {
+        "baseline_p95_ms": 1.643,
+        "candidate_p95_ms": 1.767,
+        "change_percent": 7.547
+      },
+      "usage-debit": {
+        "baseline_p95_ms": 36.272,
+        "candidate_p95_ms": 38.776,
+        "change_percent": 6.903
+      }
+    },
+    "http_error_rate": {
+      "baseline": 0.0,
+      "candidate": 0.0,
+      "change_percentage_points": 0.0
+    },
+    "http_reqs_per_second": {
+      "baseline": 15.755,
+      "candidate": 15.752,
+      "change_percent": -0.019
+    },
+    "p95": {
+      "baseline_ms": 35.983,
+      "candidate_ms": 37.99,
+      "change_percent": 5.578,
+      "samples": {
+        "baseline": 196,
+        "candidate": 196
+      },
+      "status": "inconclusive",
+      "threshold_percent": 10.0
+    }
+  },
+  "progress": {
+    "http_reqs": {
+      "baseline": 196.0,
+      "candidate": 196.0
+    },
+    "iterations": {
+      "baseline": 28.0,
+      "candidate": 28.0
+    }
+  },
+  "reasons": [
+    "p95 gate is inconclusive"
+  ],
+  "schema_version": 1,
+  "verdict": "inconclusive"
+}

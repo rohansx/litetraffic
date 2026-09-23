@@ -1,0 +1,274 @@
+{
+  "artifacts": [
+    {
+      "path": "console.log",
+      "size": 16614
+    },
+    {
+      "path": "engine.stderr.log",
+      "size": 0
+    },
+    {
+      "path": "engine.stdout.log",
+      "size": 803
+    },
+    {
+      "path": "events/000001.jsonl",
+      "size": 18153
+    },
+    {
+      "path": "fixture.json",
+      "size": 885
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 414960
+    },
+    {
+      "path": "observation.json",
+      "size": 4287
+    },
+    {
+      "path": "report.html",
+      "size": 2285
+    },
+    {
+      "path": "result.json",
+      "size": 4012
+    },
+    {
+      "path": "run.json",
+      "size": 961
+    },
+    {
+      "path": "scenario.lock.json",
+      "size": 3169
+    }
+  ],
+  "fixture": {
+    "setup": {
+      "argv": [
+        "sh",
+        "-c",
+        "set -e; for f in reset compat seed; do docker exec -i supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -q < ../../seed/$f.sql; done; sleep 1; docker exec supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -Atc \"select json_build_object('pool', json_agg(json_build_object('payment_id', payment_id, 'organization_id', organization_id) order by payment_id)) from payments whe"
+      ],
+      "duration_seconds": 1.231,
+      "exit_code": 0,
+      "status": "ok",
+      "stderr": ""
+    },
+    "teardown": {
+      "argv": [
+        "sh",
+        "-c",
+        "docker exec -i supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -q < ../../seed/reset.sql"
+      ],
+      "duration_seconds": 0.083,
+      "exit_code": 0,
+      "status": "ok",
+      "stderr": ""
+    }
+  },
+  "observation": {
+    "actual": {
+      "": [
+        {
+          "delta": 10,
+          "reference_id": "a17e0000-0000-4000-8020-000000000001"
+        },
+        {
+          "delta": 10,
+          "reference_id": "a17e0000-0000-4000-8020-000000000002"
+        },
+        {
+          "delta": 10,
+          "reference_id": "a17e0000-0000-4000-8020-000000000003"
+        }
+      ],
+      "/0/delta": 10
+    },
+    "assertion": "purchase_rows_match_journeys",
+    "checks": {
+      "": {
+        "actual": [
+          {
+            "delta": 10,
+            "reference_id": "a17e0000-0000-4000-8020-000000000001"
+          },
+          {
+            "delta": 10,
+            "reference_id": "a17e0000-0000-4000-8020-000000000002"
+          },
+          {
+            "delta": 10,
+            "reference_id": "a17e0000-0000-4000-8020-000000000003"
+          }
+        ],
+        "matcher": {
+          "len": 18
+        },
+        "pass": true
+      },
+      "/0/delta": {
+        "actual": 10,
+        "matcher": {
+          "eq": 10
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "": {
+        "len": 18
+      },
+      "/0/delta": 10
+    },
+    "expressions": {
+      "": {
+        "len": "${planned_journeys}"
+      }
+    },
+    "status": "pass"
+  },
+  "result": {
+    "assertions": [
+      {
+        "id": "deliveries_acknowledged",
+        "samples": 18,
+        "status": "pass"
+      },
+      {
+        "id": "one_purchase_grant",
+        "samples": 18,
+        "status": "pass"
+      },
+      {
+        "id": "payment_success_single_upgrade",
+        "samples": 18,
+        "status": "pass"
+      },
+      {
+        "actual": {
+          "": [
+            {
+              "delta": 10,
+              "reference_id": "a17e0000-0000-4000-8020-000000000001"
+            },
+            {
+              "delta": 10,
+              "reference_id": "a17e0000-0000-4000-8020-000000000002"
+            },
+            {
+              "delta": 10,
+              "reference_id": "a17e0000-0000-4000-8020-000000000003"
+            }
+          ],
+          "/0/delta": 10
+        },
+        "expected": {
+          "": {
+            "len": 18
+          },
+          "/0/delta": 10
+        },
+        "id": "purchase_rows_match_journeys",
+        "samples": 1,
+        "status": "pass"
+      }
+    ],
+    "completeness": "complete",
+    "engine_exit_code": 0,
+    "finished_at": "2026-09-23T02:34:54.015049+00:00",
+    "lifecycle": "finished",
+    "limitations": [],
+    "metrics": {
+      "by_operation": {
+        "observer:postgrest": {
+          "failed_rate": 0.0,
+          "p95": 1.606,
+          "samples": 54
+        },
+        "webhook_payments": {
+          "failed_rate": 0.0,
+          "p95": 59.936,
+          "samples": 90
+        }
+      },
+      "elapsed_seconds": 11.809131,
+      "http_req_duration_ms": {
+        "average": 27.093,
+        "max": 78.088,
+        "p50": 37.469,
+        "p95": 49.597,
+        "samples": 144
+      },
+      "http_req_failed_rate": {
+        "failed": 0,
+        "rate": 0.0,
+        "samples": 144
+      },
+      "http_reqs": 144.0,
+      "http_reqs_per_second": 13.767,
+      "iterations": 18.0,
+      "iterations_per_second": 1.721,
+      "observer_requests": 1,
+      "overlap": {
+        "observer:postgrest": 1,
+        "webhook_payments": 5
+      },
+      "total_http_reqs": 145.0,
+      "vus_max": 10,
+      "write_attempts": 90
+    },
+    "mode": "verify",
+    "notes": [
+      "per-arrival lateness not measured",
+      "workload is synthetic (no traces supplied)"
+    ],
+    "planned_journeys": 18,
+    "planned_journeys_per_second": 1.8,
+    "report": "report.html",
+    "run_id": "run_20260923T023442Z_76ea5574",
+    "schema_version": 1,
+    "seed": 42,
+    "verdict": "pass"
+  },
+  "run": {
+    "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, linux/amd64)",
+    "engine_exit_code": 0,
+    "engine_finished_at": "2026-09-23T02:34:53.897394+00:00",
+    "engine_started_at": "2026-09-23T02:34:43.437547+00:00",
+    "finished_at": "2026-09-23T02:34:54.015049+00:00",
+    "lifecycle": "finished",
+    "mode": "verify",
+    "resolved_schedule": [
+      {
+        "name": "spike-1",
+        "rate": 3,
+        "seconds": 2
+      },
+      {
+        "name": "baseline-2",
+        "rate": 1,
+        "seconds": 3
+      },
+      {
+        "name": "spike-3",
+        "rate": 3,
+        "seconds": 2
+      },
+      {
+        "name": "baseline-4",
+        "rate": 1,
+        "seconds": 3
+      }
+    ],
+    "run_id": "run_20260923T023442Z_76ea5574",
+    "scenario": "acme-payments-webhook-duplicates-v2",
+    "scenario_sha256": "4e65629f5e355143ddfb7e5b78f7f8eab2a535305be048710cbd681863aa375c",
+    "schema_version": 1,
+    "seed": 42,
+    "started_at": "2026-09-23T02:34:42.205918+00:00",
+    "target": "http://127.0.0.1:14000"
+  }
+}

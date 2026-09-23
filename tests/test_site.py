@@ -29,7 +29,7 @@ def test_static_landing_page_has_complete_local_assets_and_landmarks():
     assert '<h1 id="hero-title">Users<br>as an API.</h1>' in (root / "index.html").read_text()
     assert parser.links == ["styles.css", "app.js"]
     assert all((root / asset).is_file() for asset in parser.links)
-    assert all((root / "fonts" / font).is_file() for font in (
+    assert all((root.parent / "web" / "packages" / "design" / "fonts" / font).is_file() for font in (
         "fira-sans-regular.woff2",
         "fira-sans-semibold.woff2",
         "fira-condensed-semibold.woff2",

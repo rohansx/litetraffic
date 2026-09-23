@@ -1,0 +1,162 @@
+[
+  {
+    "finished_at": null,
+    "kind": "activity",
+    "lifecycle": "completed",
+    "path": "/home/dev/acme-api/runs/activity_20260923T054400Z_5e1f0c2a",
+    "run_id": "activity_20260923T054400Z_5e1f0c2a",
+    "scenario": "acme-usage-debit-once-v2",
+    "seed": 42,
+    "verdict": "background"
+  },
+  {
+    "finished_at": "2026-09-23T06:56:44.739828+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T065633Z_13376b99",
+    "run_id": "run_20260923T065633Z_13376b99",
+    "scenario": "acme-position-draft-create-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T06:56:32.800477+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T065626Z_2502f5dd",
+    "run_id": "run_20260923T065626Z_2502f5dd",
+    "scenario": "acme-tenant-isolation-v2",
+    "seed": 42,
+    "verdict": "fail"
+  },
+  {
+    "finished_at": "2026-09-23T06:56:25.821436+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T065614Z_46490021",
+    "run_id": "run_20260923T065614Z_46490021",
+    "scenario": "acme-payments-webhook-duplicates-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T06:56:13.799002+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T065600Z_467925ae",
+    "run_id": "run_20260923T065600Z_467925ae",
+    "scenario": "acme-usage-debit-once-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T06:55:46.116890+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T065538Z_01fc0c38",
+    "run_id": "run_20260923T065538Z_01fc0c38",
+    "scenario": "acme-tenant-isolation-kit",
+    "seed": 42,
+    "verdict": "fail"
+  },
+  {
+    "finished_at": "2026-09-23T06:40:18.397798+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T064010Z_6a8fefa9",
+    "run_id": "run_20260923T064010Z_6a8fefa9",
+    "scenario": "acme-tenant-isolation-kit",
+    "seed": 42,
+    "verdict": "fail"
+  },
+  {
+    "finished_at": "2026-09-23T05:45:39.814710+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T054528Z_a2b342d2",
+    "run_id": "run_20260923T054528Z_a2b342d2",
+    "scenario": "acme-position-draft-create-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T05:45:27.751467+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T054520Z_b119fae1",
+    "run_id": "run_20260923T054520Z_b119fae1",
+    "scenario": "acme-tenant-isolation-v2",
+    "seed": 42,
+    "verdict": "fail"
+  },
+  {
+    "finished_at": "2026-09-23T05:45:20.612714+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T054508Z_708f5d50",
+    "run_id": "run_20260923T054508Z_708f5d50",
+    "scenario": "acme-payments-webhook-duplicates-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T05:45:08.246385+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T054454Z_777c7f71",
+    "run_id": "run_20260923T054454Z_777c7f71",
+    "scenario": "acme-usage-debit-once-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T04:40:04.620224+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T043952Z_9cab8b00",
+    "run_id": "run_20260923T043952Z_9cab8b00",
+    "scenario": "acme-position-draft-create-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T04:39:52.553705+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T043945Z_8f56f4a2",
+    "run_id": "run_20260923T043945Z_8f56f4a2",
+    "scenario": "acme-tenant-isolation-v2",
+    "seed": 42,
+    "verdict": "fail"
+  },
+  {
+    "finished_at": "2026-09-23T04:39:45.558696+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T043933Z_cdb0916c",
+    "run_id": "run_20260923T043933Z_cdb0916c",
+    "scenario": "acme-payments-webhook-duplicates-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T04:39:33.474606+00:00",
+    "kind": "run",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/run_20260923T043919Z_af2c570e",
+    "run_id": "run_20260923T043919Z_af2c570e",
+    "scenario": "acme-usage-debit-once-v2",
+    "seed": 42,
+    "verdict": "pass"
+  },
+  {
+    "finished_at": "2026-09-23T04:39:59.000000+00:00",
+    "kind": "series",
+    "lifecycle": "finished",
+    "path": "/home/dev/acme-api/runs/series_20260923T043000Z_9a1b2c3d.json",
+    "run_id": "series_20260923T043000Z_9a1b2c3d",
+    "scenario": "acme-position-draft-create-v2",
+    "seed": 42,
+    "verdict": "fail"
+  }
+]

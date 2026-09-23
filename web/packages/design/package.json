@@ -1,0 +1,11 @@
+{
+  "name": "@litetraffic/design",
+  "version": "0.0.0",
+  "private": true,
+  "description": "LiteTraffic design tokens: Tailwind v4 theme, shadcn variables, fonts",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./fonts/*": "./fonts/*"
+  },
+  "files": ["tokens.css", "fonts"]
+}

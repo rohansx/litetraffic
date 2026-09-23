@@ -1,0 +1,158 @@
+/*
+ * @litetraffic/design — the single source of truth for LiteTraffic colors, fonts and radius.
+ * Import AFTER `@import "tailwindcss";` in each app's entry CSS. Apps must not define colors.
+ *
+ * Every color is declared once as light-dark(light, dark). The active theme follows the OS
+ * (color-scheme: light dark) unless <html> carries `.light` or `.dark`.
+ * Palette source: the original landing page (site/styles.css); hex originals in README.md.
+ */
+
+@font-face { font-family: "Fira Sans"; src: url("./fonts/fira-sans-regular.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "Fira Sans"; src: url("./fonts/fira-sans-semibold.woff2") format("woff2"); font-style: normal; font-weight: 600 700; font-display: swap; }
+@font-face { font-family: "Fira Sans Condensed"; src: url("./fonts/fira-condensed-semibold.woff2") format("woff2"); font-style: normal; font-weight: 600 800; font-display: swap; }
+
+/* `dark:` utilities: explicit .dark, or the OS preference when .light is not forced. */
+@custom-variant dark {
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:not(.light, .light *)) {
+      @slot;
+    }
+  }
+}
+
+:root {
+  color-scheme: light dark;
+  --radius: 0.5rem;
+
+  /* surfaces */
+  --background: light-dark(oklch(0.968 0.006 128.5), oklch(0.212 0.015 165.9));
+  --foreground: light-dark(oklch(0.268 0.018 184.5), oklch(0.961 0.011 136.6));
+  --card: light-dark(oklch(1 0 0), oklch(0.262 0.022 160.8));
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+
+  /* actions */
+  --primary: light-dark(oklch(0.268 0.018 184.5), oklch(0.823 0.135 90.7));
+  --primary-foreground: light-dark(oklch(1 0 0), oklch(0.256 0.019 160.8));
+  --secondary: light-dark(oklch(0.938 0.009 145.5), oklch(0.316 0.027 159.8));
+  --secondary-foreground: var(--foreground);
+  --muted: light-dark(oklch(0.938 0.009 145.5), oklch(0.269 0.024 159.2));
+  --muted-foreground: light-dark(oklch(0.489 0.020 164.0), oklch(0.791 0.026 152.8));
+  --accent: light-dark(oklch(0.938 0.009 145.5), oklch(0.316 0.027 159.8));
+  --accent-foreground: var(--foreground);
+  --destructive: light-dark(oklch(0.483 0.152 27.4), oklch(0.771 0.106 27.6));
+  --destructive-foreground: light-dark(oklch(1 0 0), oklch(0.256 0.019 160.8));
+
+  /* brand signal (the landing page's gold) */
+  --brand: oklch(0.823 0.135 90.7);
+  --brand-foreground: oklch(0.256 0.019 160.8);
+
+  /* lines */
+  --border: light-dark(oklch(0.855 0.014 145.5), oklch(0.411 0.032 154.9));
+  --input: light-dark(oklch(0.610 0.019 158.8), oklch(0.576 0.032 154.8));
+  --ring: light-dark(oklch(0.542 0.107 86.7), oklch(0.823 0.135 90.7));
+
+  /* verdicts: text color on card/background, and a tinted surface for badges */
+  --pass: light-dark(oklch(0.475 0.084 155.3), oklch(0.820 0.075 153.6));
+  --pass-muted: light-dark(oklch(0.935 0.022 154.1), oklch(0.321 0.044 156.8));
+  --fail: light-dark(oklch(0.483 0.152 27.4), oklch(0.771 0.106 27.6));
+  --fail-muted: light-dark(oklch(0.931 0.023 31.1), oklch(0.286 0.038 27.4));
+  --inconclusive: light-dark(oklch(0.488 0.100 84.4), oklch(0.823 0.135 90.7));
+  --inconclusive-muted: light-dark(oklch(0.942 0.048 94.3), oklch(0.319 0.042 92.7));
+  --error: light-dark(oklch(0.474 0.157 302.5), oklch(0.786 0.106 305.1));
+  --error-muted: light-dark(oklch(0.929 0.027 307.0), oklch(0.285 0.052 299.6));
+
+  /* charts */
+  --chart-1: light-dark(oklch(0.542 0.107 86.7), oklch(0.823 0.135 90.7));
+  --chart-2: var(--pass);
+  --chart-3: light-dark(oklch(0.619 0.041 149.9), oklch(0.791 0.026 152.8));
+  --chart-4: var(--fail);
+  --chart-5: var(--error);
+
+  /* sidebar */
+  --sidebar: light-dark(oklch(0.938 0.009 145.5), oklch(0.193 0.018 162.4));
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: light-dark(oklch(0.912 0.012 145.5), oklch(0.316 0.027 159.8));
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+:root.light { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+
+@theme inline {
+  --font-sans: "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fira Sans Condensed", "Fira Sans", ui-sans-serif, sans-serif;
+  --font-heading: var(--font-display);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-pass: var(--pass);
+  --color-pass-muted: var(--pass-muted);
+  --color-fail: var(--fail);
+  --color-fail-muted: var(--fail-muted);
+  --color-inconclusive: var(--inconclusive);
+  --color-inconclusive-muted: var(--inconclusive-muted);
+  --color-error: var(--error);
+  --color-error-muted: var(--error-muted);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-display;
+  }
+}
