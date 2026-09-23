@@ -1286,6 +1286,42 @@ def test_pool_item_under_real_k6(tmp_path):
     assert sorted(event["detail"] for event in events) == [f"{item}|{past}" for item in "abc"]
 
 
+@pytest.mark.skipif(shutil.which("k6") is None, reason="real k6 not installed")
+def test_deep_equal_under_real_k6(tmp_path):
+    scenario = write_bundle(
+        tmp_path / "scenario",
+        manifest(
+            schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+            budgets=manifest()["budgets"] | {"max_artifact_bytes": 1048576},
+        ),
+    )
+    (scenario / "journeys.js").write_text(
+        'import * as lt from "./litetraffic/runtime.js";\n'
+        "export const options = lt.options();\n"
+        "const cases = [\n"
+        "  [{ a: 1, b: [1, { c: 2 }] }, { b: [1, { c: 2 }], a: 1 }, true],\n"
+        "  [[1, 2], [2, 1], false],\n"
+        "  [{ a: 1 }, { a: 1, b: undefined }, false],\n"
+        "  [{ a: null }, { a: undefined }, false],\n"
+        "  [null, null, true],\n"
+        "  [null, {}, false],\n"
+        "  [[], {}, false],\n"
+        "  ['1', 1, false],\n"
+        "  [NaN, NaN, true],\n"
+        "  [{ a: [1, 2, 3] }, { a: [1, 2] }, false],\n"
+        "  ['x', 'x', true],\n"
+        "];\n"
+        "export default function () {\n"
+        "  const wrong = cases.map((c, i) => (lt.deepEqual(c[0], c[1]) === c[2] ? null : i)).filter((i) => i !== null);\n"
+        '  lt.evidence("accepted_orders_persist", wrong.length === 0, { expected: [], actual: wrong });\n'
+        "}\n"
+    )
+
+    result = verify("http://127.0.0.1:9", scenario, tmp_path / "runs", seed=7)
+
+    assert result["verdict"] == "pass", result
+
+
 def timed(operation: str, end: str, duration_ms: float) -> str:
     # k6 stamps an http_req_duration point when the request finishes.
     return json.dumps(

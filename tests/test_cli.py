@@ -506,7 +506,7 @@ def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
 
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
     first = json.loads(capsys.readouterr().out)
-    assert first["fixture"]["command"] == command | {"cwd": "bundle"}
+    assert first["fixture"]["command"] == command | {"cwd": "bundle", "inputs": []}
 
     data["fixtures"]["command"]["setup"] = ["psql", "-f", "other.sql"]
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
@@ -516,6 +516,18 @@ def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "fixture setup: psql -f other.sql" in out
     assert "fixture teardown: psql -f reset.sql" in out
+
+
+def test_inspect_shows_command_fixture_inputs(tmp_path, capsys):
+    command = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 2, "inputs": ["seed.sql"]}
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 22})
+    path = write_bundle(tmp_path, data)
+    (path / "seed.sql").write_text("select 1;\n")
+
+    assert main(["inspect", str(path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["fixture"]["command"]["inputs"] == ["seed.sql"]
+    assert main(["inspect", str(path)]) == 0
+    assert "fixture input: seed.sql" in capsys.readouterr().out
 
 
 def test_verify_cancelled_during_fixture_create_exits_130(tmp_path, monkeypatch, capsys):

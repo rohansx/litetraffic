@@ -18,8 +18,8 @@ export default function readOwnAndProbeOther() {
   let valueA = null;
   let valueB = null;
   try {
-    valueA = tenantA.json().value;
-    valueB = tenantB.json().value;
+    valueA = tenantA.json().value ?? null;
+    valueB = tenantB.json().value ?? null;
   } catch (_) {
     // Parse failures become positive-access assertion failures.
   }

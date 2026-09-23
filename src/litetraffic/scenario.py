@@ -42,12 +42,17 @@ def check_pool(pool: object, planned_journeys: int) -> None:
         raise ScenarioError(f"fixture pool has {len(pool)} items but {planned_journeys} journeys are planned")
 
 
-def _load_pool(root: Path, name: str, planned_journeys: int) -> tuple[str, bytes, list]:
+def _bundle_file(root: Path, name: str, what: str) -> Path:
     path = (root / name).resolve()
     if not path.is_relative_to(root):
-        raise ScenarioError("fixture pool must stay inside the scenario directory")
+        raise ScenarioError(f"{what} must stay inside the scenario directory")
     if not path.is_file():
-        raise ScenarioError(f"fixture pool does not exist: {path}")
+        raise ScenarioError(f"{what} does not exist: {path}")
+    return path
+
+
+def _load_pool(root: Path, name: str, planned_journeys: int) -> tuple[str, bytes, list]:
+    path = _bundle_file(root, name, "fixture pool")
     data = path.read_bytes()
     try:
         pool = json.loads(data)
@@ -79,6 +84,9 @@ def load_scenario(path: Path) -> ScenarioBundle:
     if manifest.fixtures.pool:
         name, data, pool = _load_pool(root, manifest.fixtures.pool, manifest.planned_journeys)
         files[name] = hashlib.sha256(data).hexdigest()
+    for name in manifest.fixtures.command.inputs if manifest.fixtures.command else ():
+        path = _bundle_file(root, name, "fixture input")
+        files[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     digest = hashlib.sha256(json.dumps(raw, sort_keys=True, separators=(",", ":")).encode())
     for name, file_sha in sorted(files.items()):
         digest.update(f"\n{name}\0{file_sha}".encode())

@@ -491,3 +491,31 @@ def test_unreadable_import_is_a_scenario_error(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "read_bytes", read_bytes)
     with pytest.raises(ScenarioError, match="cannot read import lib.js"):
         load_scenario(path)
+
+
+def test_command_fixture_inputs_are_hashed_into_the_digest(tmp_path):
+    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND | {"inputs": ["sql/seed.sql"]}}, budgets=manifest()["budgets"] | {"max_seconds": 28})
+    path = write_bundle(tmp_path, data)
+    (path / "sql").mkdir()
+    (path / "sql" / "seed.sql").write_text("insert into t values (1);\n")
+    bundle = load_scenario(path)
+    assert bundle.manifest.fixtures.command.inputs == ["sql/seed.sql"]
+    assert "sql/seed.sql" in bundle.files
+    first = bundle.digest
+    (path / "sql" / "seed.sql").write_text("insert into t values (2);\n")
+    assert load_scenario(path).digest != first
+
+
+@pytest.mark.parametrize(
+    ("name", "message"),
+    [("missing.sql", "fixture input does not exist"), ("../seed.sql", "fixture input must stay inside the scenario directory")],
+)
+def test_rejects_unusable_command_fixture_inputs(tmp_path, name, message):
+    (tmp_path / "seed.sql").write_text("select 1;\n")
+    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND | {"inputs": [name]}}, budgets=manifest()["budgets"] | {"max_seconds": 28})
+    with pytest.raises(ScenarioError, match=message):
+        load_scenario(write_bundle(tmp_path / "bundle", data))
+
+
+def test_bundled_runtime_exports_deep_equal():
+    assert "export function deepEqual(a, b)" in RUNTIME.read_text()

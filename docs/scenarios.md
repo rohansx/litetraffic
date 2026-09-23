@@ -101,6 +101,7 @@ export default function () {
 | `evidence(assertion, passed, {logicalKey, expected, actual, detail})` | Logs one `LT_EVENT` line. `logicalKey` defaults to `journeyKey()`; `expected`/`actual`/`detail` are included only when given; `detail` is cut to 500 characters |
 | `rng(iteration)` | Returns a function yielding numbers in `[0, 1)`, seeded from `LT_SEED` and `iteration` (default: the current `iterationInTest`), so the same seed replays the same choices per journey |
 | `poolItem(index)` | Returns the [fixture pool](#fixture-pool) item for `index` (default: the current `iterationInTest`). Throws when no pool is set or the index is out of range |
+| `deepEqual(a, b)` | `true` when two JSON-like values are structurally equal: object key order is ignored, array order is not, `NaN` equals `NaN`, and a key set to `undefined` differs from a missing key. Use it instead of comparing `JSON.stringify` output, which depends on key order |
 | `hmacSha256Hex(secret, data)`, `hmacSha256Base64(secret, data)` | HMAC-SHA256 of `data` keyed by `secret` (via `k6/crypto`), hex or standard base64 — for signing webhook bodies, e.g. `lt.hmacSha256Hex(__ENV.WEBHOOK_SECRET, body)` |
 
 All bundled examples use the helper. Scripts that build their own options still work; they must then apply `LT_SCHEDULE_JSON` and `LT_MAX_IN_FLIGHT` themselves. `verify` runs k6 with `--max-redirects 0`, which overrides a script's `maxRedirects` option, so redirects are not followed. A request that sets its own `redirects` parameter still follows them; avoid that unless your journey needs it.
@@ -186,7 +187,8 @@ When the app has no create/delete endpoints, seed and reset state with commands 
     "setup": ["psql", "--no-psqlrc", "-v", "ON_ERROR_STOP=1", "-f", "seed.sql"],
     "teardown": ["psql", "--no-psqlrc", "-v", "ON_ERROR_STOP=1", "-f", "reset.sql"],
     "timeout_seconds": 20,
-    "cwd": "bundle"
+    "cwd": "bundle",
+    "inputs": ["seed.sql", "reset.sql"]
   }
 }
 ```
@@ -199,7 +201,9 @@ When the app has no create/delete endpoints, seed and reset state with commands 
 - On timeout or cancel, the command's process group gets SIGTERM, then SIGKILL.
 - `fixture.json` records each command's `argv`, `exit_code`, `duration_seconds`, `status` and the last 4 KB of its stderr. Stdout is not stored.
 
-`inspect` prints both argv lists and the `scenario_sha256` digest, which covers the whole manifest, so a changed command is visible in the digest and in `scenario.lock.json`.
+`inputs` (optional) lists bundle-relative files the commands read, such as SQL scripts. Each must exist and stay inside the scenario directory, or `inspect` and `verify` exit 3 (`fixture input does not exist`, `fixture input must stay inside the scenario directory`). Their sha256 values are recorded in the bundle digest and in `scenario.lock.json`, so editing `seed.sql` changes `scenario_sha256`. Files the commands read but that are not listed are not covered.
+
+`inspect` prints both argv lists, each `inputs` file, and the `scenario_sha256` digest, which covers the whole manifest, so a changed command is visible in the digest and in `scenario.lock.json`.
 
 ## Fixture pool
 

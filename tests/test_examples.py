@@ -39,3 +39,8 @@ def test_docs_show_the_failed_expected_actual_line(doc):
 
     assert "one_effect_per_payment" in text
     assert '{"actual": 2, "detail": null, "expected": 1, "logical_key": ' in text
+
+
+def test_tenant_api_keeps_actual_shape_when_a_value_is_missing():
+    script = (ROOT / "examples" / "tenant_api" / "journeys.js").read_text()
+    assert script.count(".json().value ?? null") == 2

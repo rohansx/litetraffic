@@ -83,6 +83,7 @@ class CommandFixture(StrictModel):
     teardown: Argv = Field(min_length=1)
     timeout_seconds: int = Field(gt=0, le=60)
     cwd: Literal["bundle"] = "bundle"
+    inputs: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)  # bundle-relative files hashed into the digest
 
 
 class Fixtures(StrictModel):
