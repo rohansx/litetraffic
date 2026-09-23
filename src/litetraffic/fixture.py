@@ -13,7 +13,7 @@ import httpx
 from litetraffic.auth import redact
 from litetraffic.models import OwnedHttpFixture
 from litetraffic.observation import _pointer
-from litetraffic.process import _communicate, _stop_process
+from litetraffic.process import GROUP_SURVIVED, _communicate, _stop_process
 from litetraffic.scenario import ScenarioError, check_pool
 
 
@@ -70,11 +70,15 @@ def run_fixture_command(
             if process.returncode:
                 record.update(status="error", reason=f"fixture {stage} failed: exit {process.returncode}")
         except subprocess.TimeoutExpired:
-            stdout, stderr = _stop_process(process)
+            stdout, stderr, survived = _stop_process(process)
             record.update(status="error", reason=f"fixture {stage} failed: timed out after {timeout}s")
         except KeyboardInterrupt:
-            stdout, stderr = _stop_process(process)
+            stdout, stderr, survived = _stop_process(process)
             record.update(status="cancelled", reason=f"fixture {stage} cancelled")
+        else:
+            survived = False
+        if survived:
+            record["reason"] += f"; {GROUP_SURVIVED}"  # keeps a cancel a cancel
         record["stderr"] = redact(stderr, secrets).encode()[-STDERR_LIMIT:].decode(errors="ignore")
     record["duration_seconds"] = round(time.monotonic() - started, 3)
     return record, stdout

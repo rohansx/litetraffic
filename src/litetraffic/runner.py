@@ -14,7 +14,7 @@ from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _targ
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
 from litetraffic.observation import observe, sent_request
-from litetraffic.process import _communicate, _stop_process
+from litetraffic.process import GROUP_SURVIVED, _communicate, _stop_process
 from litetraffic.report import render_report
 from litetraffic.scenario import ScenarioError, load_scenario, staged
 
@@ -127,6 +127,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     environment.update(tokens)
     secrets = secret_values(bundle.manifest.actors, environment, tokens)
     process: subprocess.Popen[str] | None = None
+    group_survived = False
     engine_started = engine_finished = None
     fixture = hooks = None
     commands = bundle.manifest.fixtures.command
@@ -184,10 +185,10 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
                     lifecycle = "finished" if process.returncode in (0, K6_THRESHOLDS_FAILED) else "crashed"
                 except subprocess.TimeoutExpired:
                     lifecycle = "timed_out"
-                    stdout, stderr = _stop_process(process)
+                    stdout, stderr, group_survived = _stop_process(process)
                 except KeyboardInterrupt:
                     lifecycle = "cancelled"
-                    stdout, stderr = _stop_process(process)
+                    stdout, stderr, group_survived = _stop_process(process)
         except OSError as exc:
             lifecycle = "crashed"
             engine_error = str(exc)
@@ -320,6 +321,8 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         limitations.append("run cancelled by user")
     elif lifecycle == "crashed":
         limitations.append(engine_error or f"k6 exited with status {engine_exit_code}")
+    if group_survived:
+        limitations.append(f"k6 {GROUP_SURVIVED}")
     limitations = list(dict.fromkeys(limitations))  # a fixture failure can also be the crash reason
     completeness = "complete" if not limitations else "incomplete"
     if overruns or fixture_error or hook_errors or unreachable:
