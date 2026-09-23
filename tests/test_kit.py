@@ -70,7 +70,9 @@ def test_writes_add_read_back_checks_and_budgets(tmp_path, capsys):
     ("changes", "message"),
     [
         ({"identities": _config()["identities"][:1]}, "identities"),
-        ({"endpoints": [{"method": "GET", "path": "/notes/1", "kind": "read"}]}, "{id}"),
+        ({"endpoints": [{"method": "GET", "path": "/notes/1", "kind": "read"}]}, "placeholder"),
+        ({"endpoints": [{"method": "GET", "path": "/notes/{note}", "kind": "read"}]}, "{note}"),
+        ({"identities": [_config()["identities"][0] | {"resources": [{"id": "n1", "org": "o1"}]}, _config()["identities"][1]]}, "same keys"),
         ({"endpoints": [{"method": "PUT", "path": "/notes/{id}", "kind": "write"}]}, "read endpoint"),
         ({"endpoints": [{"method": "POST", "path": "/notes/{id}", "kind": "read"}]}, "GET"),
         ({"identities": [_config()["identities"][0], _config()["identities"][0]]}, "distinct"),
@@ -84,3 +86,28 @@ def test_invalid_config_is_rejected_with_a_clear_error(tmp_path, capsys, changes
     assert code == 3
     assert result["error"].startswith("invalid kit config") and message in result["error"], result
     assert not (tmp_path / "out").exists()
+
+
+def test_resources_name_placeholders_for_path_and_body(tmp_path, capsys):
+    identities = [
+        {"name": "a", "token_env": "A_TOKEN", "resources": [{"id": "org-a", "position": "pos-a"}]},
+        {"name": "b", "token_env": "B_TOKEN", "resources": [{"id": "org-b", "position": "pos-b"}]},
+    ]
+    endpoints = [
+        {"method": "GET", "path": "/orgs/{id}", "kind": "read"},
+        {"method": "POST", "path": "/positions", "kind": "write", "body": {"organization_id": "{id}", "note": "{literal}"}},
+        {"method": "PUT", "path": "/positions/{position}", "kind": "write", "body": {"organization_id": "{id}"}},
+    ]
+    code, result = _init(tmp_path, _config(identities=identities, endpoints=endpoints), capsys)
+    assert code == 0, result
+    assert load_scenario(tmp_path / "out").manifest.journeys[0].max_writes == 4
+
+
+def test_allowed_origins_pass_through_for_observations(tmp_path, capsys):
+    observation = {"origin_env": "DB_URL", "path": "/rows", "assertion": "rows_intact", "expected": {"": {"len": 0}}}
+    config = _config(observations=[observation], allowed_origins=["http://127.0.0.1:55321"], allowed_origins_env="EXTRA_ORIGINS")
+    code, result = _init(tmp_path, config, capsys)
+    assert code == 0, result
+    manifest = load_scenario(tmp_path / "out").manifest
+    assert manifest.allowed_origins == ["http://127.0.0.1:55321"]
+    assert manifest.allowed_origins_env == "EXTRA_ORIGINS"

@@ -28,6 +28,20 @@ DEFAULT_SCHEDULE = {
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 HEADER_NAME = r"[A-Za-z0-9!#$%&'*+.^_`|~-]+"
 Status = Annotated[int, Field(strict=True, ge=100, le=599)]
+KEY = r"[A-Za-z_][A-Za-z0-9_]*"
+PLACEHOLDER = re.compile(r"\{(" + KEY + r")\}")
+Ref = Annotated[str, Field(min_length=1)] | Annotated[dict[Annotated[str, Field(pattern=f"^{KEY}$")], Annotated[str, Field(min_length=1)]], Field(min_length=1)]
+
+
+def _strings(value: JsonValue):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _strings(item)
 
 
 class Identity(StrictModel):
@@ -35,7 +49,8 @@ class Identity(StrictModel):
     auth: JwtAuth | None = None  # `kind` defaults to jwt_hs256
     token_env: str | None = None  # names a variable holding a ready bearer token
     headers: dict[str, str] = Field(default_factory=dict)  # plain, non-secret headers such as a tenant id
-    resources: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
+    # Each resource is an id (the `{id}` placeholder) or named placeholders, e.g. {"id": org, "position": pos}.
+    resources: list[Ref] = Field(min_length=1)
 
     @model_validator(mode="before")
     @classmethod
@@ -56,6 +71,10 @@ class Identity(StrictModel):
             raise ValueError(f"invalid header name {bad[0]!r}")
         return self
 
+    @property
+    def refs(self) -> list[dict[str, str]]:
+        return [ref if isinstance(ref, dict) else {"id": ref} for ref in self.resources]
+
 
 class Endpoint(StrictModel):
     method: Literal["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
@@ -70,8 +89,6 @@ class Endpoint(StrictModel):
     def require_safe_template(self) -> "Endpoint":
         if not self.path.startswith("/") or self.path.startswith("//") or any(char in self.path for char in "#"):
             raise ValueError("path must be a same-origin path")
-        if "{id}" not in self.path:
-            raise ValueError("path must contain the {id} placeholder")
         if self.kind == "read" and self.method not in {"GET", "HEAD"}:
             raise ValueError("read endpoints must use GET or HEAD")
         if self.kind == "write" and self.method in {"GET", "HEAD"}:
@@ -92,6 +109,8 @@ class KitConfig(StrictModel):
     fixtures: Fixtures | None = None
     observations: list[FinalObservation] = Field(default_factory=list)
     schedule: Schedule | None = None
+    allowed_origins: list[str] = Field(default_factory=list)  # copied into the manifest for observation origins
+    allowed_origins_env: str | None = None
     max_in_flight: int = Field(default=6, gt=0)
 
     @model_validator(mode="after")
@@ -101,6 +120,17 @@ class KitConfig(StrictModel):
             raise ValueError(f"identity names must be distinct: {', '.join(names)}")
         if not any(endpoint.kind == "read" for endpoint in self.endpoints):
             raise ValueError("endpoints need at least one read endpoint (the first one reads back victim state)")
+        refs = [ref for identity in self.identities for ref in identity.refs]
+        keys = set(refs[0])
+        if any(set(ref) != keys for ref in refs):
+            raise ValueError("resources must all have the same keys")
+        for endpoint in self.endpoints:
+            for name in re.findall(r"\{([^{}]*)\}", endpoint.path):
+                if name not in keys:
+                    raise ValueError(f"path placeholder {{{name}}} is not a resource key ({', '.join(sorted(keys))})")
+            used = {name for text in [endpoint.path, *_strings(endpoint.body)] for name in PLACEHOLDER.findall(text)}
+            if not used & keys:
+                raise ValueError(f"{endpoint.method} {endpoint.path} uses no resource placeholder in its path or body")
         return self
 
 
@@ -131,6 +161,7 @@ def build_manifest(config: KitConfig, raw: dict) -> dict:
     fixtures = raw.get("fixtures", {"recipe": "static-resources"})
     schedule = raw.get("schedule", DEFAULT_SCHEDULE)
     observations = raw.get("observations", [])
+    origins = {key: raw[key] for key in ("allowed_origins", "allowed_origins_env") if key in raw}
     journey = _journey(config)
     phases = Schedule.model_validate(schedule).resolve(seed=0)
     planned, seconds = sum(phase.admitted_journeys for phase in phases), sum(phase.seconds for phase in phases)
@@ -164,6 +195,7 @@ def build_manifest(config: KitConfig, raw: dict) -> dict:
     }
     if observations:
         manifest["observations"] = observations
+    manifest |= origins
     return manifest
 
 
@@ -176,7 +208,7 @@ def build_script(config: KitConfig) -> str:
                 "name": identity.name,
                 "headers": identity.headers,
                 "token_env": token_env_name(identity.name) if identity.auth else identity.token_env,
-                "resources": identity.resources,
+                "resources": identity.refs,
             }
             for identity in config.identities
         ],
@@ -208,8 +240,17 @@ import * as lt from "./litetraffic/runtime.js";
 
 const KIT = __KIT__;
 const MAX_SAMPLES = 3;
+const PLACEHOLDER = /\\{([A-Za-z_][A-Za-z0-9_]*)\\}/g;
 
 export const options = lt.options();
+
+// Replace {name} with the resource's value in every string; names the resource lacks stay literal.
+function fill(value, ref, encode) {
+  if (typeof value === "string") return value.replace(PLACEHOLDER, (match, name) => (name in ref ? encode(ref[name]) : match));
+  if (Array.isArray(value)) return value.map((item) => fill(item, ref, encode));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fill(item, ref, encode)]));
+  return value;
+}
 
 function send(identity, endpoint, ref, operation) {
   const headers = { "X-LiteTraffic-Run": __ENV.LT_RUN_ID, ...identity.headers };
@@ -219,9 +260,9 @@ function send(identity, endpoint, ref, operation) {
   let body = null;
   if (endpoint.body !== null) {
     headers["Content-Type"] = "application/json";
-    body = JSON.stringify(endpoint.body);
+    body = JSON.stringify(fill(endpoint.body, ref, (text) => text));
   }
-  const url = __ENV.LT_TARGET + endpoint.path.split("{id}").join(encodeURIComponent(ref));
+  const url = __ENV.LT_TARGET + fill(endpoint.path, ref, encodeURIComponent);
   return http.request(endpoint.method, url, body, { headers, tags: { operation } });
 }
 

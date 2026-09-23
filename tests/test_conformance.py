@@ -137,3 +137,58 @@ def test_tenant_isolation_kit_conformance(tmp_path, flags, expected, failed):
     result = json.loads(completed.stdout)
     assert result["verdict"] == expected, completed.stdout
     assert {row["id"] for row in result["assertions"] if row["status"] == "fail"} >= failed, completed.stdout
+
+
+def test_kit_fills_resource_placeholders_in_path_and_body(tmp_path):
+    """Each identity's resource keys replace `{name}` in the path and in body strings; unknown `{x}` stays literal."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def _reply(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            seen.append((self.command, self.path, json.loads(body) if body else None))
+            own = self.command == "GET" and self.path == f"/orgs/org-{self.headers.get('X-Tenant')}"
+            self.send_response(200 if own else 403)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        do_GET = do_POST = do_PUT = _reply
+
+        def log_message(self, *args):
+            return
+
+    config = {
+        "name": "placeholders",
+        "identities": [
+            {"name": "a", "headers": {"X-Tenant": "a"}, "resources": [{"id": "org-a", "position": "pos a"}]},
+            {"name": "b", "headers": {"X-Tenant": "b"}, "resources": [{"id": "org-b", "position": "pos b"}]},
+        ],
+        "endpoints": [
+            {"method": "GET", "path": "/orgs/{id}", "kind": "read"},
+            {"method": "POST", "path": "/positions", "kind": "write", "body": {"organization_id": "{id}", "note": ["{literal}"]}},
+            {"method": "PUT", "path": "/positions/{position}", "kind": "write", "body": {"organization_id": "{id}"}},
+        ],
+        "schedule": {"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
+    }
+    (tmp_path / "kit.json").write_text(json.dumps(config))
+    scenario = tmp_path / "kit"
+    generated = subprocess.run([sys.executable, "-m", "litetraffic", "init", "tenant-isolation", "--config", str(tmp_path / "kit.json"),
+                                "--out", str(scenario)], capture_output=True, text=True, timeout=30)
+    assert generated.returncode == 0, generated.stdout + generated.stderr
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-m", "litetraffic", "verify", str(scenario), "--target", f"http://127.0.0.1:{server.server_port}",
+             "--seed", "42", "--output-dir", str(tmp_path / "runs"), "--json"],
+            capture_output=True, text=True, timeout=120,
+        )
+    finally:
+        server.shutdown()
+    assert json.loads(completed.stdout)["verdict"] == "pass", completed.stdout
+    assert ("POST", "/positions", {"organization_id": "org-b", "note": ["{literal}"]}) in seen  # a writes b's org
+    assert ("PUT", "/positions/pos%20a", {"organization_id": "org-a"}) in seen  # b writes a's position
