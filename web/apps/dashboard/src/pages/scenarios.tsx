@@ -13,7 +13,7 @@ import { formatDateTime, formatMs, formatRelative } from "@/lib/format";
 import { summarizeScenarios } from "@/lib/runs";
 import { useApi } from "@/lib/use-api";
 
-const title = "font-display text-lg font-semibold";
+const title = "font-heading text-lg font-semibold";
 
 export function ScenariosPage() {
   const { data, error, reload } = useApi("scenarios", async (signal) => {

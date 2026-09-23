@@ -30,7 +30,7 @@ const P95_LABELS: Record<Comparison["performance"]["p95"]["status"], string> = {
   incomparable: "Not comparable",
 };
 
-const title = "font-display text-lg font-semibold";
+const title = "font-heading text-lg font-semibold";
 
 export function ComparePage() {
   const [params, setParams] = useSearchParams();

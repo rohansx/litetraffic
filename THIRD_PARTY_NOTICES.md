@@ -8,7 +8,8 @@ The MIT license in this repository applies to LiteTraffic's original code and do
 | [HTTPX](https://github.com/encode/httpx/blob/master/LICENSE.md) | Installed by pip for fixture and observer HTTP calls | BSD-3-Clause |
 | [Pydantic](https://github.com/pydantic/pydantic/blob/main/LICENSE) | Installed by pip for manifest validation | MIT |
 | [pytest](https://github.com/pytest-dev/pytest/blob/main/LICENSE) | Optional development dependency | MIT |
-| [Fira Sans / Fira Sans Condensed](web/packages/design/fonts/LICENSE.txt) | Font files bundled with the landing page and dashboard in `web/packages/design/fonts/` | SIL OFL-1.1 |
+| [Inter](https://github.com/rsms/inter/blob/master/LICENSE.txt) | Body font, self-hosted woff2 bundled into the landing page and dashboard from `@fontsource-variable/inter` | SIL OFL-1.1 |
+| [Inter Tight](https://github.com/googlefonts/inter-tight/blob/main/OFL.txt) | Heading font, self-hosted woff2 bundled into the landing page and dashboard from `@fontsource-variable/inter-tight` | SIL OFL-1.1 |
 
 Transitive dependencies and build tools are supplied by their respective distributions. Consult the licenses in the installed versions when redistributing an environment or container.
 

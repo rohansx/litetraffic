@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { VerdictBadge } from "@/components/verdict";
 import { formatBytes, formatMs, formatNumber, formatRate } from "@/lib/format";
 
-const title = "font-display text-lg font-semibold";
+const title = "font-heading text-lg font-semibold";
 
 export function Observations({ observation, fixture }: { observation?: Observation; fixture?: Fixture }) {
   const records = observation ? (Array.isArray(observation) ? observation : [observation]) : [];

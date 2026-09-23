@@ -49,7 +49,7 @@ export function AppSidebar() {
                   <BrandMark className="size-5" />
                 </span>
                 <span className="grid leading-tight">
-                  <span className="font-display text-lg font-semibold">LiteTraffic</span>
+                  <span className="font-heading text-lg font-semibold">LiteTraffic</span>
                   <span className="text-xs text-muted-foreground">
                     {meta.data ? `Local dashboard v${meta.data.version}` : "Local dashboard"}
                   </span>

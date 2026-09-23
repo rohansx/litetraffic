@@ -7,7 +7,7 @@ import { useApi } from "@/lib/use-api";
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="grid gap-2 border-t py-6 md:grid-cols-[12rem_1fr] md:gap-8">
-      <h2 className="font-display text-lg font-semibold">{title}</h2>
+      <h2 className="font-heading text-lg font-semibold">{title}</h2>
       <div className="max-w-prose space-y-3 text-sm leading-relaxed">{children}</div>
     </section>
   );

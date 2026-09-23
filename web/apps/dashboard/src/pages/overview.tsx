@@ -30,12 +30,12 @@ export function OverviewPage() {
 
 function Kpi({ label, value, detail }: { label: string; value: ReactNode; detail: ReactNode }) {
   return (
-    <Card size="sm">
+    <Card className="gap-4 py-4">
       <CardHeader>
         <CardDescription>{label}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-1">
-        <p className="font-display text-3xl leading-none font-semibold tabular-nums">{value}</p>
+        <p className="font-heading text-3xl leading-none font-semibold tabular-nums">{value}</p>
         <p className="truncate text-xs text-muted-foreground">{detail}</p>
       </CardContent>
     </Card>
@@ -86,7 +86,7 @@ function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: Scenar
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card>
           <CardHeader>
-            <CardTitle className="font-display text-lg font-semibold">Scenarios</CardTitle>
+            <CardTitle className="font-heading text-lg font-semibold">Scenarios</CardTitle>
             <CardDescription>Latest verdict and recent history, oldest bar first.</CardDescription>
             <CardAction>
               <Button asChild variant="ghost" size="sm">
@@ -123,7 +123,7 @@ function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: Scenar
 
         <Card>
           <CardHeader>
-            <CardTitle className="font-display text-lg font-semibold">Needs attention</CardTitle>
+            <CardTitle className="font-heading text-lg font-semibold">Needs attention</CardTitle>
             <CardDescription>Most recent runs that did not pass.</CardDescription>
           </CardHeader>
           <CardContent>

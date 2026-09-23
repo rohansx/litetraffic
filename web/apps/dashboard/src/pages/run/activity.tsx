@@ -28,7 +28,7 @@ export function ActivityView({ activity }: { activity: Activity }) {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="font-display text-lg font-semibold">Slices</CardTitle>
+          <CardTitle className="font-heading text-lg font-semibold">Slices</CardTitle>
           <CardDescription>Background traffic has no verdict. Each slice is an ordinary run; open one for its evidence.</CardDescription>
         </CardHeader>
         <CardContent>
