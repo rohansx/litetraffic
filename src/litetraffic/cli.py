@@ -18,7 +18,7 @@ from litetraffic.models import resolve_expected
 from litetraffic.human import format_diff, format_inspect, format_verify
 from litetraffic.runner import RunnerError, verify
 from litetraffic.series import repeat_verify
-from litetraffic.runs import prune, resolve
+from litetraffic.runs import PruneError, prune, resolve
 from litetraffic.scenario import ScenarioError, load_scenario
 
 
@@ -133,11 +133,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             return serve(args.runs_dir, args.port)
 
         if args.command == "prune":
-            paths = prune(args.runs_dir, args.keep, args.older_than, args.dry_run)
-            payload = {"ok": True, "dry_run": args.dry_run, "pruned": [str(path) for path in paths]}
+            try:
+                paths, failure = prune(args.runs_dir, args.keep, args.older_than, args.dry_run), None
+            except PruneError as exc:
+                paths, failure = exc.deleted, exc
+            payload = {"ok": failure is None, "dry_run": args.dry_run, "pruned": [str(path) for path in paths]}
+            if failure is not None:
+                payload.update(failed=str(failure.failed), error=str(failure))
             verb = "would delete" if args.dry_run else "deleted"
-            _emit(payload, args.json, lambda result: [f"{verb}: {path}" for path in result["pruned"]] or ["nothing to prune"])
-            return 0
+
+            def text(result: dict) -> list[str]:
+                lines = [f"{verb}: {path}" for path in result["pruned"]]
+                if failure is not None:
+                    return [*lines, f"failed: {result['failed']}", f"error: {result['error']}"]
+                return lines or ["nothing to prune"]
+
+            _emit(payload, args.json, text)
+            return 0 if failure is None else 3
 
         if args.command in {"inspect", "verify", "approve", "up"}:
             args.scenario = _scenario(args)
@@ -152,10 +164,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(message, file=sys.stderr, flush=True)
 
             activity = up(args.target, args.scenario, args.output_dir, args.k6_path, args.seed, args.max_slices, log)
-            log(f"status: {activity['status']}")
             if args.json:
                 _emit(activity, True)
-            # Ctrl-C is the normal way to stop an activity, so a stopped activity exits 0; errors raise (exit 3).
+            # Ctrl-C is the normal way to stop an activity, so a stopped activity exits 0; a slice that raises exits 3.
             return 0
 
         if args.command == "verify":

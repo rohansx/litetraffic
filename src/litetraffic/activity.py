@@ -80,7 +80,11 @@ def up(
             status = "completed"
     except KeyboardInterrupt:
         status = "stopped"
+    except Exception as exc:  # any slice failure ends the activity as an error with its message
+        activity["error"] = f"{type(exc).__name__}: {exc}"
+        raise RunnerError(activity["error"]) from exc
     finally:
         activity.update({"status": status, "finished_at": _now().isoformat()})
         _write_json(path, activity)
+        log(f"status: {status}")
     return activity

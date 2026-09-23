@@ -13,6 +13,14 @@ class RunNotFoundError(ValueError):
     """A run reference names neither an existing directory nor a run ID."""
 
 
+class PruneError(OSError):
+    """Deleting `failed` raised; the runs in `deleted` were removed before that and stay deleted."""
+
+    def __init__(self, deleted: list[Path], failed: Path, cause: OSError) -> None:
+        super().__init__(f"could not delete {failed}: {cause}")
+        self.deleted, self.failed = deleted, failed
+
+
 def _read(path: Path) -> dict | None:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -147,6 +155,9 @@ def prune(
         if (keep is not None and index >= keep) or (cutoff is not None and _finished(entry) < cutoff)
     ]
     if not dry_run:
-        for path in selected:
-            shutil.rmtree(path)
+        for index, path in enumerate(selected):
+            try:
+                shutil.rmtree(path)
+            except OSError as exc:
+                raise PruneError(selected[:index], path, exc) from exc
     return selected

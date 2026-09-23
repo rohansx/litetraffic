@@ -73,7 +73,7 @@ Each activity gets `OUTPUT_DIR/activity_<UTC>_<hex>/` (mode `0700`) holding `act
 | `artifact_dir` | The activity directory |
 | `slices` | Per slice: `run_id`, `seed`, `lifecycle`, `finished_at`, `iterations`, `http_reqs` |
 
-Also recorded: `activity_id`, `scenario`, `scenario_sha256`, `target`, `starting_seed`, `max_slices`, `started_at`, `finished_at`. There is no `verdict` field: slice verdicts stay in each slice's own `result.json`, and a failing slice does not stop the activity or change the exit status. Progress goes to stderr: `activity: PATH` first, one `slice N: RUN_ID LIFECYCLE` line per slice, and `status: STATUS` last. `--json` prints the final `activity.json` content on stdout. Ctrl+C finalizes `activity.json` and exits `0`. Activities are not seen by `diff` or `prune`.
+Also recorded: `activity_id`, `scenario`, `scenario_sha256`, `target`, `starting_seed`, `max_slices`, `started_at`, `finished_at`. There is no `verdict` field: slice verdicts stay in each slice's own `result.json`, and a failing slice does not stop the activity or change the exit status. Progress goes to stderr: `activity: PATH` first, one `slice N: RUN_ID LIFECYCLE` line per slice, and `status: STATUS` last. `--json` prints the final `activity.json` content on stdout. Ctrl+C finalizes `activity.json` and exits `0`. If a slice raises any error, the activity stops: `activity.json` gets `status: "error"` and an `error` field with the exception type and message, `status: error` goes to stderr, the error is printed as `{"ok": false, "error": ...}` (or `error: ...` without `--json`), and the exit status is `3`. Activities are not seen by `diff` or `prune`.
 
 ## `approve`
 
@@ -130,9 +130,9 @@ Deletes old run directories under `--runs-dir` (default `.litetraffic/runs`). At
 | `--keep N` | Keep the newest `N` runs; delete the rest |
 | `--older-than DAYS` | Delete runs that finished more than `DAYS` ago (fractions allowed) |
 | `--dry-run` | List what would be deleted; delete nothing |
-| `--json` | Emit `{"ok": true, "dry_run": ..., "pruned": [PATH, ...]}` |
+| `--json` | Emit `{"ok": true, "dry_run": ..., "pruned": [PATH, ...]}`; after a deletion failure, `ok` is `false` and `failed` and `error` are added |
 
-Only real directories directly under `--runs-dir` that contain `run.json` are candidates. Nested directories, symlinks, other directories, and `series_*.json` summaries are never deleted. Runs are ordered by `finished_at` in `result.json`; a run without a readable `finished_at` uses its directory modification time. Text output prints one `deleted: PATH` (or `would delete: PATH`) line per run, newest first, or `nothing to prune`. A missing `--runs-dir` prunes nothing. It does not check whether a run is still in progress.
+Only real directories directly under `--runs-dir` that contain `run.json` are candidates. Nested directories, symlinks, other directories, and `series_*.json` summaries are never deleted. Runs are ordered by `finished_at` in `result.json`; a run without a readable `finished_at` uses its directory modification time. Text output prints one `deleted: PATH` (or `would delete: PATH`) line per run, newest first, or `nothing to prune`. Deletion stops at the first run that cannot be deleted: `pruned` lists the runs deleted before it, `failed` names its path, text output adds `failed: PATH` and `error: MESSAGE` after the `deleted:` lines, and the exit status is `3`. A missing `--runs-dir` prunes nothing. It does not check whether a run is still in progress.
 
 ## Exit codes
 

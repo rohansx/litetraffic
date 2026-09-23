@@ -196,3 +196,40 @@ def test_prune_command_reports_and_deletes(tmp_path, capsys):
 def test_prune_command_without_retention_is_an_error(tmp_path, capsys):
     assert main(["prune", "--runs-dir", str(tmp_path), "--json"]) == 3
     assert json.loads(capsys.readouterr().out)["ok"] is False
+
+
+def _fail_rmtree_on(monkeypatch, name):
+    import shutil
+
+    real = shutil.rmtree
+
+    def rmtree(path, *args, **kwargs):
+        if path.name == name:
+            raise PermissionError(f"denied: {path}")
+        real(path, *args, **kwargs)
+
+    monkeypatch.setattr("litetraffic.runs.shutil.rmtree", rmtree)
+
+
+def test_prune_command_reports_partial_failure_as_json(tmp_path, capsys, monkeypatch):
+    _runs(tmp_path, 1, 2, 3)
+    _fail_rmtree_on(monkeypatch, "run_02")
+
+    assert main(["prune", "--runs-dir", str(tmp_path), "--older-than", "0", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False and payload["dry_run"] is False
+    assert payload["pruned"] == [str((tmp_path / "run_03").resolve())]
+    assert payload["failed"] == str((tmp_path / "run_02").resolve())
+    assert "denied" in payload["error"]
+    assert _names(tmp_path) == ["run_01", "run_02"]
+
+
+def test_prune_command_reports_partial_failure_as_text(tmp_path, capsys, monkeypatch):
+    _runs(tmp_path, 1, 2, 3)
+    _fail_rmtree_on(monkeypatch, "run_02")
+
+    assert main(["prune", "--runs-dir", str(tmp_path), "--older-than", "0"]) == 3
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == f"deleted: {(tmp_path / 'run_03').resolve()}"
+    assert lines[1] == f"failed: {(tmp_path / 'run_02').resolve()}"
+    assert lines[2].startswith("error: ") and "denied" in lines[2]

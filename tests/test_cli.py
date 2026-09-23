@@ -648,6 +648,27 @@ def test_up_rejects_zero_max_slices(tmp_path, capsys):
     assert "max-slices" in json.loads(capsys.readouterr().out)["error"]
 
 
+@pytest.mark.parametrize("exc", [RuntimeError("engine exploded"), KeyError("engine exploded")])
+def test_up_slice_raising_records_error_and_exits_three(tmp_path, monkeypatch, capsys, exc):
+    scenario = write_bundle(tmp_path / "scenario")
+    k6 = fake_k6(tmp_path, [])
+
+    def boom(*args):
+        raise exc
+
+    monkeypatch.setattr("litetraffic.activity.verify", boom)
+
+    status = main(["up", str(scenario), "--target", "http://example.test", "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--json"])
+    captured = capsys.readouterr()
+
+    assert status == 3
+    payload = json.loads(captured.out)
+    assert payload["ok"] is False and "engine exploded" in payload["error"]
+    assert "status: error" in captured.err
+    saved = json.loads(next((tmp_path / "runs").glob("activity_*/activity.json")).read_text())
+    assert saved["status"] == "error" and "engine exploded" in saved["error"] and saved["finished_at"]
+
+
 def _expression_manifest(expected):
     return manifest(
         assertions=["accepted_orders_persist", "ledger_total"],
