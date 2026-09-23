@@ -216,7 +216,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     else:
         _record_stage(run_dir, run, "running")
         try:
-            engine_seconds = bundle.manifest.budgets.max_seconds - 5 * len(bundle.manifest.observations) - bundle.manifest.fixtures.reserved_seconds
+            engine_seconds = bundle.manifest.budgets.max_seconds - sum(o.reserved_seconds for o in bundle.manifest.observations) - bundle.manifest.fixtures.reserved_seconds
             engine_started = _now()
             # k6 runs a staged copy so the bundled runtime helper sits next to the script.
             with staged(bundle) as root:
@@ -274,7 +274,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
                     allowed_origins=bundle.manifest.allowed_origins,
                     allowed_origins_env=bundle.manifest.allowed_origins_env,
                 )
-                record["requested"] = sent_request(record)
+                record["requested"] = record.get("attempts", 1) if sent_request(record) else 0
             except KeyboardInterrupt:
                 lifecycle = "cancelled"
                 record.update(reason="observation cancelled", requested=True)

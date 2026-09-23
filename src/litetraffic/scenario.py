@@ -92,7 +92,7 @@ def load_scenario(path: Path) -> ScenarioBundle:
     for name, file_sha in sorted(files.items()):
         digest.update(f"\n{name}\0{file_sha}".encode())
 
-    extra_requests = len(manifest.observations) + 2 * int(manifest.fixtures.owned_http is not None)
+    extra_requests = sum(observation.max_requests for observation in manifest.observations) + 2 * int(manifest.fixtures.owned_http is not None)
     if manifest.maximum_journey_requests + extra_requests > manifest.budgets.max_requests:
         raise ScenarioError(
             f"request budget {manifest.budgets.max_requests} is below the "

@@ -155,7 +155,32 @@ def sent_request(result: dict) -> bool:
     return not str(result.get("reason", "")).startswith(PRE_REQUEST)
 
 
-def observe(
+def observe(target: str, config: FinalObservation, run_id: str, *args, **kwargs) -> dict:
+    """Read the final state once or, with `until`, until the expectations pass or its deadline passes.
+
+    A polled result is `fail` if any attempt read the state (the last such reading is kept), else the
+    last `unknown`; it records `attempts` and `elapsed_seconds`. Further arguments go to each read.
+    """
+    if not config.until:
+        return _observe_once(target, config, run_id, *args, **kwargs)
+    started = time.monotonic()
+    deadline = started + config.until.deadline_seconds
+    attempts, reading = 0, None
+    while True:
+        result = _observe_once(target, config, run_id, *args, **kwargs)
+        if not sent_request(result):
+            return result  # nothing a retry could change: a missing env var or disallowed origin
+        attempts += 1
+        if result["status"] != "unknown":
+            reading = result
+        remaining = deadline - time.monotonic()
+        if result["status"] == "pass" or remaining <= 0:
+            break
+        time.sleep(min(config.until.interval_seconds, remaining))
+    return {**(reading or result), "attempts": attempts, "elapsed_seconds": round(time.monotonic() - started, 3)}
+
+
+def _observe_once(
     target: str,
     config: FinalObservation,
     run_id: str,

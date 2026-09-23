@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 from pydantic import Field, JsonValue, model_validator
@@ -48,6 +49,27 @@ def _check_matcher(pointer: str, matcher: dict[str, JsonValue]) -> None:
         raise ValueError(f"{pointer}: exists matcher needs true or false")
 
 
+OBSERVER_REQUEST_SECONDS = 5  # hard wall-clock deadline of one observer request
+
+
+class Until(StrictModel):
+    """Re-read the observer every `interval_seconds` until the expectations pass or `deadline_seconds` pass."""
+
+    deadline_seconds: float = Field(gt=0, le=60)
+    interval_seconds: float = Field(ge=0.5)
+
+    @model_validator(mode="after")
+    def require_interval_within_deadline(self) -> "Until":
+        if self.interval_seconds > self.deadline_seconds:
+            raise ValueError("until interval_seconds must not exceed deadline_seconds")
+        return self
+
+    @property
+    def max_attempts(self) -> int:
+        # attempts at 0, interval, 2 * interval, ... and a last one at the deadline
+        return math.ceil(self.deadline_seconds / self.interval_seconds) + 1
+
+
 class FinalObservation(StrictModel):
     path: str = Field(min_length=1)
     assertion: str = Field(min_length=1)
@@ -56,6 +78,16 @@ class FinalObservation(StrictModel):
     origin: str | None = None
     origin_env: str | None = None  # names a variable holding the origin, checked against the allowed origins at run time
     headers_env: dict[str, str] = Field(default_factory=dict)
+    until: Until | None = None
+
+    @property
+    def reserved_seconds(self) -> int:
+        """Wall clock reserved from max_seconds: the polling deadline plus one last request."""
+        return math.ceil(self.until.deadline_seconds if self.until else 0) + OBSERVER_REQUEST_SECONDS
+
+    @property
+    def max_requests(self) -> int:
+        return self.until.max_attempts if self.until else 1
 
     @model_validator(mode="after")
     def require_safe_read(self) -> "FinalObservation":
