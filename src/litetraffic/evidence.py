@@ -41,8 +41,8 @@ def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
 def evaluate_assertions(
     assertion_ids: list[str], events: list[dict], observations: list[dict], planned_journeys: int
 ) -> tuple[list[dict], list[str], list[str], list[str], bool]:
-    """Summarize each declared assertion; return rows, missing ids, partial labels, duplicate keys, definite failure."""
-    rows, missing, partial, duplicates = [], [], [], []
+    """Summarize each declared assertion; return rows, missing ids, partial labels, identity limitations, definite failure."""
+    rows, missing, partial, identity = [], [], [], []
     definite_failure = False
     observed = {observation["assertion"]: observation for observation in observations}
     for assertion_id in assertion_ids:
@@ -68,19 +68,21 @@ def evaluate_assertions(
                 for event in failures[:MAX_FAILURE_SAMPLES]
             ]
             definite_failure = True
-        elif repeated := [
-            key for key, count in Counter(e["logical_key"] for e in samples if "logical_key" in e).items() if count > 1
-        ]:
+        elif not all(event.get("logical_key") for event in samples):
+            # Without a journey key, one journey reporting twice is indistinguishable from two journeys.
+            row["status"] = "unknown"
+            identity.append(f"evidence without journey identity for {assertion_id}")
+        elif repeated := [key for key, count in Counter(e["logical_key"] for e in samples).items() if count > 1]:
             # One journey reporting twice must not stand in for a journey that reported nothing.
             row["status"] = "unknown"
-            duplicates.extend(repeated)
+            identity.extend(f"duplicate evidence for {key}" for key in repeated)
         elif len(samples) != planned_journeys:
             row["status"] = "unknown"
             partial.append(f"{assertion_id} ({len(samples)}/{planned_journeys})")
         else:
             row["status"] = "pass"
         rows.append(row)
-    return rows, missing, partial, duplicates, definite_failure
+    return rows, missing, partial, identity, definite_failure
 
 
 def _percentile(values: list[float], quantile: float) -> float:
