@@ -1,0 +1,278 @@
+---
+// Illustrative mock of the dashboard's app shell (sidebar + overview), drawn in HTML.
+// Run IDs, counts and timings are examples; they are consistent with each other, not real runs.
+import { badge, card, type Verdict } from "../lib/ui";
+
+const icons = {
+  overview:
+    '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  runs: '<path d="M3 5h.01M3 12h.01M3 19h.01M8 5h13M8 12h13M8 19h13"/>',
+  scenarios: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+  compare:
+    '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/>',
+  about: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+};
+
+const tabs = [
+  { id: "overview", label: "Overview", icon: icons.overview, path: "/" },
+  { id: "runs", label: "Runs", icon: icons.runs, path: "/runs?scenario=checkout" },
+  { id: "run", label: "…4c1e09aa", sub: true, path: "/runs/run_20260921T101204Z_4c1e09aa" },
+  { id: "trend", label: "Scenarios", icon: icons.scenarios, path: "/scenarios/checkout" },
+  { id: "diff", label: "Compare", icon: icons.compare, path: "/compare?baseline=…91b7d2f0&candidate=…4c1e09aa" },
+];
+const selected = "overview";
+
+const kpis = [
+  { label: "Runs", value: "14", note: "5 scenarios" },
+  { label: "Pass rate", value: "86%", note: "12 of 14 runs" },
+  { label: "Failing scenarios", value: "1", note: "checkout" },
+  { label: "Last run", value: "10:12", note: "21 Sep, UTC" },
+];
+const scenarioStatus: [string, Verdict][] = [
+  ["checkout", "fail"],
+  ["inventory", "pass"],
+  ["reporting", "pass"],
+  ["cached_search", "pass"],
+  ["tenant_api", "pass"],
+];
+const runs: [string, Verdict, boolean][] = [
+  ["run_20260921T101204Z_4c1e09aa", "fail", true],
+  ["run_20260921T100912Z_91b7d2f0", "pass", true],
+  ["run_20260921T094455Z_e02a7c13", "pass", false],
+  ["run_20260921T093310Z_5d88b6e1", "error", false],
+  ["run_20260920T171522Z_0b3f5a21", "pass", false],
+  ["run_20260920T164008Z_7ac19e42", "pass", false],
+];
+const trend: [string, Verdict, string][] = [
+  ["…7ac19e42", "pass", "3.6ms"],
+  ["…0b3f5a21", "pass", "3.5ms"],
+  ["…5d88b6e1", "error", "n/a"],
+  ["…e02a7c13", "pass", "3.7ms"],
+  ["…91b7d2f0", "pass", "3.8ms"],
+  ["…4c1e09aa", "fail", "4.1ms"],
+];
+
+const table = "w-full border-collapse text-sm tabular-nums";
+const th = "border-b py-2 pr-3 text-left text-xs font-semibold text-muted-foreground";
+const td = "border-b py-2.5 pr-3 whitespace-nowrap";
+const caption = "pb-2 text-left text-sm font-semibold";
+const panel = "min-w-0 p-4 sm:p-5 focus-visible:-outline-offset-3";
+const note = "mt-4 text-sm leading-relaxed text-muted-foreground";
+const path = "mb-4 font-mono text-xs break-all text-muted-foreground";
+const tick = (on: boolean) =>
+  `inline-block size-3.5 rounded-[4px] border align-middle ${on ? "border-primary bg-primary" : "border-input"}`;
+const verdictWord = (v: Verdict) => v.toUpperCase();
+---
+<figure class="min-w-0 overflow-hidden rounded-xl border bg-background shadow-sm" aria-labelledby="dash-caption">
+  <div class="flex items-center gap-3 border-b bg-card px-4 py-2.5 text-xs">
+    <span class="flex gap-1.5 max-sm:hidden" aria-hidden="true">
+      <i class="size-2.5 rounded-full border border-input"></i><i class="size-2.5 rounded-full border border-input"></i><i class="size-2.5 rounded-full border border-input"></i>
+    </span>
+    <span class="min-w-0 truncate font-mono text-muted-foreground">127.0.0.1:8780</span>
+    <span class="ml-auto shrink-0 rounded-md bg-brand px-2 py-0.5 font-semibold text-brand-foreground">Illustrative mock</span>
+  </div>
+
+  <div class="grid md:grid-cols-[176px_1fr]">
+    <nav class="flex min-w-0 flex-col border-b bg-sidebar text-sidebar-foreground md:border-r md:border-b-0" aria-label="Dashboard (mock)">
+      <p class="flex items-center gap-2 px-4 pt-4 pb-3 font-display text-base font-bold max-md:hidden">
+        <svg class="size-5 fill-current" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h4v11H4zm7-9h4v20h-4zm7 5h4v15h-4zm7-9h4v24h-4z"></path></svg>LiteTraffic
+      </p>
+      <div class="flex gap-1 overflow-x-auto p-2 md:flex-col md:overflow-visible" role="tablist" aria-label="Dashboard views" data-dash-tabs>
+        {tabs.map((t) => (
+          <button
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-controls={`panel-${t.id}`}
+            aria-selected={t.id === selected ? "true" : "false"}
+            tabindex={t.id === selected ? 0 : -1}
+            class:list={[
+              "flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm font-medium whitespace-nowrap text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-selected:bg-sidebar-accent aria-selected:font-semibold aria-selected:text-sidebar-accent-foreground",
+              t.sub && "font-mono text-xs md:ml-6",
+            ]}
+          >
+            {t.icon && <svg class="size-4 shrink-0 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" set:html={t.icon} />}
+            {t.label}
+          </button>
+        ))}
+        <span class="flex shrink-0 items-center gap-2 px-2.5 py-1.5 text-sm text-muted-foreground max-md:hidden" aria-hidden="true">
+          <svg class="size-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" set:html={icons.about} />About
+        </span>
+      </div>
+      <p class="mt-auto border-t px-4 py-3 text-xs text-muted-foreground max-md:hidden">Runs folder<br /><span class="font-mono text-foreground">./runs</span></p>
+    </nav>
+
+    <div class="min-w-0">
+      <div class={panel} role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
+        <p class={path}>{tabs[0].path}</p>
+        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {kpis.map((k) => (
+            <div class={`${card} p-3.5`}>
+              <p class="text-xs font-semibold text-muted-foreground">{k.label}</p>
+              <p class="mt-1 font-display text-3xl font-bold tabular-nums">{k.value}</p>
+              <p class="text-xs text-muted-foreground">{k.note}</p>
+            </div>
+          ))}
+        </div>
+        <div class="mt-3 grid gap-3 lg:grid-cols-[1.3fr_1fr]">
+          <section class={`${card} p-4`} aria-label="Recent failures">
+            <h3 class="font-sans text-sm font-semibold">Recent failures</h3>
+            <div class="mt-3 rounded-lg border-l-4 border-fail bg-fail-muted p-3.5">
+              <div class="flex items-center justify-between gap-2">
+                <p class="font-mono text-xs">one_effect_per_payment</p>
+                <span class={badge("fail")}>FAIL</span>
+              </div>
+              <div class="mt-2 flex gap-10">
+                <div><span class="block text-xs font-semibold text-muted-foreground">Expected</span><strong class="font-display text-5xl leading-none tabular-nums">1</strong></div>
+                <div><span class="block text-xs font-semibold text-muted-foreground">Actual</span><strong class="font-display text-5xl leading-none text-fail tabular-nums">2</strong></div>
+              </div>
+              <p class="mt-2 text-sm">One ledger effect per payment. The retried request created a second effect.</p>
+            </div>
+            <p class="mt-3 flex items-center justify-between gap-2 text-sm">
+              <span class="min-w-0 truncate font-mono text-xs">checkout …5d88b6e1</span><span class={badge("error")}>ERROR</span>
+            </p>
+          </section>
+          <section class={`${card} p-4`} aria-label="Scenario status">
+            <h3 class="font-sans text-sm font-semibold">Scenarios</h3>
+            <ul class="mt-2 divide-y text-sm">
+              {scenarioStatus.map(([name, v]) => (
+                <li class="flex items-center justify-between gap-2 py-2"><span class="font-mono text-xs">{name}</span><span class={badge(v)}>{verdictWord(v)}</span></li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      </div>
+
+      <div class={panel} role="tabpanel" id="panel-runs" aria-labelledby="tab-runs" tabindex="0" hidden>
+        <p class={path}>{tabs[1].path}</p>
+        <div class="mb-4 flex flex-wrap items-end gap-2 text-xs" aria-hidden="true">
+          {[["Scenario", "checkout"], ["Verdict", "any"], ["Seed", "any"]].map(([k, v]) => (
+            <span class="grid min-w-22 gap-1"><small class="font-semibold text-muted-foreground">{k}</small><b class="rounded-md border border-input bg-card px-2 py-1.5 font-normal">{v}</b></span>
+          ))}
+          <span class="ml-auto rounded-md bg-primary px-3 py-1.5 font-semibold text-primary-foreground">Compare 2 runs</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class={table}>
+            <caption class="sr-only">Checkout runs, newest first, two ticked for comparison</caption>
+            <thead><tr><th class={th} scope="col"><span class="sr-only">Selected</span></th><th class={th} scope="col">Run</th><th class={`${th} max-sm:hidden`} scope="col">Seed</th><th class={`${th} max-sm:hidden`} scope="col">Lifecycle</th><th class={th} scope="col">Verdict</th></tr></thead>
+            <tbody>
+              {runs.map(([id, v, on]) => (
+                <tr>
+                  <td class={td}><span class={tick(on)} role="img" aria-label={on ? "ticked" : "not ticked"}></span></td>
+                  <td class={`${td} max-w-40 truncate font-mono text-xs`}>{id}</td>
+                  <td class={`${td} max-sm:hidden`}>42</td>
+                  <td class={`${td} max-sm:hidden`}>finished</td>
+                  <td class={td}><span class={badge(v)}>{verdictWord(v)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p class={note}>Tick exactly two runs to compare them; the older one becomes the baseline. The <strong class="text-foreground">error</strong> run's target was unreachable, so no request got an HTTP response.</p>
+      </div>
+
+      <div class={panel} role="tabpanel" id="panel-run" aria-labelledby="tab-run" tabindex="0" hidden>
+        <p class={path}>{tabs[2].path}</p>
+        <div class="flex items-start justify-between gap-4">
+          <div><h3 class="text-3xl font-bold">checkout</h3><p class="mt-1 text-sm text-muted-foreground">seed 42, lifecycle finished, journeys 12/12</p></div>
+          <span class={`${badge("fail")} px-3 py-1 text-sm`}>FAIL</span>
+        </div>
+        <div class="mt-4 flex gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-xs font-semibold text-muted-foreground" aria-hidden="true">
+          <span class="rounded-md bg-card px-2.5 py-1 text-foreground shadow-sm">Assertions</span><span class="px-2.5 py-1">Observations</span><span class="px-2.5 py-1">Metrics</span><span class="px-2.5 py-1">Limitations</span><span class="px-2.5 py-1">Artifacts</span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class={table}>
+            <caption class={caption}>Assertions</caption>
+            <thead><tr><th class={th} scope="col">Assertion</th><th class={th} scope="col">Status</th><th class={th} scope="col">Samples</th></tr></thead>
+            <tbody>
+              <tr><td class={`${td} font-mono text-xs`}>one_effect_per_payment</td><td class={td}><span class={badge("fail")}>fail</span></td><td class={td}>12</td></tr>
+              <tr><td class="border-b pb-2" colspan="3">
+                <table class={`${table} ml-4 w-[calc(100%-1rem)]`}>
+                  <caption class="pb-1 text-left text-xs font-semibold text-muted-foreground">Failing samples, first 3</caption>
+                  <thead><tr><th class={th} scope="col">Sample</th><th class={th} scope="col">Logical key</th><th class={th} scope="col">Expected</th><th class={th} scope="col">Actual</th></tr></thead>
+                  <tbody>
+                    {[["4", "…4c1e09aa-1-0"], ["13", "…4c1e09aa-2-3"], ["22", "…4c1e09aa-4-6"]].map(([n, key]) => (
+                      <tr><td class={td}>{n}</td><td class={`${td} font-mono text-xs`}>{key}</td><td class={td}>1</td><td class={`${td} font-bold text-fail`}>2</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </td></tr>
+              <tr><td class={`${td} font-mono text-xs`}>accepted_orders_persist</td><td class={td}><span class={badge("pass")}>pass</span></td><td class={td}>12</td></tr>
+              <tr><td class={`${td} font-mono text-xs`}>order_totals_match</td><td class={td}><span class={badge("pass")}>pass</span></td><td class={td}>12</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class={panel} role="tabpanel" id="panel-trend" aria-labelledby="tab-trend" tabindex="0" hidden>
+        <p class={path}>{tabs[3].path}</p>
+        <div class={`${card} p-3`}>
+          <svg class="block w-full" viewBox="0 0 560 210" role="img" aria-label="p95 latency per checkout run, oldest first: 3.6, 3.5, 3.7 and 3.8 milliseconds passing, then 4.1 milliseconds failing">
+            <g class="fill-muted-foreground text-[13px] tabular-nums max-sm:text-[22px]">
+              <text x="0" y="18">p95 ms</text><text x="0" y="46">4.5</text><text x="0" y="121">4.0</text><text x="0" y="196">3.5</text>
+            </g>
+            <path class="fill-none stroke-border" d="M44 40H550M44 115H550M44 190H550" />
+            <path class="fill-none stroke-chart-3 stroke-2" d="M70 175L185 190L300 160L415 145L530 100" />
+            <g class="stroke-card stroke-3">
+              <circle class="fill-pass" cx="70" cy="175" r="8" /><circle class="fill-pass" cx="185" cy="190" r="8" /><circle class="fill-pass" cx="300" cy="160" r="8" /><circle class="fill-pass" cx="415" cy="145" r="8" /><circle class="fill-fail" cx="530" cy="100" r="8" />
+            </g>
+          </svg>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class={table}>
+            <caption class="sr-only">Checkout runs, oldest first</caption>
+            <thead><tr><th class={th} scope="col">Run</th><th class={`${th} max-sm:hidden`} scope="col">Seed</th><th class={th} scope="col">Verdict</th><th class={th} scope="col">p95</th></tr></thead>
+            <tbody>
+              {trend.map(([id, v, p95]) => (
+                <tr><td class={`${td} font-mono text-xs`}>{id}</td><td class={`${td} max-sm:hidden`}>42</td><td class={td}><span class={badge(v)}>{verdictWord(v)}</span></td><td class={td}>{p95}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p class={note}>Runs are spaced evenly, not on a time scale. A run without a p95, like the error run, is left off the chart.</p>
+      </div>
+
+      <div class={panel} role="tabpanel" id="panel-diff" aria-labelledby="tab-diff" tabindex="0" hidden>
+        <p class={path}>{tabs[4].path}</p>
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-sm text-muted-foreground">Baseline <span class="font-mono text-foreground">…91b7d2f0</span>, candidate <span class="font-mono text-foreground">…4c1e09aa</span></p>
+          <span class={badge("fail")}>FAIL</span>
+        </div>
+        <dl class="mt-4 grid gap-3 sm:grid-cols-3">
+          <div class={`${card} p-3.5`}><dt class="text-xs font-semibold text-muted-foreground">Compatibility</dt><dd class="mt-1 font-semibold">comparable</dd></div>
+          <div class={`${card} p-3.5`}><dt class="text-xs font-semibold text-muted-foreground">Regression</dt><dd class="mt-1 font-mono text-xs font-semibold break-all text-fail">one_effect_per_payment</dd><dd class="text-xs text-muted-foreground">candidate verdict is fail</dd></div>
+          <div class={`${card} p-3.5`}><dt class="text-xs font-semibold text-muted-foreground">p95</dt><dd class="mt-1 font-semibold tabular-nums">3.8ms to 4.1ms</dd><dd class="text-xs text-muted-foreground">+7.9%, reported</dd></div>
+        </dl>
+        <p class={note}>Runs compare only when bundle digest, seed, k6 version and resolved schedule match. Otherwise the result is <strong class="text-foreground">inconclusive</strong>, never a pass.</p>
+      </div>
+    </div>
+  </div>
+  <figcaption id="dash-caption" class="border-t bg-card px-4 py-3 text-xs leading-relaxed text-muted-foreground sm:px-5">
+    Illustrative mock of <code>litetraffic dashboard</code>, drawn in HTML. Run IDs, counts and timings are examples. Expected and actual values appear when the scenario records them on its assertion events.
+  </figcaption>
+</figure>
+
+<script>
+  // Roving-tabindex tabs (WAI-ARIA tabs pattern); arrows move in either orientation.
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>("[data-dash-tabs] [role=tab]")];
+  const select = (tab: HTMLButtonElement) => {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls") ?? "")!.hidden = !on;
+    }
+  };
+  const step: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  tabs.forEach((tab, i) => {
+    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("keydown", (e) => {
+      const to = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : e.key in step ? i + step[e.key] : null;
+      if (to === null) return;
+      e.preventDefault();
+      const next = tabs[(to + tabs.length) % tabs.length];
+      select(next);
+      next.focus();
+    });
+  });
+</script>

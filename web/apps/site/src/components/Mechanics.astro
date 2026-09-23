@@ -1,0 +1,142 @@
+---
+import { card, h2, label, lead, wrap } from "../lib/ui";
+
+const steps = [
+  {
+    title: "Own the starting state",
+    meta: "fixtures",
+    body: "Create run-owned records over HTTP, or run setup and teardown commands such as a seed and reset script. Teardown runs even after a failure. Give each journey its own item from a fixture pool.",
+  },
+  {
+    title: "Drive complete journeys",
+    meta: "k6 v2.2.0",
+    body: "Carry IDs and identities from one request to the next, with an HS256 test JWT minted per actor class or one per identity. Admit journeys on a seeded clock with stock k6, pinned to one version so runs stay comparable. Declare which status codes an operation is meant to return, so an intended 403 is not counted as a failure.",
+  },
+  {
+    title: "Observe the final effect",
+    meta: "verdict",
+    html: "Read the resulting state once the traffic stops, with one or more final observations. Match values exactly or with <code>gte</code>, <code>lte</code>, <code>len</code> and <code>exists</code>, write expected values as <code>${planned_journeys * 100}</code>, and poll with <code>until</code> when the app settles asynchronously.",
+  },
+  {
+    title: "Check the pressure was real",
+    meta: "overlap",
+    html: "A client-side overlap check reports peak in-flight requests per operation and holds back a pass when a journey's <code>min_overlap</code> was not reached. It shows requests were in flight together, not that the server ran them concurrently.",
+  },
+  {
+    title: "Keep the evidence",
+    meta: "artifacts",
+    html: "Write owner-only artifacts atomically: a digest over the manifest, script, imports and fixture files, assertion events with expected and actual values, metrics, and a standalone report. Declared secrets and minted tokens are replaced with <code>[redacted]</code>.",
+  },
+];
+
+const checks = [
+  ["own_access", "Each owner can read its own resources through every read endpoint."],
+  ["cross_tenant_read_blocked", "The other identity gets 401, 403 or 404."],
+  ["cross_tenant_write_blocked", "Its writes to that resource are rejected the same way."],
+  ["victim_unchanged", "The owner reads the resource before and after each cross-tenant write, and both reads must match. This catches a server that answers 403 but applies the write anyway."],
+];
+
+const kitJson = `{
+  "name": "tenant-isolation-kit",
+  "identities": [
+    {"name": "tenant-a", "resources": ["a"],
+     "headers": {"X-Actor-Tenant": "a"}},
+    {"name": "tenant-b", "resources": ["b"],
+     "headers": {"X-Actor-Tenant": "b"}}
+  ],
+  "endpoints": [
+    {"method": "GET", "kind": "read",
+     "path": "/tenants/{id}/records/1"},
+    {"method": "PUT", "kind": "write",
+     "path": "/tenants/{id}/records/1",
+     "body": {"value": "mallory"}}
+  ]
+}`;
+const rows = (failVictim: boolean) => [
+  ["own_access", "pass", "10"],
+  ["cross_tenant_read_blocked", "pass", "10"],
+  ["cross_tenant_write_blocked", "pass", "10"],
+  ["victim_unchanged", failVictim ? "fail" : "pass", "10"],
+  ["tenant_fixture_intact", "pass", "1"],
+];
+const toggleBtn =
+  "rounded-md border px-3 py-2 text-xs font-semibold hover:bg-accent aria-pressed:border-brand aria-pressed:bg-brand aria-pressed:text-brand-foreground";
+const pre = "overflow-x-auto font-mono text-[11px] leading-[1.7] sm:text-[12.5px]";
+---
+<section class="bg-muted py-20 sm:py-28 lg:py-32">
+  <div class={wrap}>
+    <div class="max-w-[780px]">
+      <p class={label}>Inside a verification run</p>
+      <h2 class={h2}>Make a world. Run it. Check it.</h2>
+    </div>
+    <ol class="mt-12 border-t-2 border-foreground sm:mt-16">
+      {steps.map((s, i) => (
+        <li class="grid grid-cols-[36px_1fr] items-start gap-3 border-b py-6 sm:grid-cols-[90px_1fr_130px] sm:gap-6 sm:py-7">
+          <span class="pt-1 text-xs text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+          <div>
+            <h3 class="text-2xl font-bold sm:text-[1.7rem]">{s.title}</h3>
+            {s.html ? <p class="mt-2 max-w-[620px] text-[15px] leading-normal text-muted-foreground" set:html={s.html} /> : <p class="mt-2 max-w-[620px] text-[15px] leading-normal text-muted-foreground">{s.body}</p>}
+          </div>
+          <span class="pt-1 text-right text-xs text-muted-foreground max-sm:hidden">{s.meta}</span>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<section class={`${wrap} py-20 sm:py-28 lg:py-36`} id="isolation" aria-labelledby="isolation-title">
+  <div class="grid items-end gap-11 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+    <div class="max-w-[780px]">
+      <p class={`${label} font-mono`}>litetraffic init tenant-isolation</p>
+      <h2 id="isolation-title" class={`${h2} max-sm:text-[2.75rem]`}>From two identities to a <span class="whitespace-nowrap">tenant-isolation</span> check.</h2>
+      <p class={lead}>Describe who owns what in a small JSON config. The generator writes a complete scenario bundle for you to review and run, with no k6 code to write. The same config always produces the same files and the same digest.</p>
+    </div>
+    <dl class="border-t-2 border-foreground">
+      {checks.map(([name, text]) => (
+        <div class="border-b py-3.5"><dt><code class="text-[13px] font-semibold">{name}</code></dt><dd class="mt-1 text-sm leading-normal text-muted-foreground">{text}</dd></div>
+      ))}
+    </dl>
+  </div>
+
+  <div class="mt-11 grid items-start gap-10 sm:mt-16 lg:grid-cols-[0.9fr_1.1fr]">
+    <figure class={`${card} min-w-0 overflow-hidden`}>
+      <figcaption class="flex justify-between gap-3 border-b bg-muted px-4 py-2.5 text-xs text-muted-foreground">
+        <span class="font-mono font-semibold text-foreground">kit.json</span><span>trimmed</span>
+      </figcaption>
+      <pre class={`${pre} px-4 py-4.5`} tabindex="0"><code>{kitJson}</code></pre>
+      <p class="border-t px-4 py-3.5 text-[13px] leading-normal text-muted-foreground">Identities can also sign in with a minted test JWT (<code>auth</code>) or a ready token from an environment variable (<code>token_env</code>). The full example adds a run-owned fixture and one final observation, <code>tenant_fixture_intact</code>.</p>
+    </figure>
+
+    <div class="min-w-0 overflow-hidden rounded-xl border bg-sidebar text-foreground shadow-sm scheme-dark">
+      <div class="flex flex-wrap gap-2 border-b px-4 py-3.5 sm:px-5" role="group" aria-label="Example server">
+        <button type="button" class={toggleBtn} aria-pressed="true" data-kit="pass">Correct server</button>
+        <button type="button" class={toggleBtn} aria-pressed="false" data-kit="fail">Silent write</button>
+      </div>
+      <pre class={`${pre} p-4 sm:p-5`} tabindex="0"><code><span class="text-muted-foreground">$ litetraffic init tenant-isolation \
+    --config kit.json --out isolation
+$ litetraffic verify isolation \
+    --target http://127.0.0.1:8769</span>
+{[false, true].map((failing) => (
+  <span data-kit-output={failing ? "fail" : "pass"} hidden={failing}><span class:list={["font-bold", failing ? "text-fail" : "text-pass"]}>verdict: {failing ? "FAIL" : "PASS"}  lifecycle: finished  journeys: 10/10</span>
+{rows(failing).map(([n, s, c]) => <span class:list={[s === "fail" && "font-bold text-fail"]}>{`${n}  ${s}  ${c}\n`}</span>)}unexpected HTTP failure rate: 0.0% (0/100)</span>
+))}</code></pre>
+      <p class="border-t px-4 pt-3.5 pb-4.5 text-[13px] leading-normal text-muted-foreground sm:px-5" aria-live="polite" data-kit-caption>The included tenant example server, run as shipped. The rejected cross-tenant probes are expected statuses, so none count as unexpected failures.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  const captions: Record<string, string> = {
+    pass: "The included tenant example server, run as shipped. The rejected cross-tenant probes are expected statuses, so none count as unexpected failures.",
+    fail: "The same server started with --wrong-silent-write answers each cross-tenant PUT with 403 but applies it anyway. Every status check passes; only the read-back compare catches it.",
+  };
+  const buttons = document.querySelectorAll<HTMLButtonElement>("[data-kit]");
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      const kit = button.dataset.kit!;
+      for (const b of buttons) b.setAttribute("aria-pressed", String(b === button));
+      for (const out of document.querySelectorAll<HTMLElement>("[data-kit-output]")) out.hidden = out.dataset.kitOutput !== kit;
+      document.querySelector("[data-kit-caption]")!.textContent = captions[kit];
+    });
+  }
+</script>
