@@ -12,9 +12,13 @@ function stubFetch(status: number, body: unknown) {
   return fetchMock;
 }
 
-test("renders the app shell", () => {
+test("renders the app shell with sidebar navigation", async () => {
+  stubFetch(200, []);
   render(<App />);
-  expect(screen.getByRole("heading", { name: "LiteTraffic" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
+  for (const name of ["Overview", "Runs", "Scenarios", "Compare", "About"]) {
+    expect(screen.getAllByRole("link", { name }).length).toBeGreaterThan(0);
+  }
 });
 
 test("client builds filtered run list URLs and returns the fixture", async () => {
