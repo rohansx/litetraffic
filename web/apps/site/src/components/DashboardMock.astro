@@ -70,7 +70,6 @@ const th = "h-10 px-3 text-left align-middle text-xs font-medium whitespace-nowr
 const td = "border-t px-3 py-2.5 align-middle whitespace-nowrap";
 const panel = "min-w-0 p-4 lg:p-6 focus-visible:-outline-offset-3";
 const note = "mt-4 text-sm leading-relaxed text-muted-foreground";
-const path = "mb-4 font-mono text-xs break-all text-muted-foreground";
 const kpiCard = `${card} gap-3 bg-linear-to-t from-primary/5 to-card py-5 dark:bg-card`;
 const tick = (on: boolean) =>
   `inline-grid size-4 place-items-center rounded-[4px] border align-middle shadow-xs ${on ? "border-primary bg-primary text-primary-foreground" : "border-input"}`;
@@ -81,7 +80,7 @@ const short = (id: string) => `…${id.slice(-8)}`;
     <span class="flex gap-1.5 max-sm:hidden" aria-hidden="true">
       <i class="size-2.5 rounded-full bg-border"></i><i class="size-2.5 rounded-full bg-border"></i><i class="size-2.5 rounded-full bg-border"></i>
     </span>
-    <span class="min-w-0 truncate rounded-md border bg-background px-2.5 py-1 font-mono text-muted-foreground">127.0.0.1:8780</span>
+    <span class="min-w-0 truncate rounded-md border bg-background px-2.5 py-1 font-mono text-muted-foreground" data-dash-url>127.0.0.1:8780{tabs[0].path}</span>
     <span class={`${badgeOutline} ml-auto bg-background`}>Illustrative mock</span>
   </div>
 
@@ -97,6 +96,7 @@ const short = (id: string) => `…${id.slice(-8)}`;
             type="button"
             role="tab"
             id={`tab-${t.id}`}
+            data-path={t.path}
             aria-controls={`panel-${t.id}`}
             aria-selected={t.id === selected ? "true" : "false"}
             tabindex={t.id === selected ? 0 : -1}
@@ -127,7 +127,6 @@ const short = (id: string) => `…${id.slice(-8)}`;
       </div>
 
       <div class={panel} role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
-        <p class={path}>{tabs[0].path}</p>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
           {kpis.map((k) => (
             <div class={kpiCard}>
@@ -214,7 +213,6 @@ const short = (id: string) => `…${id.slice(-8)}`;
       </div>
 
       <div class={panel} role="tabpanel" id="panel-runs" aria-labelledby="tab-runs" tabindex="0" hidden>
-        <p class={path}>{tabs[1].path}</p>
         <div class="mb-4 flex flex-wrap items-end gap-2 text-xs" aria-hidden="true">
           {[["Scenario", "checkout"], ["Verdict", "any"], ["Seed", "any"]].map(([k, v]) => (
             <span class="grid min-w-24 gap-1"><small class="font-medium text-muted-foreground">{k}</small><b class="flex h-8 items-center rounded-md border border-input bg-background px-2.5 font-normal shadow-xs">{v}</b></span>
@@ -242,7 +240,6 @@ const short = (id: string) => `…${id.slice(-8)}`;
       </div>
 
       <div class={panel} role="tabpanel" id="panel-run" aria-labelledby="tab-run" tabindex="0" hidden>
-        <p class={path}>{tabs[2].path}</p>
         <div class="flex items-start justify-between gap-4">
           <div><h3 class="font-heading text-2xl font-semibold tracking-tight">checkout</h3><p class="mt-1 text-sm text-muted-foreground">seed 42, lifecycle finished, journeys 12/12</p></div>
           <VerdictBadge verdict="fail" />
@@ -275,7 +272,6 @@ const short = (id: string) => `…${id.slice(-8)}`;
       </div>
 
       <div class={panel} role="tabpanel" id="panel-trend" aria-labelledby="tab-trend" tabindex="0" hidden>
-        <p class={path}>{tabs[3].path}</p>
         <div class={`${card} gap-3 py-5`}>
           <div class="grid gap-1.5 px-5"><span class={cardTitle}>p95 latency</span><span class={cardDescription}>checkout, oldest first</span></div>
           <svg class="block w-full px-3" viewBox="0 0 560 210" role="img" aria-label="p95 latency per checkout run, oldest first: 3.6, 3.5, 3.7 and 3.8 milliseconds passing, then 4.1 milliseconds failing">
@@ -306,7 +302,6 @@ const short = (id: string) => `…${id.slice(-8)}`;
       </div>
 
       <div class={panel} role="tabpanel" id="panel-diff" aria-labelledby="tab-diff" tabindex="0" hidden>
-        <p class={path}>{tabs[4].path}</p>
         <div class="flex items-center justify-between gap-3">
           <p class="text-sm text-muted-foreground">Baseline <span class="font-mono text-foreground">…91b7d2f0</span>, candidate <span class="font-mono text-foreground">…4c1e09aa</span></p>
           <VerdictBadge verdict="fail" />
@@ -328,7 +323,9 @@ const short = (id: string) => `…${id.slice(-8)}`;
 <script>
   // Roving-tabindex tabs (WAI-ARIA tabs pattern); arrows move in either orientation.
   const tabs = [...document.querySelectorAll<HTMLButtonElement>("[data-dash-tabs] [role=tab]")];
+  const url = document.querySelector<HTMLElement>("[data-dash-url]")!;
   const select = (tab: HTMLButtonElement) => {
+    url.textContent = `127.0.0.1:8780${tab.dataset.path}`;
     for (const t of tabs) {
       const on = t === tab;
       t.setAttribute("aria-selected", String(on));
