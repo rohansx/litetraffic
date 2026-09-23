@@ -206,6 +206,7 @@ def verify(
                     run_id,
                     fixture_id=environment.get("LT_FIXTURE_ID"),
                     variables={"planned_journeys": bundle.manifest.planned_journeys, "seed": seed},
+                    environ=environment,  # includes the LT_TOKEN_<CLASS> tokens minted for this run
                 )
             except KeyboardInterrupt:
                 lifecycle = "cancelled"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 
 import httpx
 
@@ -42,17 +43,20 @@ def observe(
     transport: httpx.BaseTransport | None = None,
     fixture_id: str | None = None,
     variables: dict[str, int] | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> dict:
+    """Read the final state once. `environ` (default: the process environment) resolves env refs."""
+    environ = os.environ if environ is None else environ
     headers = {"X-LiteTraffic-Run": run_id}
     if fixture_id:
         headers["X-LiteTraffic-Fixture"] = fixture_id
     if config.bearer_token_env:
-        token = os.environ.get(config.bearer_token_env)
+        token = environ.get(config.bearer_token_env)
         if not token:
             return {"assertion": config.assertion, "status": "unknown", "reason": "observer bearer token missing"}
         headers["Authorization"] = f"Bearer {token}"
     for header, env in config.headers_env.items():
-        value = os.environ.get(env)
+        value = environ.get(env)
         if not value:
             return {"assertion": config.assertion, "status": "unknown", "reason": f"observer header env {env} missing"}
         headers[header] = value

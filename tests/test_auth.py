@@ -6,12 +6,14 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
 from litetraffic.auth import AuthError, mint_tokens, token_env_name
 from litetraffic.cli import main
 from litetraffic.models import Actor, ScenarioManifest
+from litetraffic.observation import observe
 from litetraffic.runner import verify
 from test_runner import assertion, fake_k6
 from test_scenario import manifest, write_bundle
@@ -97,6 +99,36 @@ def test_verify_exports_token_to_k6_and_keeps_it_out_of_artifacts(tmp_path, monk
             assert token not in text, path.name
             assert SECRET not in text, path.name
     assert "[redacted]" in (tmp_path / "runs" / result["run_id"] / "engine.stdout.log").read_text()
+
+
+def test_final_observation_can_authenticate_with_a_minted_actor_token(tmp_path, monkeypatch):
+    seen = {}
+
+    def respond(request):
+        seen["authorization"] = request.headers.get("authorization")
+        return httpx.Response(200, json={"total": 1000})
+
+    monkeypatch.setattr(
+        "litetraffic.runner.observe",
+        lambda *args, **kwargs: observe(*args, transport=httpx.MockTransport(respond), **kwargs),
+    )
+    data = manifest(
+        actors=_actors(),
+        assertions=["accepted_orders_persist", "ledger_total"],
+        observation={"path": "/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}, "bearer_token_env": "LT_TOKEN_BUYER"},
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("LT_TEST_JWT_SECRET", SECRET)
+    monkeypatch.delenv("LT_TOKEN_BUYER", raising=False)
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert result["verdict"] == "pass", result["limitations"]
+    token = seen["authorization"].removeprefix("Bearer ")
+    assert _decode(token)[1]["run"] == result["run_id"]
 
 
 def test_missing_secret_is_an_error_before_k6_starts(tmp_path, monkeypatch):
