@@ -132,6 +132,20 @@ def test_final_observation_reserves_time_for_its_deadline(tmp_path):
         load_scenario(write_bundle(tmp_path, data))
 
 
+def test_observation_origin_must_be_listed_in_allowed_origins(tmp_path):
+    observation = {"origin": "https://db.example.test", "path": "/rows", "assertion": "ledger_total", "expected": {"/n": 1}}
+    data = manifest(
+        observation=observation,
+        assertions=["accepted_orders_persist", "ledger_total"],
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    with pytest.raises(ValidationError, match="allowed_origins"):
+        load_scenario(write_bundle(tmp_path / "a", data))
+
+    data["allowed_origins"] = ["https://db.example.test/"]
+    assert load_scenario(write_bundle(tmp_path / "b", data)).manifest.observation.origin == "https://db.example.test"
+
+
 def test_rejects_unknown_manifest_fields(tmp_path):
     with pytest.raises(ValidationError, match="unexpected"):
         load_scenario(write_bundle(tmp_path, manifest(unexpected=True)))

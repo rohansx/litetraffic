@@ -198,7 +198,8 @@ def verify(
                 lifecycle = "cancelled"
                 observation["reason"] = "observation cancelled"
         _write_json(run_dir / "observation.json", observation)
-        metrics["observer_requests"] = int(observed and observation.get("reason") != "observer bearer token missing")
+        # A missing bearer token or header env stops the observer before it sends a request.
+        metrics["observer_requests"] = int(observed and not str(observation.get("reason", "")).endswith(" missing"))
     if fixture:
         if fixture["create"]["status"] == "created":
             fixture_id = fixture["create"]["fixture_id"]

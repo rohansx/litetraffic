@@ -211,7 +211,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "command": manifest.fixtures.command and manifest.fixtures.command.model_dump(),
             },
             # Names only: the environment is never read here.
-            "secret_env": sorted({ref for ref in (owned and owned.bearer_token_env, observation and observation.bearer_token_env) if ref}),
+            "secret_env": sorted(
+                {ref for ref in (owned and owned.bearer_token_env, observation and observation.bearer_token_env) if ref}
+                | set(observation.headers_env.values() if observation else ())
+            ),
             "observer": manifest.observer,
             "observation_path": observation and observation.path,
         }

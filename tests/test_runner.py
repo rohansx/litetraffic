@@ -294,6 +294,25 @@ def test_verify_is_inconclusive_when_final_observation_is_unavailable(tmp_path, 
     assert result["assertions"][-1] == {"id": "ledger_total", "status": "unknown", "samples": 0}
 
 
+def test_verify_missing_observer_header_env_is_inconclusive_without_a_request(tmp_path, monkeypatch):
+    monkeypatch.delenv("LT_DB_KEY", raising=False)
+    data = manifest(
+        assertions=["accepted_orders_persist", "ledger_total"],
+        observation={"path": "/rows", "assertion": "ledger_total", "expected": {"": {"len": 1}}, "headers_env": {"apikey": "LT_DB_KEY"}},
+        budgets=manifest()["budgets"] | {"max_requests": 61},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert result["verdict"] == "inconclusive"
+    assert result["metrics"]["observer_requests"] == 0
+    observation = json.loads((tmp_path / "runs" / result["run_id"] / "observation.json").read_text())
+    assert observation["reason"] == "observer header env LT_DB_KEY missing"
+
+
 def test_verify_escapes_scenario_names_in_the_html_report(tmp_path, monkeypatch):
     scenario = write_bundle(tmp_path / "scenario", manifest(name="<script>alert(1)</script>"))
     events = [assertion("accepted_orders_persist") for _ in range(20)]

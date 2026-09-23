@@ -20,13 +20,13 @@ def _blocked(host: str) -> bool:
     return address.is_link_local
 
 
-def validate_target(value: str) -> str:
+def validate_target(value: str, label: str = "target") -> str:
     """Return the target without a trailing slash, or raise ValueError if it is not allowed."""
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("target must be an absolute http or https URL")
+        raise ValueError(f"{label} must be an absolute http or https URL")
     if parsed.username or parsed.password:
-        raise ValueError("target URL must not contain credentials")
+        raise ValueError(f"{label} URL must not contain credentials")
     if _blocked(parsed.hostname or ""):
-        raise ValueError(f"target {parsed.hostname}: link-local/metadata address not allowed")
+        raise ValueError(f"{label} {parsed.hostname}: link-local/metadata address not allowed")
     return value.rstrip("/")

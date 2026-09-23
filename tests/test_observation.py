@@ -1,4 +1,8 @@
+import json
+
 import httpx
+import pytest
+from pydantic import ValidationError
 
 from litetraffic.models import FinalObservation
 from litetraffic.observation import observe
@@ -27,6 +31,10 @@ def test_observer_checks_expected_json_pointers_with_bearer_auth(monkeypatch):
         "status": "pass",
         "expected": {"/total": 1000, "/regions/west": 100},
         "actual": {"/total": 1000, "/regions/west": 100},
+        "checks": {
+            "/total": {"matcher": {"eq": 1000}, "actual": 1000, "pass": True},
+            "/regions/west": {"matcher": {"eq": 100}, "actual": 100, "pass": True},
+        },
     }
 
 
@@ -71,3 +79,109 @@ def test_observer_distinguishes_a_missing_field_from_expected_null():
 
     assert result["status"] == "fail"
     assert result["missing"] == ["/value"]
+
+
+def test_matchers_record_matcher_actual_and_pass_per_pointer():
+    config = FinalObservation(
+        path="/rows",
+        assertion="rows_ok",
+        expected={
+            "/total": 1000,
+            "/count": {"gte": 3},
+            "/max": {"lte": 10},
+            "/items": {"len": 2},
+            "/name": {"len": 3},
+            "/meta": {"len": 1},
+            "/gone": {"exists": False},
+            "/here": {"exists": True},
+            "/status": {"eq": "done"},
+        },
+    )
+    body = {"total": 1000, "count": 3, "max": 11, "items": [1, 2], "name": "abc", "meta": {"a": 1}, "here": None, "status": "done"}
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=body))
+
+    result = observe("http://example.test", config, "run-1", transport=transport)
+
+    assert result["status"] == "fail"
+    assert result["checks"]["/total"] == {"matcher": {"eq": 1000}, "actual": 1000, "pass": True}
+    assert result["checks"]["/count"] == {"matcher": {"gte": 3}, "actual": 3, "pass": True}
+    assert result["checks"]["/max"] == {"matcher": {"lte": 10}, "actual": 11, "pass": False}
+    assert result["checks"]["/gone"] == {"matcher": {"exists": False}, "actual": None, "pass": True}
+    assert all(result["checks"][p]["pass"] for p in ("/items", "/name", "/meta", "/here", "/status"))
+
+
+def test_matchers_pass_when_all_hold_and_reject_wrong_types():
+    config = FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": {"gte": 1}, "/s": {"len": 1}, "/b": {"gte": 0}})
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"n": 2, "s": 5, "b": True}))
+    result = observe("http://example.test", config, "run-1", transport=transport)
+    assert result["checks"]["/n"]["pass"] is True
+    assert result["checks"]["/s"]["pass"] is False
+    assert result["checks"]["/b"]["pass"] is False
+
+    config = FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": {"gte": 1}, "/gone": {"exists": False}})
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"n": 2}))
+    assert observe("http://example.test", config, "run-1", transport=transport)["status"] == "pass"
+
+
+@pytest.mark.parametrize(
+    "expected",
+    [{"/n": {"gte": 1, "lte": 2}}, {"/n": {"gte": "1"}}, {"/n": {"len": -1}}, {"/n": {"len": 1.5}}, {"/n": {"exists": 1}}],
+)
+def test_invalid_matchers_are_rejected(expected):
+    with pytest.raises(ValidationError, match="matcher"):
+        FinalObservation(path="/rows", assertion="rows_ok", expected=expected)
+
+
+def test_non_matcher_objects_stay_literal_equality():
+    config = FinalObservation(path="/rows", assertion="rows_ok", expected={"/obj": {"a": 1}})
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"obj": {"a": 1}}))
+    result = observe("http://example.test", config, "run-1", transport=transport)
+    assert result["status"] == "pass"
+    assert result["checks"]["/obj"]["matcher"] == {"eq": {"a": 1}}
+
+
+def test_observer_reads_extra_origin_with_env_headers_and_never_records_values(monkeypatch):
+    monkeypatch.setenv("PGRST_KEY", "super-secret-key")
+
+    def respond(request):
+        assert str(request.url) == "https://db.example.test/rest/v1/orders?select=id"
+        assert request.headers["apikey"] == "super-secret-key"
+        return httpx.Response(200, json=[{"id": 1}, {"id": 2}])
+
+    config = FinalObservation(
+        origin="https://db.example.test/",
+        path="/rest/v1/orders?select=id",
+        assertion="rows_ok",
+        expected={"": {"len": 2}},
+        headers_env={"apikey": "PGRST_KEY"},
+    )
+    result = observe("http://example.test", config, "run-1", transport=httpx.MockTransport(respond))
+
+    assert result["status"] == "pass"
+    assert "super-secret-key" not in json.dumps(result)
+
+
+def test_missing_header_env_is_unknown_naming_the_variable_only(monkeypatch):
+    monkeypatch.delenv("PGRST_KEY", raising=False)
+    config = FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": 1}, headers_env={"apikey": "PGRST_KEY"})
+    transport = httpx.MockTransport(lambda request: (_ for _ in ()).throw(AssertionError("must not request")))
+
+    result = observe("http://example.test", config, "run-1", transport=transport)
+
+    assert result["status"] == "unknown"
+    assert "PGRST_KEY" in result["reason"]
+
+
+@pytest.mark.parametrize(
+    "fields, message",
+    [
+        ({"origin": "ftp://db.example.test"}, "http or https"),
+        ({"origin": "https://user:pw@db.example.test"}, "credentials"),
+        ({"origin": "http://169.254.169.254"}, "link-local"),
+        ({"headers_env": {"apikey": "lower_case"}}, "environment variable"),
+        ({"headers_env": {"bad header": "KEY"}}, "header name"),
+    ],
+)
+def test_unsafe_observation_origins_and_header_refs_are_rejected(fields, message):
+    with pytest.raises(ValidationError, match=message):
+        FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": 1}, **fields)

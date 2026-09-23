@@ -471,7 +471,13 @@ def test_inspect_lists_secret_env_names_but_never_values(tmp_path, monkeypatch, 
     monkeypatch.setenv("OBSERVER_TOKEN", "observer-secret-value")
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": OWNED_FIXTURES | {"id_pointer": "/id", "bearer_token_env": "FIXTURE_TOKEN"}},
-        observation={"path": "/state", "assertion": "accepted_orders_persist", "expected": {"/ok": True}, "bearer_token_env": "OBSERVER_TOKEN"},
+        observation={
+            "path": "/state",
+            "assertion": "accepted_orders_persist",
+            "expected": {"/ok": True},
+            "bearer_token_env": "OBSERVER_TOKEN",
+            "headers_env": {"apikey": "DB_KEY"},
+        },
         budgets=manifest()["budgets"] | {"max_seconds": 40, "max_requests": 70, "max_write_attempts": 30},
     )
 
@@ -479,7 +485,7 @@ def test_inspect_lists_secret_env_names_but_never_values(tmp_path, monkeypatch, 
     raw = capsys.readouterr().out
 
     assert status == 0
-    assert json.loads(raw)["secret_env"] == ["FIXTURE_TOKEN", "OBSERVER_TOKEN"]
+    assert json.loads(raw)["secret_env"] == ["DB_KEY", "FIXTURE_TOKEN", "OBSERVER_TOKEN"]
     assert "secret-value" not in raw
 
 

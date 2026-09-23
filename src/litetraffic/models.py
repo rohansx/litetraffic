@@ -7,6 +7,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
 
+from litetraffic.target import validate_target
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -75,20 +77,55 @@ class Fixtures(StrictModel):
         return 10 if self.owned_http else 0
 
 
+MATCHER_KEYS = {"eq", "gte", "lte", "len", "exists"}
+ENV_NAME = r"[A-Z_][A-Z0-9_]*"
+
+
+def as_matcher(expected: JsonValue) -> dict[str, JsonValue]:
+    """A dict whose keys are all matcher keys is a matcher; any other value means equality."""
+    if isinstance(expected, dict) and expected and set(expected) <= MATCHER_KEYS:
+        return expected
+    return {"eq": expected}
+
+
+def _check_matcher(pointer: str, matcher: dict[str, JsonValue]) -> None:
+    if len(matcher) != 1:
+        raise ValueError(f"{pointer}: matcher must have exactly one of {sorted(MATCHER_KEYS)}")
+    (op, operand), number = next(iter(matcher.items())), (int, float)
+    if op in {"gte", "lte"} and (isinstance(operand, bool) or not isinstance(operand, number)):
+        raise ValueError(f"{pointer}: {op} matcher needs a number")
+    if op == "len" and (isinstance(operand, bool) or not isinstance(operand, int) or operand < 0):
+        raise ValueError(f"{pointer}: len matcher needs a non-negative integer")
+    if op == "exists" and not isinstance(operand, bool):
+        raise ValueError(f"{pointer}: exists matcher needs true or false")
+
+
 class FinalObservation(StrictModel):
     path: str = Field(min_length=1)
     assertion: str = Field(min_length=1)
     expected: dict[str, JsonValue] = Field(min_length=1)
     bearer_token_env: str | None = None
+    origin: str | None = None
+    headers_env: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def require_safe_read(self) -> "FinalObservation":
         if not self.path.startswith("/") or self.path.startswith("//") or "#" in self.path:
             raise ValueError("observation path must be a same-origin relative path")
-        if any(not pointer.startswith("/") for pointer in self.expected):
+        if any(pointer and not pointer.startswith("/") for pointer in self.expected):
             raise ValueError("expected keys must be JSON Pointers")
-        if self.bearer_token_env and not re.fullmatch(r"[A-Z_][A-Z0-9_]*", self.bearer_token_env):
+        for pointer, value in self.expected.items():
+            if as_matcher(value) is value:
+                _check_matcher(pointer, value)
+        if self.bearer_token_env and not re.fullmatch(ENV_NAME, self.bearer_token_env):
             raise ValueError("bearer_token_env must name an uppercase environment variable")
+        for header, env in self.headers_env.items():
+            if not re.fullmatch(r"[A-Za-z0-9!#$%&'*+.^_`|~-]+", header):
+                raise ValueError(f"headers_env key {header!r} is not a valid header name")
+            if not re.fullmatch(ENV_NAME, env):
+                raise ValueError(f"headers_env {header} must name an uppercase environment variable")
+        if self.origin is not None:
+            self.origin = validate_target(self.origin, "observation origin")
         return self
 
 
@@ -266,6 +303,7 @@ class ScenarioManifest(StrictModel):
     assertions: list[str] = Field(min_length=1)
     observer: str = Field(min_length=1)
     observation: FinalObservation | None = None
+    allowed_origins: list[str] = Field(default_factory=list)
     budgets: Budgets
 
     @model_validator(mode="after")
@@ -282,6 +320,9 @@ class ScenarioManifest(StrictModel):
             raise ValueError("scheduled duration plus fixture and 5-second observation deadline exceeds max_seconds budget")
         if self.observation and self.observation.assertion not in self.assertions:
             raise ValueError("observation assertion must be declared in assertions")
+        self.allowed_origins = [validate_target(origin, "allowed_origins entry") for origin in self.allowed_origins]
+        if self.observation and self.observation.origin and self.observation.origin not in self.allowed_origins:
+            raise ValueError(f"observation origin {self.observation.origin} must be listed in allowed_origins")
         return self
 
     @computed_field

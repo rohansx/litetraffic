@@ -29,6 +29,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `assertions` | yes | Assertion IDs that must receive evidence for a pass |
 | `observer` | yes | Descriptive label for how the effect is observed |
 | `observation` | no | Final read-only HTTP check ([below](#final-observation)) |
+| `allowed_origins` | no | Absolute http(s) origins the observation may read besides the target ([below](#observing-another-origin)) |
 | `budgets` | yes | `max_seconds`, `max_requests`, `max_write_attempts`, `max_in_flight`, `max_artifact_bytes` |
 
 `inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s for `owned_http`, 2 × `timeout_seconds` for `command`) and observation (5 s) deadlines must fit `max_seconds`.
@@ -175,6 +176,40 @@ Check the resulting state once, after all journeys finish:
 ```
 
 The controller sends one `GET` (with `X-LiteTraffic-Run` and, if present, `X-LiteTraffic-Fixture`), requires HTTP 200 with JSON, and compares each JSON Pointer to its expected value. `assertion` must be listed in `assertions`. It supports the same optional `bearer_token_env`. An unreachable observer yields `unknown`, which prevents a pass.
+
+### Matchers
+
+Each `expected` value is either a literal, compared for equality, or a matcher object with exactly one of these keys:
+
+| Matcher | Passes when the value at the pointer |
+|---|---|
+| `{"eq": v}` | exists and equals `v` |
+| `{"gte": n}` / `{"lte": n}` | exists, is a number (not a boolean), and is ≥ / ≤ `n` |
+| `{"len": n}` | exists, is an array, string or object, and has `n` items/characters/keys |
+| `{"exists": true\|false}` | is present / absent (a present `null` counts as present) |
+
+An object is treated as a matcher only when all its keys are matcher keys; any other object is a literal. Wrap a literal object that looks like a matcher in `eq`, e.g. `{"eq": {"len": 2}}`. A matcher with more than one key or a wrongly typed operand fails validation. The empty pointer `""` addresses the whole response body, for example `{"": {"len": 2}}` on an array.
+
+`observation.json` keeps `expected` and `actual`, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the `actual` value (`null` when missing) and `pass`. The observation passes only when every check passes.
+
+### Observing another origin
+
+To read state from a second service, such as PostgREST in front of the database, set `origin` and list it in the top-level `allowed_origins`:
+
+```json
+"allowed_origins": ["https://db.example.test"],
+"observation": {
+  "origin": "https://db.example.test",
+  "path": "/rest/v1/orders?select=id&status=eq.paid",
+  "assertion": "paid_orders_persist",
+  "expected": {"": {"len": 20}},
+  "headers_env": {"apikey": "DB_ANON_KEY"}
+}
+```
+
+- `origin` must be an absolute http(s) URL without credentials; link-local and cloud metadata addresses are rejected, as for targets. A trailing slash is ignored. An origin not listed in `allowed_origins` fails validation. Without `origin`, the observation reads the target.
+- `headers_env` maps header names to uppercase environment variable names. Values are read at run time and sent only on the observation request; they are never written to artifacts. A missing or empty variable makes the observation `unknown` with reason `observer header env NAME missing` and no request is sent. `inspect` lists the variable names under `secret_env`.
+- The run and fixture headers are sent to the other origin too.
 
 ## Validating a new scenario
 
