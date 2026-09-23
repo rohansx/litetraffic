@@ -315,3 +315,39 @@ def test_script_reports_victim_unchanged_unknown_when_inconclusive(tmp_path, cap
     assert code == 0, result
     script = (tmp_path / "out" / "journeys.js").read_text()
     assert "endpoint.attack_body" in script and "inconclusive" in script
+
+
+def test_kit_token_env_is_a_declared_secret(tmp_path, capsys):
+    code, result = _init(tmp_path, _config(), capsys)
+    assert code == 0, result
+    assert load_scenario(tmp_path / "out").manifest.secret_env == ["ALICE_TOKEN"]
+    assert main(["inspect", str(tmp_path / "out"), "--json"]) == 0
+    assert "ALICE_TOKEN" in json.loads(capsys.readouterr().out)["secret_env"]
+
+
+def test_echoed_kit_token_is_redacted_everywhere(tmp_path, monkeypatch, capsys):
+    import httpx
+
+    from litetraffic.observation import observe
+    from test_runner import fake_k6
+
+    token = "alice-bearer-token-value"
+    echo = httpx.MockTransport(lambda request: httpx.Response(200, json={"leak": token}))
+    monkeypatch.setattr("litetraffic.runner.observe", lambda *args, **kwargs: observe(*args, transport=echo, **kwargs))
+    observation = {"path": "/echo", "assertion": "echoed", "expected": {"/leak": {"exists": True}, "": {"eq": None}}}  # `eq` records the whole echoed body
+    code, result = _init(tmp_path, _config(observations=[observation]), capsys)
+    assert code == 0, result
+    monkeypatch.setenv("ALICE_TOKEN", token)
+    monkeypatch.setenv("JWT_SECRET", "kit-signing-secret-value")
+    monkeypatch.setenv("FAKE_K6_EVENTS", "[]")
+    k6 = fake_k6(tmp_path, [], echo_env=("ALICE_TOKEN",))
+
+    main(["verify", "--target", "http://example.test", "--scenario", str(tmp_path / "out"), "--output-dir", str(tmp_path / "runs"), "--k6-path", str(k6), "--json"])
+
+    stdout = capsys.readouterr().out
+    run_dir = tmp_path / "runs" / json.loads(stdout)["run_id"]
+    observed = json.loads((run_dir / "observation.json").read_text())[0]
+    assert observed["checks"]["/leak"]["pass"] and observed["actual"][""] == {"leak": "[redacted]"}
+    assert (run_dir / "engine.stdout.log").read_text().strip() == "[redacted]"
+    for text in [stdout, *(p.read_text(errors="replace") for p in run_dir.rglob("*") if p.is_file())]:
+        assert token not in text

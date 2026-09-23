@@ -307,6 +307,7 @@ class ScenarioManifest(StrictModel):
     observations: list[FinalObservation] = Field(default_factory=list)  # the legacy `observation` becomes its only entry
     allowed_origins: list[str] = Field(default_factory=list)
     allowed_origins_env: str | None = None  # names a variable holding comma-separated extra origins for origin_env
+    secret_env: list[str] = Field(default_factory=list)  # names of other credential variables to scrub, such as ready bearer tokens
     budgets: Budgets
 
     @model_validator(mode="after")
@@ -334,6 +335,8 @@ class ScenarioManifest(StrictModel):
             raise ValueError("observation assertions must be distinct")
         if self.allowed_origins_env is not None and not re.fullmatch(ENV_NAME, self.allowed_origins_env):
             raise ValueError("allowed_origins_env must name an uppercase environment variable")
+        if any(not re.fullmatch(ENV_NAME, name) for name in self.secret_env):
+            raise ValueError("secret_env entries must name uppercase environment variables")
         token_envs = [token_env_name(actor.actor_class) for actor in self.actors if actor.auth]
         if len(set(token_envs)) != len(token_envs):
             raise ValueError(f"actor classes with auth must map to distinct token variables: {', '.join(token_envs)}")

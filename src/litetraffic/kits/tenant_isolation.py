@@ -274,6 +274,9 @@ def build_manifest(config: KitConfig, raw: dict) -> dict:
     }
     if observations:
         manifest["observations"] = observations
+    token_envs = [identity.token_env for identity in config.identities if identity.token_env]
+    if token_envs:
+        manifest["secret_env"] = token_envs
     manifest |= origins
     return manifest
 
