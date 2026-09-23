@@ -11,6 +11,7 @@ from litetraffic import dashboard_pages as pages
 from litetraffic.runs import list_runs
 
 HOST = "127.0.0.1"
+_LOOPBACK_NAMES = ("127.0.0.1", "localhost", "[::1]")
 FILTERS = ("scenario", "verdict", "seed")
 _TYPES = {".html": "text/html", ".json": "application/json"}
 
@@ -77,6 +78,10 @@ def _handler(runs_dir: Path) -> type[BaseHTTPRequestHandler]:
                 self.wfile.write(data)
 
         def do_GET(self) -> None:  # noqa: N802 - http.server naming
+            # DNS rebinding guard: only loopback names for this exact port may read anything.
+            port = self.server.server_address[1]
+            if (self.headers.get("Host") or "").lower() not in {f"{name}:{port}" for name in _LOOPBACK_NAMES}:
+                return self._send(421, pages.page("Misdirected request", "<h1>Misdirected request</h1>"))
             url = urlsplit(self.path)
             parts = [unquote(part) for part in url.path.split("/")[1:]]
             if parts == [""]:
