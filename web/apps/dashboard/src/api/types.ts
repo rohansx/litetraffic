@@ -105,11 +105,14 @@ export interface RateSummary {
   rate: number;
   failed?: number;
   samples?: number;
+  /** Requests that never got an HTTP status (evidence.py). */
+  transport?: number;
 }
 export interface OperationMetrics {
-  p95?: number;
-  failed_rate?: number;
-  samples?: number;
+  /** null when the operation recorded no durations (evidence.py). */
+  p95: number | null;
+  failed_rate: number | null;
+  samples: number;
 }
 export interface RunMetrics {
   http_req_duration_ms?: LatencySummary;
@@ -228,6 +231,8 @@ export interface ArtifactFile {
   size: number;
 }
 export interface RunDetail {
+  /** Directory name under runs-dir (an activity id for `up`). */
+  run_id: string;
   /** run.json; null for an activity (`up`) directory or unreadable metadata. */
   run: RunManifest | null;
   /** result.json; null for an activity or a run that never finished. */
