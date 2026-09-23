@@ -5,10 +5,12 @@ import os
 import re
 import subprocess
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 import httpx
 
+from litetraffic.auth import redact
 from litetraffic.models import OwnedHttpFixture
 from litetraffic.observation import _pointer
 from litetraffic.process import _communicate, _stop_process
@@ -47,8 +49,10 @@ def create_fixture(
 STDERR_LIMIT = 4096  # bytes of command stderr kept in fixture.json (the tail, where errors usually are)
 
 
-def run_fixture_command(stage: str, argv: list[str], cwd: Path, env: dict[str, str], timeout: int) -> tuple[dict, str]:
-    """Run one fixture hook without a shell; return its fixture.json record and its stdout."""
+def run_fixture_command(
+    stage: str, argv: list[str], cwd: Path, env: dict[str, str], timeout: int, secrets: Iterable[str] = ()
+) -> tuple[dict, str]:
+    """Run one fixture hook without a shell; return its fixture.json record (stderr scrubbed of `secrets`) and its stdout."""
     record: dict = {"argv": argv, "exit_code": None, "status": "ok", "stderr": ""}
     stdout = ""
     started = time.monotonic()
@@ -71,7 +75,7 @@ def run_fixture_command(stage: str, argv: list[str], cwd: Path, env: dict[str, s
         except KeyboardInterrupt:
             stdout, stderr = _stop_process(process)
             record.update(status="cancelled", reason=f"fixture {stage} cancelled")
-        record["stderr"] = stderr.encode()[-STDERR_LIMIT:].decode(errors="ignore")
+        record["stderr"] = redact(stderr, secrets).encode()[-STDERR_LIMIT:].decode(errors="ignore")
     record["duration_seconds"] = round(time.monotonic() - started, 3)
     return record, stdout
 

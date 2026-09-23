@@ -53,6 +53,8 @@ def fake_k6(
         "if echo:\n"
         "    print(echo); print(echo, file=sys.stderr)\n"
         "    with console.open('a') as stream: stream.write(echo + '\\n')\n"
+        "    with metrics.open('a') as stream:\n"
+        "        stream.write(json.dumps({'type':'Point','metric':'lt_echo','data':{'value':1,'tags':{'echo':echo}}}) + '\\n')\n"
         "console.chmod(0o644)\n"
         "metrics.chmod(0o644)\n"
         f"time.sleep({sleep_seconds})\n"

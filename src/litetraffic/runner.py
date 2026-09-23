@@ -123,7 +123,7 @@ def verify(
     fixture = hooks = None
     commands = bundle.manifest.fixtures.command
     if commands and lifecycle == "running":
-        setup, setup_stdout = run_fixture_command("setup", commands.setup, bundle.root, hook_environment, commands.timeout_seconds)
+        setup, setup_stdout = run_fixture_command("setup", commands.setup, bundle.root, hook_environment, commands.timeout_seconds, secrets)
         hooks = {"setup": setup}
         if fixture_json(setup_stdout):
             environment["LT_FIXTURE_JSON"] = hook_environment["LT_FIXTURE_JSON"] = fixture_json(setup_stdout)
@@ -227,7 +227,7 @@ def verify(
         metrics["fixture_requests"] = fixture["create"]["requests"] + fixture.get("cleanup", {}).get("requests", 0)
     if hooks:
         # Teardown runs whatever happened before it, including a failed or cancelled setup.
-        hooks["teardown"], _ = run_fixture_command("teardown", commands.teardown, bundle.root, hook_environment, commands.timeout_seconds)
+        hooks["teardown"], _ = run_fixture_command("teardown", commands.teardown, bundle.root, hook_environment, commands.timeout_seconds, secrets)
         if hooks["teardown"]["status"] == "cancelled":
             lifecycle = "cancelled"
             hooks["teardown"].update(status="error", reason="fixture teardown cancelled; fixture state may remain")

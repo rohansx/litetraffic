@@ -11,6 +11,8 @@ import time
 from collections.abc import Iterable, Mapping
 
 REDACTED = "[redacted]"
+# Shorter values are too likely to collide with ordinary evidence text (`true`, ids) to substring-redact.
+MIN_SECRET_LENGTH = 8
 
 
 class AuthError(Exception):
@@ -52,6 +54,8 @@ def mint_tokens(actors: Iterable, run_id: str, environ: Mapping[str, str], now: 
         secret = environ.get(actor.auth.secret_env)
         if not secret:
             raise AuthError(f"auth secret env {actor.auth.secret_env} missing")
+        if len(secret) < MIN_SECRET_LENGTH:
+            raise AuthError(f"auth secret env {actor.auth.secret_env} is shorter than {MIN_SECRET_LENGTH} characters")
         claims = _substitute(actor.auth.claims, {"run_id": run_id, "actor_index": str(index)})
         claims |= {"iat": issued, "exp": issued + actor.auth.ttl_seconds}
         tokens[token_env_name(actor.actor_class)] = jwt_hs256(claims, secret)
@@ -66,5 +70,6 @@ def secret_values(actors: Iterable, environ: Mapping[str, str], tokens: Mapping[
 
 def redact(text: str, secrets: Iterable[str]) -> str:
     for secret in secrets:
-        text = text.replace(secret, REDACTED)
+        if len(secret) >= MIN_SECRET_LENGTH:
+            text = text.replace(secret, REDACTED)
     return text

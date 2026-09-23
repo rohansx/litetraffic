@@ -150,8 +150,8 @@ An actor may declare an `auth` recipe. Before any fixture work or traffic, the c
 - `claims` is any JSON object. In its string values, `${run_id}` becomes the run ID and `${actor_index}` the actor's position in `actors` (from 0); any other `${...}` placeholder is rejected. The controller sets `iat` to the signing time and `exp` to `iat + ttl_seconds`, replacing declared values of either.
 - `ttl_seconds` is 1 to 86400.
 - Two auth actor classes that map to the same `LT_TOKEN_` name are rejected. `LT_TOKEN_*` variables inherited from the calling shell are not passed to k6.
-- A missing or empty `secret_env` makes the run an `error` before any fixture or k6 process starts, with the limitation `auth secret env NAME missing`.
-- Tokens and signing keys are never written by the controller. If a script prints one, it is replaced with `[redacted]` in `engine.stdout.log`, `engine.stderr.log`, `console.log` and `metrics.jsonl`. `inspect` lists the `secret_env` names.
+- A missing or empty `secret_env` makes the run an `error` before any fixture or k6 process starts, with the limitation `auth secret env NAME missing`. A signing key shorter than 8 characters is refused the same way, with `auth secret env NAME is shorter than 8 characters`, because a short value cannot be scrubbed from evidence without corrupting it.
+- Tokens and signing keys are never written by the controller. If a script or command fixture prints one, it is replaced with `[redacted]` in `engine.stdout.log`, `engine.stderr.log`, `console.log`, `metrics.jsonl` and the fixture hook `stderr` in `fixture.json`. `inspect` lists the `secret_env` names.
 
 In the script, send the token like any header: `http.get(url, { headers: { Authorization: `Bearer ${__ENV.LT_TOKEN_BUYER}` } })`.
 

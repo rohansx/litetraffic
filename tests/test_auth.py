@@ -10,12 +10,13 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from litetraffic.auth import AuthError, mint_tokens, token_env_name
+from litetraffic.auth import AuthError, mint_tokens, redact, token_env_name
 from litetraffic.cli import main
 from litetraffic.models import Actor, ScenarioManifest
 from litetraffic.observation import observe
 from litetraffic.runner import verify
 from test_runner import assertion, fake_k6
+from test_command_fixture import py
 from test_scenario import manifest, write_bundle
 
 SECRET = "s3cr3t-signing-key-value"
@@ -143,6 +144,55 @@ def test_missing_secret_is_an_error_before_k6_starts(tmp_path, monkeypatch):
     assert result["engine_exit_code"] is None
     assert not (tmp_path / "k6-env.json").exists()
     assert "auth secret env LT_TEST_JWT_SECRET missing" in result["limitations"]
+
+
+def test_short_secret_is_refused_by_name(tmp_path, monkeypatch):
+    with pytest.raises(AuthError, match="^auth secret env LT_TEST_JWT_SECRET is shorter than 8 characters$"):
+        mint_tokens([Actor.model_validate(actor) for actor in _actors()], "run_x", {"LT_TEST_JWT_SECRET": "short"})
+
+    scenario = write_bundle(tmp_path / "scenario", manifest(actors=_actors()))
+    monkeypatch.setenv("FAKE_K6_EVENTS", "[]")
+    monkeypatch.setenv("FAKE_K6_ENV", str(tmp_path / "k6-env.json"))
+    monkeypatch.setenv("LT_TEST_JWT_SECRET", "true")
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
+
+    assert result["verdict"] == "error"
+    assert not (tmp_path / "k6-env.json").exists()
+    assert "auth secret env LT_TEST_JWT_SECRET is shorter than 8 characters" in result["limitations"]
+
+
+def test_redact_never_substitutes_short_values():
+    text = '{"passed": true, "run_id": "run_1"}'
+    assert redact(text, ["true", "run_1"]) == text
+    assert redact("key=s3cr3t-signing-key-value", [SECRET]) == "key=[redacted]"
+
+
+def test_every_kept_output_is_scrubbed_and_still_parses(tmp_path, monkeypatch):
+    leak = "import os, sys; print(os.environ['LT_TEST_JWT_SECRET'], file=sys.stderr)"
+    data = manifest(
+        actors=_actors(),
+        fixtures={"recipe": "seeded", "command": {"setup": py(leak), "teardown": py(leak), "timeout_seconds": 2}},
+    )
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setenv("FAKE_K6_ENV", str(tmp_path / "k6-env.json"))
+    monkeypatch.setenv("LT_TEST_JWT_SECRET", SECRET)
+
+    result = verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events, echo_env=("LT_TOKEN_BUYER", "LT_TEST_JWT_SECRET"))))
+
+    assert result["verdict"] == "pass", result["limitations"]  # evidence full of `true` still parses
+    token = json.loads((tmp_path / "k6-env.json").read_text())["LT_TOKEN_BUYER"]
+    run_dir = tmp_path / "runs" / result["run_id"]
+    for name in ("console.log", "metrics.jsonl", "engine.stdout.log", "engine.stderr.log", "fixture.json"):
+        text = (run_dir / name).read_text()
+        assert token not in text and SECRET not in text, name
+        assert "[redacted]" in text, name
+    metric_lines = [json.loads(line) for line in (run_dir / "metrics.jsonl").read_text().splitlines()]
+    assert {"echo": "[redacted] [redacted]"} in [line["data"].get("tags") for line in metric_lines]
+    fixture = json.loads((run_dir / "fixture.json").read_text())
+    assert fixture["setup"]["stderr"] == fixture["teardown"]["stderr"] == "[redacted]\n"
 
 
 def test_inspect_lists_auth_secret_env(tmp_path, capsys):
