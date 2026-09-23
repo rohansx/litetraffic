@@ -1,0 +1,23 @@
+{
+  "name": "tenant-isolation-kit",
+  "identities": [
+    {"name": "tenant-a", "headers": {"X-Actor-Tenant": "a"}, "resources": ["a"]},
+    {"name": "tenant-b", "headers": {"X-Actor-Tenant": "b"}, "resources": ["b"]}
+  ],
+  "endpoints": [
+    {"method": "GET", "path": "/tenants/{id}/records/1", "kind": "read"},
+    {"method": "PUT", "path": "/tenants/{id}/records/1", "kind": "write", "body": {"value": "mallory"}}
+  ],
+  "fixtures": {
+    "recipe": "owned-overlapping-tenant-records",
+    "owned_http": {
+      "create_path": "/fixtures",
+      "delete_path": "/fixtures/{fixture_id}",
+      "id_pointer": "/id",
+      "create_body": {"tenant_a_value": "alpha", "tenant_b_value": "beta"}
+    }
+  },
+  "observations": [
+    {"path": "/tenant/state", "assertion": "tenant_fixture_intact", "expected": {"/tenant_count": 2, "/overlapping_local_ids": true}}
+  ]
+}

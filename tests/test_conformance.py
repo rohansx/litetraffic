@@ -104,3 +104,36 @@ def test_example_conformance(tmp_path, example, flags, expected):
     if flags == ["--wrong-duplicate"]:
         row = next(row for row in result["assertions"] if row["id"] == "one_effect_per_payment")
         assert {"expected": 1, "actual": 2}.items() <= row["failures"][0].items(), row
+
+
+KIT_CASES = [([], "pass", set()), (["--wrong-leak"], "fail", {"cross_tenant_read_blocked", "cross_tenant_write_blocked"}),
+             (["--deny-all"], "fail", {"own_access"}), (["--wrong-silent-write"], "fail", {"victim_unchanged"})]
+
+
+@pytest.mark.parametrize(("flags", "expected", "failed"), KIT_CASES, ids=[flags[0] if flags else "reference" for flags, *_ in KIT_CASES])
+def test_tenant_isolation_kit_conformance(tmp_path, flags, expected, failed):
+    scenario = tmp_path / "kit"
+    generated = subprocess.run(
+        [sys.executable, "-m", "litetraffic", "init", "tenant-isolation",
+         "--config", str(EXAMPLES / "tenant_api" / "kit.json"), "--out", str(scenario)],
+        capture_output=True, text=True, timeout=30,
+    )
+    assert generated.returncode == 0, generated.stdout + generated.stderr
+    port = _free_port()
+    server = subprocess.Popen(
+        [sys.executable, str(EXAMPLES / "tenant_api" / "server.py"), "--port", str(port), *flags],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        _wait_listening(server, port)
+        completed = subprocess.run(
+            [sys.executable, "-m", "litetraffic", "verify", str(scenario), "--target", f"http://127.0.0.1:{port}",
+             "--seed", "42", "--output-dir", str(tmp_path / "runs"), "--json"],
+            capture_output=True, text=True, timeout=120,
+        )
+    finally:
+        server.terminate()
+        server.wait(timeout=10)
+    result = json.loads(completed.stdout)
+    assert result["verdict"] == expected, completed.stdout
+    assert {row["id"] for row in result["assertions"] if row["status"] == "fail"} >= failed, completed.stdout

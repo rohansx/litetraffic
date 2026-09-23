@@ -113,4 +113,6 @@ The resolver constructs `https://<port>-<sandbox-id>.e2b.app`. You own sandbox c
 
 ## Your own app
 
-Copy a relevant bundle, adapt its API calls and expected business results, then validate it against both a correct implementation and a controlled fault. Follow the [scenario guide](scenarios.md) before allowing writes.
+Checking that one tenant cannot read or change another's data? Generate the scenario instead of writing it: see [Tenant isolation in 10 minutes](scenarios.md#tenant-isolation-in-10-minutes).
+
+Otherwise, copy a relevant bundle, adapt its API calls and expected business results, then validate it against both a correct implementation and a controlled fault. Follow the [scenario guide](scenarios.md) before allowing writes.

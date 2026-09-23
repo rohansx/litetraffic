@@ -7,6 +7,7 @@ The long-term goal is **users as an API**: give an application a believable, sta
 ## Available now (`0.1.0.dev0`)
 
 - `doctor`, `inspect`, `verify`, `diff`
+- `init` (`init tenant-isolation`): generates a tenant-isolation bundle (own access, cross-tenant read/write rejection, victim read-back compare) from a small JSON config
 - `approve` and `verify --require-approval`/`--approved-digest`: local approvals bound to the scenario digest and target origin
 - `dashboard`: a read-only local page on `127.0.0.1:8780` for runs, series, activities, per-scenario p95 trends and diffs, with filters, auto-refresh and a light/dark theme
 - `prune`: run retention by count or age
