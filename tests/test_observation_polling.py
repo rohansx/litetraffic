@@ -138,3 +138,25 @@ def test_inspect_counts_polling_attempts_as_observation_requests(tmp_path, capsy
                     budgets=manifest()["budgets"] | {"max_requests": 67, "max_seconds": 32})
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["maximum_observation_requests"] == 6 + 1
+
+
+def test_engine_time_allowance_leaves_the_polling_deadline_to_the_observer(tmp_path, monkeypatch):
+    from litetraffic import runner
+
+    obs = {"path": "/a", "assertion": "a", "expected": {"/n": 1}, "until": {"deadline_seconds": 10, "interval_seconds": 2}}
+    data = manifest(observation=obs, assertions=["accepted_orders_persist", "a"],
+                    budgets=manifest()["budgets"] | {"max_requests": 66, "max_seconds": 27})
+    scenario = write_bundle(tmp_path / "scenario", data)
+    events = [assertion("accepted_orders_persist") for _ in range(20)]
+    monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
+    monkeypatch.setattr("litetraffic.runner.observe", lambda *a, **k: {"assertion": "a", "status": "pass", "attempts": 1})
+    timeouts, communicate = [], runner._communicate
+
+    def spy(process, timeout):
+        timeouts.append(timeout)
+        return communicate(process, timeout=timeout)
+
+    monkeypatch.setattr(runner, "_communicate", spy)
+    verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, events)))
+
+    assert timeouts == [27 - (10 + 5)]  # max_seconds minus the observation's reserved seconds (deadline + last request)
