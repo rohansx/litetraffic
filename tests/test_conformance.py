@@ -327,6 +327,51 @@ def test_kit_isolates_cookies_per_identity_and_for_anonymous_probes(tmp_path, an
     assert result["verdict"] == verdict, result
 
 
+@pytest.mark.parametrize(
+    ("mode", "failed"),
+    [("reference", set()), ("denial-body", {"cross_tenant_read_blocked", "unauthenticated_rejected"}),
+     ("owner-list", {"no_foreign_data_in_own_responses"})],
+)
+def test_kit_protected_markers_in_response_bodies(tmp_path, mode, failed):
+    """Statuses are right in every mode; only the bodies leak: a 403 carrying the record, or an owner's list with both tenants' rows."""
+    from http.server import BaseHTTPRequestHandler
+
+    records = {"a": {"id": "a", "secret": "private-a"}, "b": {"id": "b", "secret": "private-b"}}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            caller, (kind, owner) = self.headers.get("X-Tenant"), self.path.strip("/").split("/")
+            if caller == owner:
+                rows = list(records.values()) if mode == "owner-list" else [records[owner]]
+                status, payload = 200, rows if kind == "lists" else records[owner]
+            else:
+                status = 401 if caller is None else 403
+                payload = records[owner] if mode == "denial-body" else {"error": "forbidden"}
+            body = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            return
+
+    config = {
+        "name": "markers",
+        "identities": [{"name": "a", "headers": {"X-Tenant": "a"}, "resources": ["a"], "markers": ["private-a"]},
+                       {"name": "b", "headers": {"X-Tenant": "b"}, "resources": ["b"], "markers": ["private-b"]}],
+        "endpoints": [{"method": "GET", "path": "/records/{id}", "kind": "read"},
+                      {"method": "GET", "path": "/lists/{id}", "kind": "read"}],
+        "unauthenticated_probe": True,
+        "schedule": ONE_SECOND,
+    }
+    result = _serve_kit(tmp_path, config, Handler)
+    assert _failed(result) == failed, result
+    assert result["verdict"] == ("fail" if failed else "pass"), result
+    evidence = "".join(path.read_text(errors="replace") for path in (tmp_path / "runs").rglob("*") if path.is_file() and path.suffix != ".js")
+    assert "private-" not in json.dumps(result) and "private-" not in evidence  # marker names/indexes only, never values or bodies
+
+
 def test_kit_gives_each_identity_a_fresh_jar_every_journey(tmp_path):
     """A cookie-first server: the session cookie wins over X-Tenant, and a cookie from another journey is refused.
 

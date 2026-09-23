@@ -209,3 +209,30 @@ def test_script_isolates_cookie_jars(tmp_path, capsys):
     assert "jar: identity.jar" in script  # every request names its jar; none falls back to k6's shared VU jar
     assert "KIT.identities.map((identity) => ({ ...identity, jar: new http.CookieJar() }))" in script
     assert "send({ ...ANONYMOUS, jar: new http.CookieJar() }, " in script and "send(ANONYMOUS," not in script
+
+
+def test_markers_add_the_foreign_data_assertion_and_silence_the_warning(tmp_path, capsys):
+    identities = [identity | {"markers": [f"secret-{identity['name']}"]} for identity in _config()["identities"]]
+    code, result = _init(tmp_path, _config(identities=identities), capsys)
+    assert code == 0, result
+    assert "no_foreign_data_in_own_responses" in load_scenario(tmp_path / "out").manifest.assertions
+    assert [identity["markers"] for identity in _kit(tmp_path)["identities"]] == [["secret-alice"], ["secret-bob"]]
+    assert result["warnings"] == []
+
+
+def test_missing_markers_warn_that_status_only_checks_miss_denial_bodies(tmp_path, capsys):
+    identities = _config()["identities"]
+    code, result = _init(tmp_path, _config(identities=[identities[0] | {"markers": ["secret-alice"]}, identities[1]]), capsys)
+    assert code == 0, result
+    assert len(result["warnings"]) == 1 and "'bob'" in result["warnings"][0]
+    assert "status-only checks cannot detect data returned in denial bodies" in result["warnings"][0]
+    code, result = _init(tmp_path, _config(), capsys)
+    assert len(result["warnings"]) == 2
+    assert "no_foreign_data_in_own_responses" not in load_scenario(tmp_path / "out").manifest.assertions
+    assert [identity["markers"] for identity in _kit(tmp_path)["identities"]] == [[], []]
+
+
+def test_markers_must_be_non_empty_strings(tmp_path, capsys):
+    identities = _config()["identities"]
+    code, result = _init(tmp_path, _config(identities=[identities[0] | {"markers": [""]}, identities[1]]), capsys)
+    assert code == 3 and "markers" in result["error"], result

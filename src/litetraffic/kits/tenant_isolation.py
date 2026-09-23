@@ -53,6 +53,8 @@ class Identity(StrictModel):
     headers: dict[str, str] = Field(default_factory=dict)  # plain, non-secret headers such as a tenant id
     # Each resource is an id (the `{id}` placeholder) or named placeholders, e.g. {"id": org, "position": pos}.
     resources: list[Ref] = Field(min_length=1)
+    # Strings that only this identity's private data contains (a seeded secret, a row id); no other caller's response may contain one.
+    markers: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -170,7 +172,14 @@ def _journey_assertions(config: KitConfig) -> list[str]:
         names += ["cross_tenant_write_blocked", "victim_unchanged"]
     if config.unauthenticated_probe:
         names.append("unauthenticated_rejected")
+    if any(identity.markers for identity in config.identities):
+        names.append("no_foreign_data_in_own_responses")
     return names
+
+
+def warnings(config: KitConfig) -> list[str]:
+    return [f"identity {identity.name!r} declares no markers: status-only checks cannot detect data returned in denial bodies"
+            for identity in config.identities if not identity.markers]
 
 
 def _journey(config: KitConfig) -> dict:
@@ -246,6 +255,7 @@ def build_script(config: KitConfig) -> str:
                 "headers": identity.headers,
                 "token_env": token_env_name(identity.name) if identity.auth else identity.token_env,
                 "resources": identity.refs,
+                "markers": identity.markers,
             }
             for identity in config.identities
         ],
@@ -259,7 +269,7 @@ def build_script(config: KitConfig) -> str:
     return SCRIPT.replace("__KIT__", json.dumps(kit, indent=2))
 
 
-def generate(config_path: Path, out: Path) -> ScenarioBundle:
+def generate(config_path: Path, out: Path) -> tuple[ScenarioBundle, list[str]]:
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -269,7 +279,7 @@ def generate(config_path: Path, out: Path) -> ScenarioBundle:
     out.mkdir(parents=True, exist_ok=True)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     (out / "journeys.js").write_text(build_script(config), encoding="utf-8")
-    return load_scenario(out)
+    return load_scenario(out), warnings(config)
 
 
 SCRIPT = """\
@@ -320,25 +330,43 @@ function where(identity, endpoint, ref, status) {
   return { identity: identity.name, method: endpoint.method, path: endpoint.path, id: ref, status };
 }
 
+// Indexes of `victim`'s markers in the raw response body (any status). Evidence gets the indexes, never the values.
+function leaked(response, victim) {
+  const body = typeof response.body === "string" ? response.body : "";
+  return victim.markers.flatMap((marker, index) => (body.includes(marker) ? [index] : []));
+}
+
+// Fails `assertion` when the status is wrong or the body carries one of `victim`'s markers.
+function check(failures, assertion, statusOk, response, victim, entry) {
+  const markers = leaked(response, victim);
+  if (markers.length) failures[assertion].push({ ...entry, markers: { identity: victim.name, indexes: markers } });
+  else if (!statusOk) failures[assertion].push(entry);
+}
+
 export default function tenantIsolation() {
   const failures = Object.fromEntries(KIT.assertions.map((name) => [name, []]));
   // One cookie jar per identity per journey, never k6's shared VU jar: a session cookie set for one identity must not ride along on another's requests.
   const identities = KIT.identities.map((identity) => ({ ...identity, jar: new http.CookieJar() }));
   identities.forEach((owner, index) => {
     const attacker = identities[1 - index];
+    // No owner response may carry the other identity's markers (the assertion exists whenever markers do).
+    const ownBody = (response, endpoint, ref) =>
+      check(failures, "no_foreign_data_in_own_responses", true, response, attacker, where(owner, endpoint, ref, response.status));
     for (const ref of owner.resources) {
       for (const endpoint of KIT.endpoints) {
         if (endpoint.kind === "write" && !endpoint.check_own) continue;
         const own = send(owner, endpoint, ref, "own");
         if (!endpoint.statuses.includes(own.status)) failures.own_access.push(where(owner, endpoint, ref, own.status));
+        ownBody(own, endpoint, ref);
       }
       for (const endpoint of KIT.endpoints) {
         if (endpoint.kind === "read") {
           const cross = send(attacker, endpoint, ref, "cross_tenant");
-          if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_read_blocked.push(where(attacker, endpoint, ref, cross.status));
+          check(failures, "cross_tenant_read_blocked", KIT.rejected.includes(cross.status), cross, owner, where(attacker, endpoint, ref, cross.status));
           if (failures.unauthenticated_rejected) {
             const anonymous = send({ ...ANONYMOUS, jar: new http.CookieJar() }, endpoint, ref, "unauthenticated");  // an empty jar: no cookies at all
-            if (!KIT.rejected.includes(anonymous.status)) failures.unauthenticated_rejected.push(where(ANONYMOUS, endpoint, ref, anonymous.status));
+            check(failures, "unauthenticated_rejected", KIT.rejected.includes(anonymous.status), anonymous, owner,
+              where(ANONYMOUS, endpoint, ref, anonymous.status));
           }
           continue;
         }
@@ -346,7 +374,9 @@ export default function tenantIsolation() {
         const before = send(owner, readBack, ref, "own");
         const cross = send(attacker, endpoint, ref, "cross_tenant");
         const after = send(owner, readBack, ref, "own");
-        if (!KIT.rejected.includes(cross.status)) failures.cross_tenant_write_blocked.push(where(attacker, endpoint, ref, cross.status));
+        ownBody(before, readBack, ref);
+        ownBody(after, readBack, ref);
+        check(failures, "cross_tenant_write_blocked", KIT.rejected.includes(cross.status), cross, owner, where(attacker, endpoint, ref, cross.status));
         const unchanged = readBack.statuses.includes(before.status) && after.status === before.status && lt.deepEqual(content(before), content(after));
         if (!unchanged) {
           failures.victim_unchanged.push({ ...where(attacker, endpoint, ref, cross.status), before: before.status, after: after.status });
@@ -356,10 +386,11 @@ export default function tenantIsolation() {
   });
   const expected = {
     own_access: "every owner request returns one of its endpoint's statuses",
-    cross_tenant_read_blocked: KIT.rejected,
-    cross_tenant_write_blocked: KIT.rejected,
-    unauthenticated_rejected: KIT.rejected,
+    cross_tenant_read_blocked: { statuses: KIT.rejected, body: "none of the owner's markers" },
+    cross_tenant_write_blocked: { statuses: KIT.rejected, body: "none of the owner's markers" },
+    unauthenticated_rejected: { statuses: KIT.rejected, body: "none of the owner's markers" },
     victim_unchanged: "the owner's read-back is identical before and after each cross-tenant write",
+    no_foreign_data_in_own_responses: "no owner response contains the other identity's markers",
   };
   for (const [assertion, failed] of Object.entries(failures)) {
     lt.evidence(assertion, failed.length === 0, {
