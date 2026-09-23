@@ -6,7 +6,7 @@ from litetraffic.approval import origin
 from litetraffic.cli import main
 from litetraffic.scenario import load_scenario
 
-from test_scenario import write_bundle
+from test_scenario import manifest, write_bundle
 
 TARGET = "http://localhost:3000"
 
@@ -150,3 +150,16 @@ def test_malformed_approvals_file_exits_3(workspace, capsys, content, command):
 
     assert status == 3
     assert "approvals file" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_editing_a_command_fixture_script_after_approval_invalidates_it(workspace, capsys):
+    command = {"setup": ["python3", "setup.py"], "teardown": ["python3", "setup.py"], "timeout_seconds": 5}
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 28})
+    scenario = write_bundle(workspace / "traffic", data)
+    (scenario / "setup.py").write_text("print(1)\n")
+    approve(scenario)
+    (scenario / "setup.py").write_text("print(2)\n")
+    capsys.readouterr()
+
+    assert verify(scenario, "--require-approval") == 3
+    assert "not approved" in json.loads(capsys.readouterr().out)["error"]
