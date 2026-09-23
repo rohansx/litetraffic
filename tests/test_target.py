@@ -29,6 +29,21 @@ BLOCKED = [
     "http://169.254.43518/",  # a.b.c short form
     "http://169.16689662/",  # a.b short form
     "http://2852039166./",
+    "http://169\u3002254\u3002169\u3002254/",  # ideographic full stop
+    "http://169\uff0e254\uff0e169\uff0e254/",  # fullwidth full stop
+    "http://169\uff61254\uff61169\uff61254/",  # halfwidth ideographic full stop
+    "http://169\u3002254\uff0e169\uff61254./",  # mixed
+    "http://metadata\u3002google\u3002internal/",
+    "http://METADATA.GOOGLE.INTERNAL\u3002/",
+]
+
+# Forms httpx refuses to parse at all; they must be rejected, never passed through.
+UNPARSEABLE = [
+    "http://\uff11\uff16\uff19.\uff12\uff15\uff14.\uff11\uff16\uff19.\uff12\uff15\uff14/",  # fullwidth digits
+    "http://\uff11\uff16\uff19\u3002254\u3002169\u3002254/",  # fullwidth digits + ideographic stops
+    "http://[fd00\uff1aec2::254]/",  # fullwidth colon
+    "http://[fd00:ec2::\uff12\uff15\uff14]/",  # fullwidth digits
+    "http://[\uff46d00:ec2::254]/",  # fullwidth letter
 ]
 
 
@@ -47,6 +62,29 @@ def test_validate_target_allows_ordinary_hosts(target):
     assert validate_target(target) == target
 
 
+@pytest.mark.parametrize("target", UNPARSEABLE)
+def test_validate_target_rejects_unparseable_unicode_hosts(target):
+    with pytest.raises(ValueError):
+        validate_target(target)
+
+
+@pytest.mark.parametrize(
+    ("target", "canonical"),
+    [("http://App.Example.TEST/p/", "http://app.example.test/p"),
+     ("http://app\u3002example\uff0etest:8000", "http://app.example.test:8000"),
+     ("http://\u00c4\u00d6.example", "http://xn--4ca0b.example")],
+)
+def test_validate_target_returns_canonical_url(target, canonical):
+    assert validate_target(target) == canonical
+
+
+def test_doctor_probes_the_canonical_url(tmp_path):
+    seen = []
+    run_doctor(target="http://app\u3002example\u3002test/", k6_path=str(executable(tmp_path)),
+               transport=httpx.MockTransport(lambda request: seen.append(str(request.url)) or httpx.Response(200)))
+    assert seen == ["http://app.example.test"]
+
+
 def test_doctor_rejects_integer_encoded_metadata_target(tmp_path):
     def forbidden(request):
         raise AssertionError("doctor must not contact a metadata target")
@@ -58,6 +96,13 @@ def test_observation_origin_rejects_ec2_ipv6_metadata_in_long_form():
     with pytest.raises(ValidationError, match="link-local"):
         FinalObservation(path="/rows", assertion="rows_ok", expected={"/n": 1},
                          origin="http://[fd00:ec2:0:0:0:0:0:254]")
+
+
+@pytest.mark.parametrize("target", ["http://169%2e254%2e169%2e254", "http://metadata.google.internal%2e"])
+def test_percent_encoded_host_passes_only_because_httpx_keeps_it_encoded(target):
+    # If httpx ever decodes %-escapes in hosts, validate_target must decode before checking.
+    assert validate_target(target) == target
+    assert "%2e" in httpx.URL(target).host
 
 
 @pytest.mark.parametrize("target", ["http://169.254.169.254/", "http://2852039166/", "http://[fd00:ec2::254]/"])

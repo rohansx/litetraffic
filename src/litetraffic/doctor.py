@@ -102,7 +102,7 @@ def run_doctor(
     if target is None:
         return DoctorReport(checks=checks)
 
-    validate_target(target)
+    target = validate_target(target)
     try:
         with httpx.Client(transport=transport, timeout=3, follow_redirects=False) as client:
             response = client.get(target)

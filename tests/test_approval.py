@@ -128,6 +128,14 @@ def test_origin_drops_default_ports():
     assert origin("http://[::1]:8080") == "http://[::1]:8080"
 
 
+def test_approval_binds_the_canonical_origin(workspace, capsys):
+    scenario = write_bundle(workspace / "traffic")
+
+    assert approve(scenario, target="http://App。Example.test") == 0
+    assert json.loads(capsys.readouterr().out)["target_origin"] == "http://app.example.test"
+    assert verify(scenario, "--require-approval", target="http://app.example.test/") == 0
+
+
 MALFORMED_APPROVALS = [
     "not json",
     "[]",

@@ -4,6 +4,8 @@ import ipaddress
 import re
 from urllib.parse import urlsplit
 
+import httpx
+
 # ponytail: literal addresses and well-known names only; hostnames are not resolved,
 # so a DNS name that points at a metadata address still passes.
 METADATA_HOSTS = {"metadata.google.internal", "metadata.goog"}
@@ -41,7 +43,19 @@ def _blocked(host: str) -> bool:
 
 
 def validate_target(value: str, label: str = "target") -> str:
-    """Return the target without a trailing slash, or raise ValueError if it is not allowed."""
+    """Return the canonical target (as httpx will request it) without a trailing slash, or raise ValueError.
+
+    Canonicalizing first means IDNA/Unicode full stops, case and trailing dots cannot hide a blocked host.
+    """
+    # ponytail: a percent-encoded host (169%2e254...) passes unchecked; httpx sends it still encoded
+    # (DNS fails) and k6/Go rejects it, so it cannot reach a metadata address. Decode it if either changes.
+    try:
+        value = str(httpx.URL(value))
+    except httpx.InvalidURL as exc:
+        host = urlsplit(value).hostname or ""
+        if _blocked(host):  # e.g. octal IPv4, which httpx refuses but other resolvers accept
+            raise ValueError(f"{label} {host}: link-local/metadata address not allowed") from exc
+        raise ValueError(f"{label} is not a valid URL: {exc}") from exc
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"{label} must be an absolute http or https URL")
