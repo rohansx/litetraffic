@@ -17,6 +17,7 @@ from litetraffic.scenario import ScenarioBundle, load_scenario
 
 REJECTED_STATUSES = [401, 403, 404]
 DEFAULT_STATUSES = {"read": [200], "write": [200, 201, 204]}
+DEFAULT_FIXTURES = {"recipe": "static-resources"}
 DEFAULT_SCHEDULE = {
     "unit": "journeys_per_second",
     "phases": [
@@ -111,9 +112,10 @@ class KitConfig(StrictModel):
     name: str = Field(min_length=1)
     identities: list[Identity] = Field(min_length=2, max_length=2)
     endpoints: list[Endpoint] = Field(min_length=1)
-    fixtures: Fixtures | None = None
+    # Absent means the default; an explicit null is rejected.
+    fixtures: Fixtures = Field(default_factory=lambda: Fixtures.model_validate(DEFAULT_FIXTURES))
     observations: list[FinalObservation] = Field(default_factory=list)
-    schedule: Schedule | None = None
+    schedule: Schedule = Field(default_factory=lambda: Schedule.model_validate(DEFAULT_SCHEDULE))
     allowed_origins: list[str] = Field(default_factory=list)  # copied into the manifest for observation origins
     allowed_origins_env: str | None = None
     max_in_flight: int = Field(default=6, gt=0)
@@ -131,6 +133,9 @@ class KitConfig(StrictModel):
             raise ValueError(f"endpoint names must be distinct: {', '.join(named)}")
         for endpoint in self.endpoints:
             self.read_back_index(endpoint)  # raises on a bad reference
+        generated = set(_journey_assertions(self))
+        if clash := [o.assertion for o in self.observations if o.assertion in generated]:
+            raise ValueError(f"observation assertion {clash[0]!r} collides with a generated assertion")
         refs = [ref for identity in self.identities for ref in identity.refs]
         keys = set(refs[0])
         if any(set(ref) != keys for ref in refs):
@@ -190,14 +195,14 @@ def _journey(config: KitConfig) -> dict:
 
 def build_manifest(config: KitConfig, raw: dict) -> dict:
     """The manifest dict; passthrough sections (fixtures, schedule, observations) are copied as written."""
-    fixtures = raw.get("fixtures", {"recipe": "static-resources"})
+    fixtures = raw.get("fixtures", DEFAULT_FIXTURES)
     schedule = raw.get("schedule", DEFAULT_SCHEDULE)
     observations = raw.get("observations", [])
     origins = {key: raw[key] for key in ("allowed_origins", "allowed_origins_env") if key in raw}
     journey = _journey(config)
-    phases = Schedule.model_validate(schedule).resolve(seed=0)
+    phases = config.schedule.resolve(seed=0)
     planned, seconds = sum(phase.admitted_journeys for phase in phases), sum(phase.seconds for phase in phases)
-    reserved = Fixtures.model_validate(fixtures)
+    reserved = config.fixtures
     lifecycle = 2 * int(reserved.owned_http is not None)
     actors = []
     for identity, written in zip(config.identities, raw["identities"]):

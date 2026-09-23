@@ -79,6 +79,11 @@ def test_writes_add_read_back_checks_and_budgets(tmp_path, capsys):
         ({"identities": [{"name": "x", "resources": ["1"]}, _config()["identities"][1]]}, "auth, token_env or headers"),
         ({"identities": [_config()["identities"][0] | {"auth": _config()["identities"][1]["auth"]}, _config()["identities"][1]]}, "not both"),
         ({"surprise": 1}, "surprise"),
+        ({"fixtures": None}, "invalid kit config: fixtures: "),
+        ({"schedule": None}, "invalid kit config: schedule: "),
+        ({"observations": [{"path": "/rows", "assertion": "victim_unchanged", "expected": {"": 1}}]}, "victim_unchanged"),
+        ({"unauthenticated_probe": True, "observations": [{"path": "/r", "assertion": "unauthenticated_rejected", "expected": {"": 1}}]},
+         "collides"),
     ],
 )
 def test_invalid_config_is_rejected_with_a_clear_error(tmp_path, capsys, changes, message):
