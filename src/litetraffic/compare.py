@@ -43,7 +43,7 @@ def _load_run(path: Path) -> tuple[dict, dict]:
         or not all(isinstance(item, dict) for item in assertions)
         or any(
             key in metrics and not isinstance(metrics[key], dict)
-            for key in ("http_req_duration_ms", "http_req_failed_rate", "by_operation")
+            for key in ("http_req_duration_ms", "http_req_failed_rate", "unexpected_http_failure_rate", "by_operation")
         )
     ):
         raise ComparisonError(f"invalid result artifact in {root}")
@@ -64,6 +64,18 @@ def _operation_p95_changes(baseline: dict, candidate: dict) -> dict:
             "change_percent": round((after - before) / before * 100, 3) if before > 0 else None,
         }
     return changes
+
+
+def _rate_change(baseline_metrics: dict, candidate_metrics: dict, key: str) -> dict:
+    before = baseline_metrics.get(key, {}).get("rate")
+    after = candidate_metrics.get(key, {}).get("rate")
+    return {
+        "baseline": float(before) if _finite_number(before) else None,
+        "candidate": float(after) if _finite_number(after) else None,
+        "change_percentage_points": round((after - before) * 100, 3)
+        if _finite_number(before) and _finite_number(after)
+        else None,
+    }
 
 
 def _delivered_less_work(progress: dict) -> bool:
@@ -167,8 +179,6 @@ def compare_runs(
     if incompatibilities:
         status = "incomparable"
 
-    baseline_error_rate = baseline_metrics.get("http_req_failed_rate", {}).get("rate")
-    candidate_error_rate = candidate_metrics.get("http_req_failed_rate", {}).get("rate")
     baseline_throughput = baseline_metrics.get("http_reqs_per_second")
     candidate_throughput = candidate_metrics.get("http_reqs_per_second")
     throughput_change = None
@@ -187,13 +197,7 @@ def compare_runs(
             "samples": {"baseline": baseline_samples, "candidate": candidate_samples},
             "status": status,
         },
-        "http_error_rate": {
-            "baseline": float(baseline_error_rate) if _finite_number(baseline_error_rate) else None,
-            "candidate": float(candidate_error_rate) if _finite_number(candidate_error_rate) else None,
-            "change_percentage_points": round((candidate_error_rate - baseline_error_rate) * 100, 3)
-            if _finite_number(baseline_error_rate) and _finite_number(candidate_error_rate)
-            else None,
-        },
+        "http_error_rate": _rate_change(baseline_metrics, candidate_metrics, "http_req_failed_rate"),
         "http_reqs_per_second": {
             "baseline": float(baseline_throughput) if _finite_number(baseline_throughput) else None,
             "candidate": float(candidate_throughput) if _finite_number(candidate_throughput) else None,
@@ -203,6 +207,8 @@ def compare_runs(
             baseline_metrics.get("by_operation", {}), candidate_metrics.get("by_operation", {})
         ),
     }
+    if "unexpected_http_failure_rate" in baseline_metrics or "unexpected_http_failure_rate" in candidate_metrics:
+        performance["unexpected_http_error_rate"] = _rate_change(baseline_metrics, candidate_metrics, "unexpected_http_failure_rate")
     progress = {
         "iterations": {
             "baseline": baseline_metrics.get("iterations"),

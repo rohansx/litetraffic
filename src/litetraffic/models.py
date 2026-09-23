@@ -186,6 +186,10 @@ class Journey(StrictModel):
     max_writes: int = Field(ge=0)
     # operation tag -> requests that must be observed in flight together for the run to count
     min_overlap: dict[Annotated[str, Field(min_length=1)], Annotated[int, Field(gt=0)]] = Field(default_factory=dict)
+    # operation tag -> HTTP statuses that are an intended outcome, not a failure, for unexpected_http_failure_rate
+    expected_statuses: dict[
+        Annotated[str, Field(min_length=1)], Annotated[list[Annotated[int, Field(strict=True, ge=100, le=599)]], Field(min_length=1)]
+    ] = Field(default_factory=dict)
 
 
 class Phase(StrictModel):

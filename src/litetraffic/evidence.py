@@ -92,11 +92,16 @@ def _percentile(values: list[float], quantile: float) -> float:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
 
 
-def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
+def _read_metrics(path: Path, journeys=()) -> tuple[dict[str, object], int]:
     count_metrics = {"dropped_iterations", "http_reqs", "iterations"}
+    expected: dict[str, set[str]] = {}
+    for journey in journeys:
+        for operation, statuses in journey.expected_statuses.items():
+            expected.setdefault(operation, set()).update(str(status) for status in statuses)
     totals: dict[str, object] = {}
     durations: list[float] = []
     failed: list[float] = []
+    unexpected = 0
     operations: dict[str, dict[str, list[float]]] = {}
     transport_failures = 0
     malformed = 0
@@ -126,6 +131,7 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
                 _operation(operations, item)["failed"].append(float(value))
                 # k6 tags requests that never got an HTTP response with status "0"; 4xx/5xx also carry an error_code.
                 transport_failures += value == 1 and tags.get("status") == "0"
+                unexpected += value == 1 and tags.get("status") not in expected.get(tags.get("operation"), ())
                 failed.append(float(value))
         except (AttributeError, KeyError, json.JSONDecodeError, TypeError, ValueError):
             malformed += 1
@@ -146,6 +152,12 @@ def _read_metrics(path: Path) -> tuple[dict[str, object], int]:
         }
         if transport_failures:
             totals["http_req_failed_rate"]["transport"] = transport_failures
+        if expected:
+            totals["unexpected_http_failure_rate"] = {
+                "samples": len(failed),
+                "failed": unexpected,
+                "rate": round(unexpected / len(failed), 6),
+            }
     if operations:
         totals["by_operation"] = {
             name: {

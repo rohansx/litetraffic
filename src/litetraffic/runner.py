@@ -189,7 +189,7 @@ def verify(
             path.write_text(redact(path.read_text(errors="replace"), secrets))
 
     events, malformed_events = _read_events(console_path, run_id)
-    metrics, malformed_metrics = _read_metrics(metrics_path)
+    metrics, malformed_metrics = _read_metrics(metrics_path, bundle.manifest.journeys)
     events_path = events_dir / "000001.jsonl"
     _write_text(events_path, "".join(json.dumps(event, sort_keys=True) + "\n" for event in events))
 

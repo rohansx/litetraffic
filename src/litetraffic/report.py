@@ -49,6 +49,8 @@ def render_report(result: dict, run: dict) -> str:
     notes = "".join(f"<li>{escape(str(item))}</li>" for item in result.get("notes", []))
     failure_rate = metrics.get("http_req_failed_rate", {}).get("rate")
     failure_label = f"{failure_rate * 100:.1f}%" if failure_rate is not None else "Unavailable"
+    unexpected_rate = metrics.get("unexpected_http_failure_rate", {}).get("rate")
+    unexpected = "" if unexpected_rate is None else f"<dt>Unexpected HTTP failure rate</dt><dd>{unexpected_rate * 100:.1f}%</dd>"
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LiteTraffic — {escape(str(run['scenario']))}</title>
@@ -65,7 +67,7 @@ dl{{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}} dt{{font-w
 <dt>Engine</dt><dd>{escape(str(run['engine']))}</dd>
 <dt>Journeys</dt><dd>{escape(_count(metrics.get('iterations', 0)))} / {escape(_count(result['planned_journeys']))}</dd>
 <dt>HTTP requests</dt><dd>{escape(_count(metrics.get('http_reqs', 0)))}</dd>
-{latency}<dt>Latency samples</dt><dd>{escape(_count(durations.get('samples', 0)))}</dd><dt>HTTP failure rate</dt><dd>{escape(failure_label)}</dd>
+{latency}<dt>Latency samples</dt><dd>{escape(_count(durations.get('samples', 0)))}</dd><dt>HTTP failure rate</dt><dd>{escape(failure_label)}</dd>{unexpected}
 <dt>HTTP throughput</dt><dd>{escape(str(metrics.get('http_reqs_per_second', 'Unavailable')))} req/s</dd></dl></section>
 <section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody>{assertions}</tbody></table></section>
 <section class="card"><h2>Concurrency</h2><table><thead><tr><th>Operation</th><th>Peak requests in flight</th></tr></thead><tbody>{overlap}</tbody></table></section>

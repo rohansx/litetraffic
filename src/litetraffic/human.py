@@ -30,6 +30,8 @@ def format_verify(result: dict, output_dir: Path) -> list[str]:
         return lines
     lines = [f"verdict: {result['verdict'].upper()}  lifecycle: {result['lifecycle']}  {_journeys(result)}"]
     lines += [f"{item['id']}  {item['status']}  {item['samples']}" for item in result.get("assertions", [])]
+    if unexpected := result.get("metrics", {}).get("unexpected_http_failure_rate"):
+        lines.append(f"unexpected HTTP failure rate: {unexpected['rate'] * 100:.1f}% ({unexpected['failed']}/{unexpected['samples']})")
     lines += [f"- {limitation}" for limitation in result.get("limitations", [])]
     if "run_id" in result and "report" in result:
         lines.append(f"report: {Path(output_dir).resolve() / result['run_id'] / result['report']}")
@@ -47,6 +49,10 @@ def format_diff(result: dict) -> list[str]:
     baseline = "n/a" if p95["baseline_ms"] is None else f"{p95['baseline_ms']}ms"
     candidate = "n/a" if p95["candidate_ms"] is None else f"{p95['candidate_ms']}ms"
     lines.append(f"p95: {baseline} -> {candidate}{change}  status: {p95['status']}")
+    if unexpected := result["performance"].get("unexpected_http_error_rate"):
+        before, after = ("n/a" if rate is None else f"{rate * 100:.1f}%" for rate in (unexpected["baseline"], unexpected["candidate"]))
+        change = "" if unexpected["change_percentage_points"] is None else f" ({unexpected['change_percentage_points']:+}pp)"
+        lines.append(f"unexpected HTTP failure rate: {before} -> {after}{change}")
     for name, item in result["performance"].get("by_operation", {}).items():
         change = "" if item["change_percent"] is None else f" ({item['change_percent']:+}%)"
         lines.append(f"p95 {name}: {item['baseline_p95_ms']}ms -> {item['candidate_p95_ms']}ms{change}")
