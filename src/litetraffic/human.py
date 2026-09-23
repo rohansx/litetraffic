@@ -66,6 +66,7 @@ def format_inspect(result: dict) -> list[str]:
     lines = [
         f"name: {result['name']}",
         f"script: {result['script']}",
+        f"scenario sha256: {result['scenario_sha256']}",
         f"planned journeys: {result['planned_journeys']}",
         f"max journey requests: {result['maximum_journey_requests']}",
         f"max observation requests: {result['maximum_observation_requests']}",

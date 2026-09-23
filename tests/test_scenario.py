@@ -51,11 +51,11 @@ def test_owned_fixture_reserves_setup_cleanup_requests_writes_and_time(tmp_path)
     owned = {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "create_body": {"total": 1000}, "id_pointer": "/id"}
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": owned},
-        budgets=manifest()["budgets"] | {"max_requests": 61, "max_write_attempts": 22, "max_seconds": 19},
+        budgets=manifest()["budgets"] | {"max_requests": 61, "max_write_attempts": 22, "max_seconds": 21},
     )
-    with pytest.raises(ValidationError, match="fixture deadline"):
+    with pytest.raises(ValidationError, match=r"fixture \(10 s\)"):
         load_scenario(write_bundle(tmp_path, data))
-    data["budgets"]["max_seconds"] = 20
+    data["budgets"]["max_seconds"] = 22
     with pytest.raises(ScenarioError, match="request budget"):
         load_scenario(write_bundle(tmp_path, data))
     data["budgets"]["max_requests"] = 62
@@ -66,11 +66,11 @@ COMMAND = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "rese
 
 
 def test_command_fixture_reserves_setup_and_teardown_timeouts_plus_stop_grace(tmp_path):
-    # 10 s schedule + 2 x (5 s timeout + 4 s SIGTERM/SIGKILL grace)
-    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND}, budgets=manifest()["budgets"] | {"max_seconds": 27})
-    with pytest.raises(ValidationError, match="18-second fixture deadline"):
+    # 10 s schedule + 2 s engine start/drain + 2 x (5 s timeout + 4 s SIGTERM/SIGKILL grace)
+    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND}, budgets=manifest()["budgets"] | {"max_seconds": 29})
+    with pytest.raises(ValidationError, match=r"fixture \(18 s\) and observation \(0 s\) deadlines need 30 s, max_seconds is 29"):
         load_scenario(write_bundle(tmp_path, data))
-    data["budgets"]["max_seconds"] = 28
+    data["budgets"]["max_seconds"] = 30
     command = load_scenario(write_bundle(tmp_path, data)).manifest.fixtures.command
     assert command.setup == ["psql", "-f", "seed.sql"]
     assert command.cwd == "bundle"
@@ -98,7 +98,7 @@ def test_command_fixture_rejects_unsafe_shapes(tmp_path, fixtures):
 def test_owned_fixture_requires_same_origin_scoped_cleanup(tmp_path, delete_path):
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": delete_path, "id_pointer": "/id"}},
-        budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22, "max_seconds": 22},
     )
     with pytest.raises(ValidationError, match="delete_path"):
         load_scenario(write_bundle(tmp_path, data))
@@ -127,9 +127,9 @@ def test_final_observation_reserves_time_for_its_deadline(tmp_path):
     data = manifest(
         observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
         assertions=["accepted_orders_persist", "ledger_total"],
-        budgets=manifest()["budgets"] | {"max_seconds": 12, "max_requests": 61},
+        budgets=manifest()["budgets"] | {"max_seconds": 14, "max_requests": 61},
     )
-    with pytest.raises(ValidationError, match="observation deadline"):
+    with pytest.raises(ValidationError, match=r"observation \(5 s\)"):
         load_scenario(write_bundle(tmp_path, data))
 
 
@@ -163,6 +163,13 @@ def test_rejects_missing_script(tmp_path):
     (path / "journeys.js").unlink()
     with pytest.raises(ScenarioError, match="does not exist"):
         load_scenario(path)
+
+
+def test_budget_leaves_engine_start_and_drain_time_beyond_the_schedule(tmp_path):
+    # A share equal to the schedule can never finish: k6 must start and drain the last journeys.
+    with pytest.raises(ValidationError, match=r"engine start/drain \(2 s\).* need 12 s, max_seconds is 11"):
+        load_scenario(write_bundle(tmp_path / "tight", manifest(budgets=manifest()["budgets"] | {"max_seconds": 11})))
+    load_scenario(write_bundle(tmp_path / "ok", manifest(budgets=manifest()["budgets"] | {"max_seconds": 12})))
 
 
 def test_rejects_schedule_longer_than_duration_budget(tmp_path):
@@ -494,7 +501,7 @@ def test_unreadable_import_is_a_scenario_error(tmp_path, monkeypatch):
 
 
 def test_command_fixture_inputs_are_hashed_into_the_digest(tmp_path):
-    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND | {"inputs": ["sql/seed.sql"]}}, budgets=manifest()["budgets"] | {"max_seconds": 28})
+    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND | {"inputs": ["sql/seed.sql"]}}, budgets=manifest()["budgets"] | {"max_seconds": 30})
     path = write_bundle(tmp_path, data)
     (path / "sql").mkdir()
     (path / "sql" / "seed.sql").write_text("insert into t values (1);\n")
@@ -512,7 +519,7 @@ def test_command_fixture_inputs_are_hashed_into_the_digest(tmp_path):
 )
 def test_rejects_unusable_command_fixture_inputs(tmp_path, name, message):
     (tmp_path / "seed.sql").write_text("select 1;\n")
-    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND | {"inputs": [name]}}, budgets=manifest()["budgets"] | {"max_seconds": 28})
+    data = manifest(fixtures={"recipe": "seeded", "command": COMMAND | {"inputs": [name]}}, budgets=manifest()["budgets"] | {"max_seconds": 30})
     with pytest.raises(ScenarioError, match=message):
         load_scenario(write_bundle(tmp_path / "bundle", data))
 

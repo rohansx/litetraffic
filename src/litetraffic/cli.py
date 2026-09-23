@@ -242,8 +242,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         _emit(payload, args.json, format_inspect)
         return 0
     except (ComparisonError, RunnerError, ScenarioError, ValidationError, ValueError, OSError) as exc:
-        _emit({"ok": False, "error": str(exc)}, getattr(args, "json", False))
+        error = _manifest_error(exc) if isinstance(exc, ValidationError) else str(exc)
+        _emit({"ok": False, "error": error}, getattr(args, "json", False))
         return 3
+
+
+def _manifest_error(exc: ValidationError) -> str:
+    """One line per problem, `field.path: message`, without pydantic's input dump and docs link."""
+    problems = []
+    for error in exc.errors():
+        message = error["msg"].removeprefix("Value error, ")
+        where = ".".join(str(part) for part in error["loc"])
+        problems.append(f"{where}: {message}" if where else message)
+    return "invalid manifest: " + "; ".join(problems)
 
 
 def entrypoint() -> None:

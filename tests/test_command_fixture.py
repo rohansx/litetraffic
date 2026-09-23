@@ -29,7 +29,7 @@ def command_bundle(tmp_path, setup, teardown, timeout_seconds=2):
     data = manifest(
         fixtures={"recipe": "seeded", "command": {"setup": setup, "teardown": teardown, "timeout_seconds": timeout_seconds}},
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 1 + 2 * (timeout_seconds + 4)},
+        budgets=manifest()["budgets"] | {"max_seconds": 1 + 2 + 2 * (timeout_seconds + 4)},
     )
     return write_bundle(tmp_path / "scenario", data)
 
@@ -97,7 +97,7 @@ def test_teardown_runs_after_any_engine_exit(tmp_path, monkeypatch, returncode, 
     assert (scenario / "teardown.json").exists()
     assert fixture["teardown"]["exit_code"] == 0
     if sleep_seconds:
-        assert "engine stopped after its 1-second share of the 13-second budget" in result["limitations"]
+        assert "engine stopped after its 3-second share of the 15-second budget" in result["limitations"]
 
 
 def test_teardown_runs_when_user_cancels(tmp_path, monkeypatch):

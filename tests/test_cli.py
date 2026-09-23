@@ -27,6 +27,23 @@ def test_inspect_invalid_scenario_returns_configuration_error(tmp_path, capsys):
     assert "stay inside" in output["error"]
 
 
+def test_invalid_manifest_error_names_the_field_without_pydantic_noise(tmp_path, capsys):
+    data = manifest(budgets=manifest()["budgets"] | {"max_seconds": 5})
+    status = main(["inspect", str(write_bundle(tmp_path, data)), "--json"])
+    error = json.loads(capsys.readouterr().out)["error"]
+    assert status == 3
+    assert error == (
+        "invalid manifest: scheduled duration (10 s) plus engine start/drain (2 s), fixture (0 s) and "
+        "observation (0 s) deadlines need 12 s, max_seconds is 5"
+    )
+
+    bad = manifest(budgets=manifest()["budgets"] | {"max_seconds": "soon"})
+    main(["inspect", str(write_bundle(tmp_path / "typed", bad)), "--json"])
+    error = json.loads(capsys.readouterr().out)["error"]
+    assert error.startswith("invalid manifest: budgets.max_seconds: ")
+    assert "input_value" not in error and "errors.pydantic.dev" not in error
+
+
 def test_os_error_in_a_command_is_a_json_configuration_error(tmp_path, monkeypatch, capsys):
     def unreadable(path):
         raise PermissionError("permission denied: manifest.json")
@@ -502,7 +519,7 @@ def test_inspect_without_owned_fixture_or_observation(tmp_path, capsys):
 
 def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
     command = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 2}
-    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 22})
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 24})
 
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0
     first = json.loads(capsys.readouterr().out)
@@ -520,20 +537,23 @@ def test_inspect_shows_command_fixture_argv_and_digest(tmp_path, capsys):
 
 def test_inspect_shows_command_fixture_inputs(tmp_path, capsys):
     command = {"setup": ["psql", "-f", "seed.sql"], "teardown": ["psql", "-f", "reset.sql"], "timeout_seconds": 2, "inputs": ["seed.sql"]}
-    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 22})
+    data = manifest(fixtures={"recipe": "seeded", "command": command}, budgets=manifest()["budgets"] | {"max_seconds": 24})
     path = write_bundle(tmp_path, data)
     (path / "seed.sql").write_text("select 1;\n")
 
     assert main(["inspect", str(path), "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["fixture"]["command"]["inputs"] == ["seed.sql"]
+    output = json.loads(capsys.readouterr().out)
+    assert output["fixture"]["command"]["inputs"] == ["seed.sql"]
     assert main(["inspect", str(path)]) == 0
-    assert "fixture input: seed.sql" in capsys.readouterr().out
+    text = capsys.readouterr().out
+    assert "fixture input: seed.sql" in text
+    assert f"scenario sha256: {output['scenario_sha256']}" in text  # the digest covering the inputs
 
 
 def test_verify_cancelled_during_fixture_create_exits_130(tmp_path, monkeypatch, capsys):
     import litetraffic.runner as runner
 
-    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22})
+    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22, "max_seconds": 22})
     scenario = write_bundle(tmp_path / "scenario", data)
 
     def cancel(*args):

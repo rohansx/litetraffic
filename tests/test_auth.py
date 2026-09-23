@@ -173,7 +173,7 @@ def test_every_kept_output_is_scrubbed_and_still_parses(tmp_path, monkeypatch):
     data = manifest(
         actors=_actors(),
         fixtures={"recipe": "seeded", "command": {"setup": py(leak), "teardown": py(leak), "timeout_seconds": 2}},
-        budgets=manifest()["budgets"] | {"max_seconds": 22},  # 10 s schedule + 2 x (2 s timeout + 4 s stop grace)
+        budgets=manifest()["budgets"] | {"max_seconds": 24},  # 10 s schedule + 2 s engine + 2 x (2 s timeout + 4 s stop grace)
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist") for _ in range(20)]

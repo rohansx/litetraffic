@@ -35,7 +35,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `allowed_origins_env` | no | Uppercase environment variable holding comma-separated extra origins an `origin_env` may resolve to ([below](#origin-from-the-environment)) |
 | `budgets` | yes | `max_seconds`, `max_requests`, `max_write_attempts`, `max_in_flight`, `max_artifact_bytes` |
 
-`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus fixture (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and observation (5 s per observation) deadlines must fit `max_seconds`.
+`inspect` rejects a manifest when the schedule could exceed its budgets: planned journeys × the largest `max_requests` (plus fixture and observer calls) must fit `max_requests`, the same for writes, and the scheduled duration plus 2 s for k6 start-up and in-flight journeys, the fixture deadline (10 s for `owned_http`, 2 × (`timeout_seconds` + 4 s stop grace) for `command`) and the observation deadline (5 s per observation) must fit `max_seconds`. The error names each part and the total, e.g. `scheduled duration (12 s) plus engine start/drain (2 s), fixture (48 s) and observation (10 s) deadlines need 72 s, max_seconds is 70`.
 
 ## Schedules
 

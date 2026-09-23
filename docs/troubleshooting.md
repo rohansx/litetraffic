@@ -10,8 +10,9 @@ Start with `litetraffic doctor --target <url> --json`, then open the run's `resu
 | `unsupported k6 version; expected v2.2.0` | A different k6 is installed | Install v2.2.0 alongside it and pass `--k6-path` |
 | `target must be an absolute http or https URL` | Missing scheme or host | Use e.g. `http://127.0.0.1:8765` |
 | `target URL must not contain credentials` | `user:pass@` in the URL | Move credentials to the scenario's token environment variables |
+| `invalid manifest: field.path: message` | The manifest fails validation; each problem is listed as `field.path: message`, separated by `;` (no path when the check spans several fields) | Fix the named field; `litetraffic inspect <scenario>` re-checks it without running |
 | `request budget ... is below the journey and lifecycle maximum` | Budgets too small for the schedule | Raise `max_requests`, or lower rates/durations/`max_requests` per journey |
-| `scheduled duration ... exceeds max_seconds budget` | Schedule plus fixture/observer deadlines is too long | Raise `max_seconds` or shorten the schedule |
+| `scheduled duration (...) plus engine start/drain (2 s), fixture (...) and observation (...) deadlines need N s, max_seconds is M` | Schedule plus 2 s engine start/drain and fixture/observer deadlines (N seconds) is longer than `max_seconds` (M) | Raise `max_seconds` to at least N or shorten the schedule |
 | Limitation `k6 thresholds breached`, verdict `fail` | k6 exited `99`: a threshold in the scenario script was crossed | Check the threshold values in the script against `metrics` in `result.json` |
 | Verdict `error`, lifecycle `crashed` | k6 failed to start or exited non-zero (other than `99`) | Read `engine.stderr.log`; often a script syntax error or a connection refused |
 | `target unreachable: all N requests failed before an HTTP response` | Every request failed before any HTTP response (connection refused, DNS, TLS, timeout) | Check that the app is running and `--target` host/port is correct; run `litetraffic doctor --target <url>` |

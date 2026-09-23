@@ -23,14 +23,14 @@ def test_multiple_observations_each_need_a_declared_assertion_budget_and_deadlin
     data = manifest(
         observations=[_obs("a"), _obs("b")],
         assertions=["accepted_orders_persist", "a", "b"],
-        budgets=manifest()["budgets"] | {"max_requests": 62},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_seconds": 22},
     )
     assert [o.assertion for o in load_scenario(write_bundle(tmp_path / "ok", data)).manifest.observations] == ["a", "b"]
 
     with pytest.raises(ScenarioError, match="request budget"):
         load_scenario(write_bundle(tmp_path / "req", data | {"budgets": data["budgets"] | {"max_requests": 61}}))
-    with pytest.raises(ValidationError, match="observation deadline"):  # 10 s schedule + 2 x 5 s
-        load_scenario(write_bundle(tmp_path / "time", data | {"budgets": data["budgets"] | {"max_seconds": 19}}))
+    with pytest.raises(ValidationError, match=r"observation \(10 s\) deadlines need 22 s, max_seconds is 21"):  # 10 s schedule + 2 s engine + 2 x 5 s
+        load_scenario(write_bundle(tmp_path / "time", data | {"budgets": data["budgets"] | {"max_seconds": 21}}))
     with pytest.raises(ValidationError, match="declared in assertions"):
         load_scenario(write_bundle(tmp_path / "undeclared", data | {"assertions": ["accepted_orders_persist", "a"]}))
     with pytest.raises(ValidationError, match="distinct"):
@@ -158,7 +158,7 @@ def test_verify_runs_each_observation_after_k6_and_records_each(tmp_path, monkey
         assertions=["accepted_orders_persist", "a", "b"],
         allowed_origins=["https://db.example.test"],
         allowed_origins_env="DB_ORIGINS",
-        budgets=manifest()["budgets"] | {"max_requests": 62, "max_seconds": 20},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_seconds": 22},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist") for _ in range(20)]
@@ -189,7 +189,7 @@ def test_verify_counts_no_request_for_an_observation_stopped_before_sending(tmp_
     data = manifest(
         observations=[_obs("a", origin_env="DB_ORIGIN"), _obs("b")],
         assertions=["accepted_orders_persist", "a", "b"],
-        budgets=manifest()["budgets"] | {"max_requests": 62, "max_seconds": 20},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_seconds": 22},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist") for _ in range(20)]
@@ -214,7 +214,7 @@ def test_inspect_lists_every_observation(tmp_path, capsys):
     data = manifest(
         observations=[_obs("a", bearer_token_env="A_TOKEN"), _obs("b", expected={"/n": "${planned_journeys}"}, headers_env={"apikey": "B_KEY"})],
         assertions=["accepted_orders_persist", "a", "b"],
-        budgets=manifest()["budgets"] | {"max_requests": 62},
+        budgets=manifest()["budgets"] | {"max_requests": 62, "max_seconds": 22},
     )
 
     assert main(["inspect", str(write_bundle(tmp_path, data)), "--json"]) == 0

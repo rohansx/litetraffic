@@ -475,7 +475,7 @@ def test_verify_freezes_the_seeded_resolved_schedule(tmp_path, monkeypatch):
 def test_verify_finalizes_partial_evidence_on_timeout(tmp_path, monkeypatch):
     data = manifest(
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 1, "max_requests": 3, "max_write_attempts": 1},
+        budgets=manifest()["budgets"] | {"max_seconds": 3, "max_requests": 3, "max_write_attempts": 1},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist")]
@@ -564,7 +564,7 @@ def test_owned_fixture_is_cleaned_after_engine_exit(tmp_path, monkeypatch, retur
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 5, "max_write_attempts": 3},
+        budgets=manifest()["budgets"] | {"max_seconds": 13, "max_requests": 5, "max_write_attempts": 3},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist")]
@@ -577,7 +577,7 @@ def test_owned_fixture_is_cleaned_after_engine_exit(tmp_path, monkeypatch, retur
 
     assert result["lifecycle"] == expected_lifecycle
     if expected_lifecycle == "timed_out":
-        assert "engine stopped after its 1-second share of the 11-second budget" in result["limitations"]
+        assert "engine stopped after its 3-second share of the 13-second budget" in result["limitations"]
     assert result["metrics"]["fixture_requests"] == 2
     assert result["metrics"]["total_http_reqs"] == 4
     assert calls == [("create", result["run_id"]), ("delete", result["run_id"], "owned-1")]
@@ -587,7 +587,7 @@ def test_owned_fixture_is_cleaned_after_engine_exit(tmp_path, monkeypatch, retur
 def test_owned_fixture_setup_failure_prevents_traffic(tmp_path, monkeypatch):
     import litetraffic.runner as runner
 
-    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22})
+    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22, "max_seconds": 22})
     scenario = write_bundle(tmp_path / "scenario", data)
     monkeypatch.setattr(runner, "create_fixture", lambda *args: {"status": "error", "reason": "fixture create HTTP 503", "requests": 1})
     result = runner.verify("http://example.test", scenario, tmp_path / "runs", str(fake_k6(tmp_path, [])))
@@ -599,7 +599,7 @@ def test_owned_fixture_setup_failure_prevents_traffic(tmp_path, monkeypatch):
 def test_owned_fixture_cleanup_failure_cannot_pass(tmp_path, monkeypatch):
     import litetraffic.runner as runner
 
-    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22})
+    data = manifest(fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}}, budgets=manifest()["budgets"] | {"max_requests": 62, "max_write_attempts": 22, "max_seconds": 22})
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist") for _ in range(20)]
     monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps(events))
@@ -616,7 +616,7 @@ def test_owned_fixture_is_cleaned_when_user_cancels(tmp_path, monkeypatch):
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 5, "max_write_attempts": 3},
+        budgets=manifest()["budgets"] | {"max_seconds": 13, "max_requests": 5, "max_write_attempts": 3},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     monkeypatch.setenv("FAKE_K6_EVENTS", json.dumps([assertion("accepted_orders_persist")]))
@@ -934,7 +934,7 @@ def test_throughput_is_measured_over_the_engine_window_only(tmp_path, monkeypatc
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 5, "max_write_attempts": 3},
+        budgets=manifest()["budgets"] | {"max_seconds": 13, "max_requests": 5, "max_write_attempts": 3},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist")]
@@ -968,7 +968,7 @@ def owned_fixture_observed_bundle(tmp_path: Path) -> Path:
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
         observation={"path": "/reports/ledger", "assertion": "ledger_total", "expected": {"/total": 1000}},
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 16, "max_requests": 6, "max_write_attempts": 3},
+        budgets=manifest()["budgets"] | {"max_seconds": 18, "max_requests": 6, "max_write_attempts": 3},
     )
     return write_bundle(tmp_path / "scenario", data)
 
@@ -1144,7 +1144,7 @@ def test_write_attempts_include_fixture_create_and_cleanup(tmp_path, monkeypatch
     data = manifest(
         fixtures={"recipe": "owned-shop", "owned_http": {"create_path": "/fixtures", "delete_path": "/fixtures/{fixture_id}", "id_pointer": "/id"}},
         schedule={"unit": "journeys_per_second", "phases": [{"name": "measure", "seconds": 1, "rate": 1}]},
-        budgets=manifest()["budgets"] | {"max_seconds": 11, "max_requests": 6, "max_write_attempts": 3},
+        budgets=manifest()["budgets"] | {"max_seconds": 13, "max_requests": 6, "max_write_attempts": 3},
     )
     scenario = write_bundle(tmp_path / "scenario", data)
     events = [assertion("accepted_orders_persist")]

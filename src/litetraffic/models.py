@@ -25,6 +25,10 @@ def _strings(value: JsonValue):
             yield from _strings(item)
 
 
+# ponytail: fixed headroom for k6 start-up and the last in-flight journeys; a share equal to the
+# schedule always times out. Make it per-scenario if slow journeys need more.
+ENGINE_SLACK_SECONDS = 2
+
 class JwtAuth(StrictModel):
     kind: Literal["jwt_hs256"]
     secret_env: str
@@ -296,20 +300,19 @@ class ScenarioManifest(StrictModel):
     def require_supported_version_and_duration(self) -> "ScenarioManifest":
         if self.schema_version != 1:
             raise ValueError("schema_version must be 1")
-        scheduled_seconds = sum(phase.seconds for phase in self.schedule.resolve(seed=0))
-        if scheduled_seconds > self.budgets.max_seconds:
-            raise ValueError("scheduled duration exceeds max_seconds budget")
-        fixture_seconds = self.fixtures.reserved_seconds
-        if fixture_seconds and scheduled_seconds + fixture_seconds > self.budgets.max_seconds:
-            raise ValueError(f"scheduled duration plus {fixture_seconds}-second fixture deadline exceeds max_seconds budget")
         if self.observation and self.observations:
             raise ValueError("use observation or observations, not both")
         if self.observation:
             self.observations = [self.observation]
+        scheduled_seconds = sum(phase.seconds for phase in self.schedule.resolve(seed=0))
+        fixture_seconds = self.fixtures.reserved_seconds
         observation_seconds = 5 * len(self.observations)
-        if observation_seconds and scheduled_seconds + fixture_seconds + observation_seconds > self.budgets.max_seconds:
+        needed = scheduled_seconds + ENGINE_SLACK_SECONDS + fixture_seconds + observation_seconds
+        if needed > self.budgets.max_seconds:
             raise ValueError(
-                f"scheduled duration plus fixture and {observation_seconds}-second observation deadline exceeds max_seconds budget"
+                f"scheduled duration ({scheduled_seconds} s) plus engine start/drain ({ENGINE_SLACK_SECONDS} s), "
+                f"fixture ({fixture_seconds} s) and observation ({observation_seconds} s) deadlines need {needed} s, "
+                f"max_seconds is {self.budgets.max_seconds}"
             )
         observed = [observation.assertion for observation in self.observations]
         if any(assertion not in self.assertions for assertion in observed):
