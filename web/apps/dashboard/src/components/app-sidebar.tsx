@@ -19,13 +19,16 @@ import {
 import { useApi } from "@/lib/use-api";
 
 const NAV_MAIN: NavItem[] = [
-  { title: "Overview", url: "/", icon: LayoutDashboard, end: true },
-  { title: "Runs", url: "/runs", icon: ListChecks },
-  { title: "Scenarios", url: "/scenarios", icon: Workflow },
-  { title: "Compare", url: "/compare", icon: GitCompareArrows },
+  { title: "Overview", url: "/", icon: LayoutDashboard, end: true, eyebrow: "verdict board" },
+  { title: "Runs", url: "/runs", icon: ListChecks, eyebrow: "evidence on disk" },
+  { title: "Scenarios", url: "/scenarios", icon: Workflow, eyebrow: "trends per scenario" },
+  { title: "Compare", url: "/compare", icon: GitCompareArrows, eyebrow: "baseline vs candidate" },
 ];
 
-const NAV_SECONDARY: NavItem[] = [{ title: "About", url: "/about", icon: Info }];
+const NAV_SECONDARY: NavItem[] = [{ title: "About", url: "/about", icon: Info, eyebrow: "how to read it" }];
+
+/** Every sidebar entry in order; page headers are numbered from it. */
+export const NAV_ITEMS = [...NAV_MAIN, ...NAV_SECONDARY];
 
 export function BrandMark({ className }: { className?: string }) {
   return (

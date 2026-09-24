@@ -50,7 +50,8 @@ function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: Scenar
       <ChartAreaInteractive runs={runs} />
 
       <div className="grid gap-4 md:gap-6 @5xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card>
+        <Card className="overflow-hidden pt-0">
+          <div className="window-card-header">scenarios · {summaries.length} tracked</div>
           <CardHeader>
             <CardTitle>Scenarios</CardTitle>
             <CardDescription>Latest verdict and recent history, oldest bar first.</CardDescription>
@@ -87,7 +88,8 @@ function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: Scenar
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden pt-0">
+          <div className="window-card-header">attention · {problems.length} not passed</div>
           <CardHeader>
             <CardTitle>Needs attention</CardTitle>
             <CardDescription>Most recent runs that did not pass.</CardDescription>

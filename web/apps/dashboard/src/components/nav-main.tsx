@@ -16,7 +16,12 @@ export interface NavItem {
   icon: LucideIcon;
   /** Active only on an exact match (the index route). */
   end?: boolean;
+  /** Mono label over the page title. */
+  eyebrow: string;
 }
+
+/** Signal-amber bar on the active entry's leading edge. */
+export const ACTIVE_BAR = "data-[active=true]:shadow-[inset_3px_0_0_var(--brand)]";
 
 export function isActive(pathname: string, { url, end }: NavItem) {
   return end ? pathname === url : pathname === url || pathname.startsWith(`${url}/`);
@@ -32,7 +37,7 @@ export function NavMain({ items, label }: { items: NavItem[]; label?: string }) 
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild isActive={isActive(pathname, item)} tooltip={item.title}>
+              <SidebarMenuButton asChild isActive={isActive(pathname, item)} tooltip={item.title} className={ACTIVE_BAR}>
                 <NavLink to={item.url} end={item.end} onClick={() => setOpenMobile(false)}>
                   <item.icon aria-hidden />
                   <span>{item.title}</span>

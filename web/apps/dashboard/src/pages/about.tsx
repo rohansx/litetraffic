@@ -33,9 +33,9 @@ export function AboutPage() {
         </p>
         <Section title="Runs">
           <p>Newest first. Each run has a verdict:</p>
-          <dl className="grid gap-2">
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-2">
             {(Object.keys(VERDICT_MEANING) as (keyof typeof VERDICT_MEANING)[]).map((verdict) => (
-              <div key={verdict} className="grid grid-cols-[7.5rem_1fr] items-baseline gap-2">
+              <div key={verdict} className="col-span-2 grid grid-cols-subgrid items-baseline">
                 <dt>
                   <VerdictBadge verdict={verdict} />
                 </dt>

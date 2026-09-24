@@ -7,14 +7,17 @@ import type { AssertionStatus, ListVerdict } from "@/api/types";
 type Tone = ListVerdict | AssertionStatus;
 
 const STYLE: Record<Tone, { label: string; icon: LucideIcon; badge: string; dot: string }> = {
-  pass: { label: "Pass", icon: CircleCheck, badge: "bg-pass-muted text-pass", dot: "bg-primary" },
-  fail: { label: "Fail", icon: CircleX, badge: "bg-fail-muted text-fail", dot: "bg-destructive" },
-  inconclusive: { label: "Inconclusive", icon: CircleHelp, badge: "bg-inconclusive-muted text-inconclusive", dot: "bg-muted-foreground/60" },
-  error: { label: "Error", icon: OctagonAlert, badge: "bg-error-muted text-error", dot: "bg-destructive" },
+  pass: { label: "Pass", icon: CircleCheck, badge: "bg-pass-muted text-pass", dot: "bg-pass" },
+  fail: { label: "Fail", icon: CircleX, badge: "bg-fail-muted text-fail", dot: "bg-fail" },
+  inconclusive: { label: "Inconclusive", icon: CircleHelp, badge: "bg-inconclusive-muted text-inconclusive", dot: "bg-inconclusive" },
+  error: { label: "Error", icon: OctagonAlert, badge: "bg-error-muted text-error", dot: "bg-error" },
   unknown: { label: "Unknown", icon: CircleHelp, badge: "bg-inconclusive-muted text-inconclusive", dot: "bg-muted-foreground/60" },
   unreadable: { label: "Unreadable", icon: CircleDashed, badge: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/60" },
   background: { label: "Activity", icon: Radio, badge: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground/60" },
 };
+
+/** Verdicts the three-lamp signal can show; other tones keep an icon. */
+const SIGNALLED = new Set(["pass", "fail", "inconclusive", "error"]);
 
 export const VERDICT_MEANING: Record<"pass" | "fail" | "inconclusive" | "error", string> = {
   pass: "Every declared check held with complete evidence.",
@@ -31,12 +34,17 @@ export function verdictLabel(verdict: string): string {
   return styleOf(verdict).label;
 }
 
-/** Verdict as icon + text: color is never the only signal. */
+/** Traffic-light lamps, one lit (stop = fail, caution = inconclusive, go = pass; error lights all three). Decorative: pair it with the verdict word. */
+export function Signal({ verdict, className }: { verdict: string; className?: string }) {
+  return <span aria-hidden data-slot="signal" data-verdict={verdict} className={cn("signal", className)} />;
+}
+
+/** Verdict as signal (or icon) + text: color is never the only signal. */
 export function VerdictBadge({ verdict, className }: { verdict: string; className?: string }) {
   const { label, icon: Icon, badge } = styleOf(verdict);
   return (
-    <Badge className={cn(badge, className)}>
-      <Icon aria-hidden />
+    <Badge className={cn("gap-1.5 font-mono", badge, className)}>
+      {SIGNALLED.has(verdict) ? <Signal verdict={verdict} className="[--signal-dot:0.4375rem]" /> : <Icon aria-hidden />}
       {label}
     </Badge>
   );

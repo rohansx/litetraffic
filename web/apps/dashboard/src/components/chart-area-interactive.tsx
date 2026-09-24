@@ -18,8 +18,8 @@ export const RANGES = {
 export type Range = keyof typeof RANGES;
 
 const chartConfig = {
-  passed: { label: "Passed", color: "var(--primary)" },
-  notPassed: { label: "Did not pass", color: "var(--muted-foreground)" },
+  judged: { label: "Judged runs", color: "var(--chart-1)" },
+  passed: { label: "Passed", color: "var(--pass)" },
 } satisfies ChartConfig;
 
 const hourFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -53,17 +53,20 @@ export function bucketRuns(runs: RunListEntry[], range: Range): Bucket[] {
   return buckets;
 }
 
-/** dashboard-01 ChartAreaInteractive: pass / did-not-pass runs over time with a range toggle. */
+/** dashboard-01 ChartAreaInteractive: judged runs (amber, the main series) with the passed share (verdict green) over time. */
 export function ChartAreaInteractive({ runs }: { runs: RunListEntry[] }) {
   const [range, setRange] = useState<Range>("24h");
-  const data = useMemo(() => bucketRuns(runs, range), [runs, range]);
+  const data = useMemo(() => bucketRuns(runs, range).map((bucket) => ({ ...bucket, judged: bucket.passed + bucket.notPassed })), [runs, range]);
   const passed = data.reduce((sum, bucket) => sum + bucket.passed, 0);
   const total = passed + data.reduce((sum, bucket) => sum + bucket.notPassed, 0);
   const format = RANGES[range].step === HOUR ? hourFormat : dayFormat;
   const pick = (value: string) => value && setRange(value as Range);
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card overflow-hidden pt-0">
+      <div className="window-card-header">
+        trend · {range} window
+      </div>
       <CardHeader>
         <CardTitle>Runs over time</CardTitle>
         <CardDescription>
@@ -114,13 +117,13 @@ export function ChartAreaInteractive({ runs }: { runs: RunListEntry[] }) {
         >
           <AreaChart data={data}>
             <defs>
-              <linearGradient id="fillPassed" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-passed)" stopOpacity={1.0} />
-                <stop offset="95%" stopColor="var(--color-passed)" stopOpacity={0.1} />
+              <linearGradient id="fillJudged" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-judged)" stopOpacity={0.45} />
+                <stop offset="95%" stopColor="var(--color-judged)" stopOpacity={0.05} />
               </linearGradient>
-              <linearGradient id="fillNotPassed" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-notPassed)" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="var(--color-notPassed)" stopOpacity={0.1} />
+              <linearGradient id="fillPassed" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-passed)" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="var(--color-passed)" stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} />
@@ -136,8 +139,9 @@ export function ChartAreaInteractive({ runs }: { runs: RunListEntry[] }) {
               cursor={false}
               content={<ChartTooltipContent labelFormatter={(_, payload) => format.format(Number(payload?.[0]?.payload?.start))} indicator="dot" />}
             />
-            <Area dataKey="notPassed" type="monotone" fill="url(#fillNotPassed)" stroke="var(--color-notPassed)" stackId="a" isAnimationActive={false} />
-            <Area dataKey="passed" type="monotone" fill="url(#fillPassed)" stroke="var(--color-passed)" stackId="a" isAnimationActive={false} />
+            {/* Overlaid, not stacked: the gap between the amber and green lines is the runs that did not pass. */}
+            <Area dataKey="judged" type="monotone" fill="url(#fillJudged)" stroke="var(--color-judged)" strokeWidth={2} isAnimationActive={false} />
+            <Area dataKey="passed" type="monotone" fill="url(#fillPassed)" stroke="var(--color-passed)" strokeWidth={1.5} isAnimationActive={false} />
           </AreaChart>
         </ChartContainer>
       </CardContent>
