@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export interface Crumb {
   label: string;
@@ -45,6 +46,9 @@ export function SiteHeader({ crumbs }: { crumbs: Crumb[] }) {
             ))}
           </BreadcrumbList>
         </Breadcrumb>
+        <div className="ml-auto shrink-0">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
