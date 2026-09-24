@@ -49,7 +49,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild tooltip="LiteTraffic">
               <Link to="/" aria-label="LiteTraffic home" onClick={() => setOpenMobile(false)}>
-                <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <BrandMark className="size-4" />
                 </span>
                 <span className="grid flex-1 text-left text-sm leading-tight">

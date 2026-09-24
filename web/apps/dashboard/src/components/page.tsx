@@ -40,7 +40,7 @@ export function Page({ title, documentTitle, description, crumbs = [], actions, 
           <div className="min-w-0 space-y-3">
             {section && (
               <div className="flex items-center gap-12 [--connector-length:2.25rem]">
-                <span className="section-number bg-background" aria-hidden>
+                <span className="section-number is-active" aria-hidden>
                   {section.number}
                 </span>
                 <p className="eyebrow">{section.eyebrow}</p>
