@@ -120,14 +120,13 @@ function ComparisonResult({ baseline, candidate }: { baseline: string; candidate
   return <ComparisonView diff={data} />;
 }
 
-function Change({ value, unit = "%", worseWhenUp = true }: { value: number | null; unit?: string; worseWhenUp?: boolean }) {
-  // Direction is carried by the icon and the words, not by color.
+/** Direction is carried by the icon; red only when the server judged it a regression. */
+function Change({ value, worse = false }: { value: number | null; worse?: boolean }) {
   const Icon = value == null || value === 0 ? Minus : value > 0 ? TrendingUp : TrendingDown;
-  const worse = value != null && value !== 0 && value > 0 === worseWhenUp;
   return (
     <Badge variant={worse ? "destructive" : "outline"} className="tabular-nums">
       <Icon aria-hidden />
-      {formatChange(value, unit)}
+      {formatChange(value, "%")}
       {worse && <span className="sr-only"> (worse)</span>}
     </Badge>
   );
@@ -218,7 +217,7 @@ function ComparisonView({ diff }: { diff: Comparison }) {
               items={[
                 ["Baseline", formatMs(p95.baseline_ms)],
                 ["Candidate", formatMs(p95.candidate_ms)],
-                ["Change", <Change value={p95.change_percent} />],
+                ["Change", <Change value={p95.change_percent} worse={p95.status === "regression"} />],
                 ["HTTP error rate", `${formatRate(performance.http_error_rate.baseline)} to ${formatRate(performance.http_error_rate.candidate)}`],
                 ["Requests per second", `${formatNumber(performance.http_reqs_per_second.baseline, 1)} to ${formatNumber(performance.http_reqs_per_second.candidate, 1)}`],
                 ["Samples", `${p95.samples.baseline} and ${p95.samples.candidate}`],

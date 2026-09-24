@@ -69,6 +69,25 @@ test("inconclusive run lists its limitations", async () => {
   expect(within(screen.getByRole("list", { name: "Limitations" })).getAllByRole("listitem")).toHaveLength(4);
 });
 
+test("the Reason column appears only when an assertion has a reason", async () => {
+  const first = renderApp(`/runs/${FAIL}`, { [`/api/runs/${FAIL}`]: fixtures.runFail });
+  await screen.findByText("7 of 9 assertions failed.");
+  expect(screen.queryByRole("columnheader", { name: "Reason" })).toBeNull();
+  first.unmount();
+
+  const id = "run_20260923T043011Z_929fe95f";
+  renderApp(`/runs/${id}`, { [`/api/runs/${id}`]: fixtures.runInconclusive });
+  expect(await screen.findByRole("columnheader", { name: "Reason" })).toBeInTheDocument();
+  expect(screen.getAllByRole("cell", { name: "engine did not finish" }).length).toBeGreaterThan(0);
+});
+
+test("header facts wrap instead of clipping values such as the start time", async () => {
+  renderApp(`/runs/${FAIL}`, { [`/api/runs/${FAIL}`]: fixtures.runFail });
+  const started = (await screen.findByText("Started")).nextElementSibling!;
+  expect(started.tagName).toBe("DD");
+  expect(started).not.toHaveClass("truncate");
+});
+
 test("an activity renders slices and no verdict", async () => {
   const id = "activity_20260923T054400Z_5e1f0c2a";
   renderApp(`/runs/${id}`, { [`/api/runs/${id}`]: fixtures.runActivity });

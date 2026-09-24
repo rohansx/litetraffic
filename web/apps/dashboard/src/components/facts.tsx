@@ -9,7 +9,7 @@ export function Facts({ items, className }: { items: [string, ReactNode][]; clas
       {items.map(([label, value]) => (
         <div key={label} className="min-w-0">
           <dt className="text-xs text-muted-foreground">{label}</dt>
-          <dd className="mt-0.5 truncate text-sm font-medium">{value}</dd>
+          <dd className="mt-0.5 text-sm font-medium wrap-anywhere">{value}</dd>
         </div>
       ))}
     </dl>
