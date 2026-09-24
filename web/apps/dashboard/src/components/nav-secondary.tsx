@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { NavLink, useLocation } from "react-router";
-import { isActive, type NavItem } from "@/components/nav-main";
+import { ACTIVE_BAR, isActive, type NavItem } from "@/components/nav-main";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -19,7 +19,7 @@ export function NavSecondary({ items, ...props }: { items: NavItem[] } & Compone
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild size="sm" isActive={isActive(pathname, item)} tooltip={item.title}>
+              <SidebarMenuButton asChild size="sm" isActive={isActive(pathname, item)} tooltip={item.title} className={ACTIVE_BAR}>
                 <NavLink to={item.url} onClick={() => setOpenMobile(false)}>
                   <item.icon aria-hidden />
                   <span>{item.title}</span>

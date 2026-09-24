@@ -87,7 +87,7 @@ const columns = column.columns([
           </Link>
         )}
         {run.kind !== "run" && (
-          <Badge variant="outline" className="ml-2 font-sans">
+          <Badge variant="outline" className="ml-2">
             {run.kind}
           </Badge>
         )}
@@ -204,7 +204,7 @@ export function RunsDataTable({ runs, view, counts, onViewChange, selected, onSe
         <TabsList className="hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:px-1 @4xl/main:flex">
           {VIEWS.map(({ value, label }) => (
             <TabsTrigger key={value} value={value}>
-              {label} <Badge variant="secondary">{counts[value]}</Badge>
+              {label} <Badge variant="secondary" className="font-mono tabular-nums">{counts[value]}</Badge>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -238,9 +238,12 @@ export function RunsDataTable({ runs, view, counts, onViewChange, selected, onSe
       <TabsContent value={view} className="flex flex-col gap-4">
       {toolbar}
 
-      <div className="overflow-hidden rounded-lg border">
+      <div className="window-card">
+        <div className="window-card-header">
+          runs · {runs.length} in view
+        </div>
         <Table>
-          <TableHeader className="sticky top-0 z-10 bg-muted">
+          <TableHeader className="sticky top-0 z-10 bg-muted font-mono text-xs">
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
                 {group.headers.map((header) => (

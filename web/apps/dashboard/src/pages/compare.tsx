@@ -139,7 +139,10 @@ function ComparisonView({ diff }: { diff: Comparison }) {
 
   return (
     <>
-      <Card>
+      <Card className="overflow-hidden pt-0">
+        <div className="window-card-header">
+          <span className="truncate">diff · baseline → candidate</span>
+        </div>
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center gap-3">
             Result <VerdictBadge verdict={diff.verdict} className="h-6 px-2.5 text-sm" />

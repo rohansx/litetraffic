@@ -73,3 +73,21 @@ test("loading, empty and error states", async () => {
   expect(alert).toHaveTextContent("runs folder unreadable");
   expect(within(alert).getByRole("button", { name: "Try again" })).toBeInTheDocument();
 });
+
+test("page header is numbered from the sidebar and the active entry is marked", async () => {
+  const { container } = renderApp("/");
+  expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
+  expect(container.querySelector(".section-number")).toHaveTextContent("01");
+  expect(screen.getByText("verdict board")).toHaveClass("eyebrow");
+  const active = screen.getAllByRole("link", { name: "Overview" }).find((link) => link.getAttribute("data-active") === "true");
+  expect(active).toBeDefined();
+});
+
+test("verdict badges carry a signal with the matching lamp lit, next to the word", async () => {
+  renderApp("/");
+  const list = await screen.findByRole("list", { name: "Recent failures" });
+  const signal = within(list).getAllByText("Fail")[0]!.querySelector("[data-slot=signal]");
+  expect(signal).toHaveAttribute("data-verdict", "fail");
+  expect(signal).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByText("attention · 5 not passed")).toHaveClass("window-card-header");
+});

@@ -12,6 +12,8 @@ test("lists every run with verdict text in its badge", async () => {
     "/runs/run_20260923T065633Z_13376b99",
   );
   expect(screen.getByText("16 of 16 shown")).toBeInTheDocument();
+  expect(screen.getByText("runs · 16 in view")).toHaveClass("window-card-header");
+  expect(screen.getByText("evidence on disk")).toHaveClass("eyebrow");
   // dashboard-01 pagination: 10 rows per page.
   expect(dataRows()).toHaveLength(10);
   expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();

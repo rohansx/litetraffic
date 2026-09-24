@@ -15,7 +15,7 @@ const rate = (runs: RunListEntry[]) => runs.filter((run) => run.verdict === "pas
 function Trend({ value, children }: { value: number; children: ReactNode }) {
   const Icon = value > 0 ? TrendingUp : value < 0 ? TrendingDown : Minus;
   return (
-    <Badge variant="outline">
+    <Badge variant="outline" className="font-mono">
       <Icon aria-hidden />
       {children}
     </Badge>
@@ -26,7 +26,7 @@ function Kpi({ label, value, badge, headline, detail }: { label: string; value: 
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardDescription>{label}</CardDescription>
+        <CardDescription className="font-mono text-xs">{label}</CardDescription>
         <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">{value}</CardTitle>
         <CardAction>{badge}</CardAction>
       </CardHeader>

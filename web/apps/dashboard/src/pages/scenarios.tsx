@@ -29,9 +29,10 @@ export function ScenariosPage() {
       ) : !data.length ? (
         <EmptyState title="No scenarios yet">Scenarios appear once a run of them lands in the runs folder.</EmptyState>
       ) : (
-        <div className="rounded-xl border bg-card">
+        <div className="window-card">
+          <div className="window-card-header">scenarios · {data.length} tracked</div>
           <Table>
-            <TableHeader>
+            <TableHeader className="font-mono text-xs">
               <TableRow>
                 <TableHead>Scenario</TableHead>
                 <TableHead>Latest</TableHead>
@@ -64,7 +65,7 @@ export function ScenariosPage() {
   );
 }
 
-const chartConfig = { p95: { label: "p95", color: "var(--primary)" } } satisfies ChartConfig;
+const chartConfig = { p95: { label: "p95", color: "var(--chart-1)" } } satisfies ChartConfig;
 
 interface DotProps {
   cx?: number;
@@ -120,7 +121,8 @@ export function ScenarioPage() {
         <EmptyState title="No finished runs yet">The trend starts with this scenario's first finished run.</EmptyState>
       ) : (
         <>
-          <Card>
+          <Card className="overflow-hidden pt-0">
+            <div className="window-card-header">trend · {data.length} runs</div>
             <CardHeader>
               <CardTitle>p95 latency per run</CardTitle>
               <CardDescription>{data.length} runs, oldest on the left.</CardDescription>
@@ -130,7 +132,7 @@ export function ScenarioPage() {
                 <AreaChart data={points} margin={{ left: 4, right: 12, top: 8 }}>
                   <defs>
                     <linearGradient id="fillP95" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-p95)" stopOpacity={0.8} />
+                      <stop offset="5%" stopColor="var(--color-p95)" stopOpacity={0.45} />
                       <stop offset="95%" stopColor="var(--color-p95)" stopOpacity={0.1} />
                     </linearGradient>
                   </defs>

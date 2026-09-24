@@ -73,7 +73,10 @@ function VerifyRun({ id, detail, crumbs }: { id: string; detail: RunDetail; crum
         </>
       }
     >
-      <Card>
+      <Card className="overflow-hidden pt-0">
+        <div className="window-card-header">
+          <span className="truncate">run.json · result.json</span>
+        </div>
         <CardContent className="grid gap-4">
           {verdict && <p className="text-sm text-muted-foreground">{VERDICT_MEANING[verdict]}</p>}
           <Facts
