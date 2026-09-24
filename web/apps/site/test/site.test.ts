@@ -18,7 +18,7 @@ describe("landing page", () => {
 
   test("keeps every section the nav and tests link to", () => {
     const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
-    for (const id of ["main", "mechanics", "isolation", "dashboard", "profiles", "scenarios", "commands", "targets", "start", "theme-toggle"]) {
+    for (const id of ["main", "mechanics", "verdict", "features", "isolation", "dashboard", "profiles", "scenarios", "commands", "targets", "start", "theme-toggle"]) {
       expect(ids, id).toContain(id);
     }
     for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) expect(ids, `#${target}`).toContain(target);
@@ -53,15 +53,30 @@ describe("landing page", () => {
     expect(tag("copy-command")).not.toContain("aria-label");
   });
 
-  test("the dashboard mock is labelled illustrative", () => {
-    expect(html).toContain("Illustrative mock");
+  test("the run preview renders finished, so it reads the same without JavaScript", () => {
+    const steps = [...html.matchAll(/data-step\b[^>]*data-state="([^"]+)"/g)].map((m) => m[1]);
+    expect(steps).toEqual(["done", "done", "done", "done"]);
+    expect(html).toContain("data-run-again");
+    expect(html).not.toMatch(/<li\b[^>]*data-log[^>]*\shidden/);
   });
 
-  test("the mock shows each view's path in its address bar, not as a stray line in the panel", () => {
-    const bar = html.match(/<span\b[^>]*data-dash-url[^>]*>([^<]*)<\/span>/);
-    expect(bar?.[1]).toBe("127.0.0.1:8780/");
-    for (const path of ["/runs?scenario=checkout", "/scenarios/checkout"]) expect(html).toContain(`data-path="${path}"`);
-    expect(html).not.toMatch(/<p\b[^>]*>\/<\/p>/);
+  test("the verdict comparison shows the documented failing sample", () => {
+    expect(html).toContain("one_effect_per_payment");
+    expect(html).toMatch(/data-view="lt"[^>]*>|aria-pressed="true" data-view="lt"/);
+    expect(html).toContain("&quot;actual&quot;: 2, &quot;expected&quot;: 1");
+  });
+
+  test("every signal is decorative and sits next to its verdict word", () => {
+    const signals = [...html.matchAll(/<span\b[^>]*class="signal[^"]*"[^>]*>/g)].map((m) => m[0]);
+    expect(signals.length).toBeGreaterThan(5);
+    for (const s of signals) expect(s).toContain('aria-hidden="true"');
+  });
+
+  test("links out only to the real repository, with no invented star count", () => {
+    const external = [...html.matchAll(/href="(https?:[^"]+)"/g)].map((m) => m[1]);
+    expect(external.length).toBeGreaterThan(0);
+    for (const url of external) expect(url.startsWith("https://github.com/rohansx/litetraffic")).toBe(true);
+    expect(html).not.toMatch(/Star on GitHub[^<]*\d/);
   });
 
   test("the Inter Tight hero is not tightened again past shadcn's tracking-tight", () => {

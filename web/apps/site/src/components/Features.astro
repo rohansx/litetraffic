@@ -1,0 +1,73 @@
+---
+// What the developer preview ships today, one window card each. Every claim is from README.md,
+// docs/cli.md or docs/results.md; mini previews are illustrative.
+import VerdictBadge from "./VerdictBadge.astro";
+import { chip, h2, kicker, lead, section, wrap } from "../lib/ui";
+
+const spiky = [2, 2, 2, 2, 7, 2, 2, 2, 2, 9, 2, 2, 2, 6, 2, 2, 2, 2];
+const line = spiky.map((v, i) => `${i ? "L" : "M"}${((i * 300) / (spiky.length - 1)).toFixed(1)} ${92 - v * 9}`).join(" ");
+
+const row = "flex items-center justify-between gap-2 rounded-md border bg-background/60 px-2.5 py-1.5 font-mono text-[11px] sm:text-xs";
+const features = [
+  { id: "profiles", window: "profile · spiky · seed 42", eyebrow: "shape", title: "Seeded traffic profiles", body: "Explicit phases, or spiky, random-burst and sustained-burst profiles. The schedule is resolved before the run and recorded with its seed, so a rerun sends the same pressure." },
+  { id: "budgets", window: "budgets · checkout", eyebrow: "bound", title: "Budgets, declared up front", body: "Requests, writes, duration, concurrency and artifact size are checked before and after the run. The max_seconds deadline is enforced while k6 runs." },
+  { id: "fixtures", window: "fixtures · run-owned", eyebrow: "seed", title: "Run-owned starting state", body: "Create records over HTTP, run setup and teardown commands, or hand each journey its own item from a fixture pool." },
+  { id: "isolation", window: "init · tenant-isolation", eyebrow: "generate", title: "Tenant-isolation kit", body: "Describe two identities and their endpoints in a small JSON config. init writes a complete scenario that checks each tenant can reach its own records and can neither read nor change the other's." },
+  { id: "evidence", window: "runs · <run_id>", eyebrow: "keep", title: "Evidence and a report", body: "Each run keeps its manifest digest, metrics, assertion events and a standalone report.html. Declared secrets and minted tokens are replaced with [redacted]." },
+  { id: "dashboard", window: "127.0.0.1:8780 · runs", eyebrow: "read", title: "A local dashboard", body: "litetraffic dashboard lists your runs, opens failing samples, charts p95 per scenario and compares two runs. Read-only, bound to 127.0.0.1." },
+];
+const budgets = [["max_seconds", "20", "enforced live"], ["max_requests", "40", "pre + post"], ["max_write_attempts", "25", "pre + post"], ["max_in_flight", "8", "pre + post"]];
+const fixtureRows = [["create", "POST create_path"], ["pool", "1 item / journey"], ["cleanup", "DELETE delete_path"], ["teardown", "runs after a fail"]];
+const isolationRows = ["own_access", "cross_tenant_read_blocked", "cross_tenant_write_blocked", "victim_unchanged"];
+const files = [["run.json", "stage"], ["result.json", "verdict"], ["events/000001.jsonl", "samples"], ["report.html", "readable"], ["artifacts.json", "sha256"]];
+const runs: [string, "pass" | "fail" | "error"][] = [["…4c1e09aa", "fail"], ["…91b7d2f0", "pass"], ["…5d88b6e1", "error"], ["…e02a7c13", "pass"]];
+---
+<section class={`${wrap} ${section}`} id="features" aria-labelledby="features-title">
+  <div class="mx-auto max-w-2xl text-center">
+    <p class={kicker}>in the 0.1.0.dev0 preview</p>
+    <h2 id="features-title" class={`${h2} mt-2`}>Everything a run needs, on your machine.</h2>
+    <p class={`${lead} mx-auto`}>Scenarios are handwritten or generated, and you review them before they run. Every piece below works in the current developer preview.</p>
+  </div>
+
+  <ul class="mt-12 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+    {features.map((f) => (
+      <li id={f.id} class="min-w-0">
+        <div class="grid-bg h-52 overflow-hidden rounded-lg border bg-muted/40 px-5 pt-5 [--grid-size:1rem]" aria-hidden="true">
+          <div class="window-card h-full rounded-b-none border-b-0">
+            <div class="window-card-header"><span class="truncate">{f.window}</span></div>
+            <div class="grid gap-1.5 p-3">
+              {f.id === "profiles" && (
+                <svg class="block h-28 w-full" viewBox="0 0 300 100" preserveAspectRatio="none">
+                  <path class="fill-none stroke-border [stroke-dasharray:3_3]" d="M0 30H300M0 60H300M0 90H300" />
+                  <path class="fill-chart-1/15" d={`${line} L300 100 L0 100 Z`} />
+                  <path class="fill-none stroke-chart-1 stroke-2 [vector-effect:non-scaling-stroke]" d={line} />
+                </svg>
+              )}
+              {f.id === "budgets" && budgets.map(([k, v, note]) => (
+                <span class={row}><span class="truncate">{k} <b class="font-semibold">{v}</b></span><span class:list={[chip, "px-1.5 text-[10px]", note === "enforced live" && "border-brand text-foreground"]}>{note}</span></span>
+              ))}
+              {f.id === "fixtures" && fixtureRows.map(([k, v]) => (
+                <span class={row}><span class="text-brand-text">{k}</span><span class="text-muted-foreground">{v}</span></span>
+              ))}
+              {f.id === "isolation" && (
+                <>
+                  <span class="truncate font-mono text-[11px] text-muted-foreground sm:text-xs">$ litetraffic init tenant-isolation</span>
+                  {isolationRows.map((k) => <span class={row}><span class="truncate">{k}</span><span class="flex items-center gap-1.5 text-muted-foreground"><span class="signal" data-verdict="pass" aria-hidden="true"></span>pass</span></span>)}
+                </>
+              )}
+              {f.id === "evidence" && files.map(([k, v]) => (
+                <span class={row}><span class="truncate">{k}</span><span class="text-muted-foreground">{v}</span></span>
+              ))}
+              {f.id === "dashboard" && runs.map(([id, v]) => (
+                <span class={row}><span>{id}</span><VerdictBadge verdict={v} class="bg-card px-1.5 text-[10px]" /></span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p class="eyebrow mt-4">{f.eyebrow}</p>
+        <h3 class="mt-1 font-heading text-lg font-semibold">{f.title}</h3>
+        <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
+      </li>
+    ))}
+  </ul>
+</section>
