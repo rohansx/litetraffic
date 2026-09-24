@@ -10,6 +10,7 @@ The MIT license in this repository applies to LiteTraffic's original code and do
 | [pytest](https://github.com/pytest-dev/pytest/blob/main/LICENSE) | Optional development dependency | MIT |
 | [Inter](https://github.com/rsms/inter/blob/master/LICENSE.txt) | Body font, self-hosted woff2 bundled into the landing page and dashboard from `@fontsource-variable/inter` | SIL OFL-1.1 |
 | [Inter Tight](https://github.com/googlefonts/inter-tight/blob/main/OFL.txt) | Heading font, self-hosted woff2 bundled into the landing page and dashboard from `@fontsource-variable/inter-tight` | SIL OFL-1.1 |
+| [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono/blob/master/OFL.txt) | Monospace font for labels, chips, run ids and code, self-hosted woff2 bundled into the landing page and dashboard from `@fontsource-variable/jetbrains-mono` | SIL OFL-1.1 |
 
 Transitive dependencies and build tools are supplied by their respective distributions. Consult the licenses in the installed versions when redistributing an environment or container.
 

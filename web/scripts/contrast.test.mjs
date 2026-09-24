@@ -39,18 +39,28 @@ export function contrast(x, y) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// [foreground, background, minimum]: 4.5 for text (AA).
-// The base is stock shadcn neutral, kept as shipped: its --ring / --input (non-text 3:1) and
-// light muted-foreground on --muted (4.35) are shadcn's choices and are not asserted here.
-const PAIRS = [
+// [foreground, background, minimum]: 4.5 for text (AA), 3 for non-text UI (focus ring, ink buttons).
+// Decorative lamps (--lamp-*), --grid-line and --border are not asserted: they never carry meaning alone.
+export const PAIRS = [
   ["foreground", "background", 4.5],
   ["foreground", "card", 4.5],
   ["muted-foreground", "card", 4.5],
   ["muted-foreground", "background", 4.5],
+  ["muted-foreground", "muted", 4.5],
   ["primary-foreground", "primary", 4.5],
+  ["primary", "background", 3],
   ["secondary-foreground", "secondary", 4.5],
+  ["accent-foreground", "accent", 4.5],
+  ["destructive", "card", 4.5],
   ["brand-foreground", "brand", 4.5],
+  ["brand-text", "background", 4.5],
+  ["brand-text", "card", 4.5],
+  ["ring", "background", 3],
+  ["ring", "card", 3],
   ["sidebar-foreground", "sidebar", 4.5],
+  ["muted-foreground", "sidebar", 4.5],
+  ["sidebar-accent-foreground", "sidebar-accent", 4.5],
+  ["sidebar-primary-foreground", "sidebar-primary", 4.5],
   ...["pass", "fail", "inconclusive", "error"].flatMap((v) => [
     [v, "card", 4.5],
     [v, "background", 4.5],
