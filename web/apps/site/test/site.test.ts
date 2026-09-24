@@ -83,6 +83,16 @@ describe("landing page", () => {
     expect(html.match(/<h1\b[^>]*>/)![0]).not.toContain("tracking-tighter");
   });
 
+  test("every verify command shown names a target, as the CLI requires", () => {
+    const verifies = [...html.matchAll(/litetraffic verify [^<]*/g)].map((m) => m[0]);
+    expect(verifies.length).toBeGreaterThan(0);
+    for (const v of verifies) expect(v, v).toMatch(/--target |--e2b-sandbox-id /);
+  });
+
+  test("prune is described as it behaves: --dry-run is opt-in", () => {
+    expect(html).not.toContain("with a dry run first");
+  });
+
   test("inline code such as --target never splits after its leading dashes", () => {
     const css = assets.filter((f) => f.endsWith(".css")).map((f) => readFileSync(f, "utf8")).join("");
     expect(css).toMatch(/:not\(pre\)\s*>\s*code\s*\{[^}]*white-space:\s*nowrap/);

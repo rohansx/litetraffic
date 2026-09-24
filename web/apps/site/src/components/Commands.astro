@@ -11,7 +11,7 @@ const commands = [
   ["diff", "Compares a baseline and a candidate run, with an optional p95 regression gate."],
   ["dashboard", "Serves your runs on 127.0.0.1 to filter, read failing samples and compare."],
   ["up", "Repeats bounded runs as slices until Ctrl+C. Records each slice, gives no overall verdict."],
-  ["prune", "Deletes old run directories by count or age, with a dry run first."],
+  ["prune", "Deletes old run directories by count or age, with an optional <code>--dry-run</code> that deletes nothing."],
 ];
 const exits: [string, string, Verdict | null][] = [
   ["0", "pass", "pass"],

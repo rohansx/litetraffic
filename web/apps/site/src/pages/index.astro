@@ -56,7 +56,7 @@ const footer: [string, [string, string][]][] = [
         </div>
         <figure class="mt-10 w-full max-w-md rounded-lg border bg-card/80 text-left font-mono text-xs shadow-xs sm:text-[13px]">
           <figcaption class="sr-only">The documented first run of the checkout example</figcaption>
-          <p class="truncate border-b px-4 py-2.5 text-muted-foreground"><span class="text-brand-text">$</span> litetraffic verify examples/checkout --seed 42</p>
+          <p class="border-b px-4 whitespace-pre py-2.5 text-muted-foreground"><span class="text-brand-text">$</span> {"litetraffic verify examples/checkout \\\n    --target http://127.0.0.1:8765 --seed 42"}</p>
           <p class="flex items-center gap-2.5 px-4 py-2.5"><span class="signal [--signal-dot:0.625rem]" data-verdict="pass" aria-hidden="true"></span>pass<span class="text-muted-foreground">· 12/12 journeys · 36 requests</span></p>
         </figure>
       </div>
