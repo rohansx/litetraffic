@@ -27,6 +27,21 @@ test("explains incompatibilities of runs that cannot be judged", async () => {
   expect(screen.getByText("Not comparable")).toBeInTheDocument();
 });
 
+test("only a p95 regression is flagged as worse; unjudged changes stay neutral", async () => {
+  const first = renderApp(url, { "/api/diff": fixtures.diff });
+  await screen.findByText("+5.6%");
+  expect(screen.queryByText("(worse)")).toBeNull();
+  expect(document.querySelector('[data-variant="destructive"]')).toBeNull();
+  first.unmount();
+
+  const regressed = { ...fixtures.diff, performance: { ...fixtures.diff.performance, p95: { ...fixtures.diff.performance.p95, status: "regression" } } };
+  renderApp(url, { "/api/diff": regressed });
+  const change = (await screen.findByText("+5.6%")).closest('[data-slot="badge"]')!;
+  expect(change).toHaveAttribute("data-variant", "destructive");
+  expect(change).toHaveTextContent("(worse)");
+  expect(document.querySelectorAll('[data-variant="destructive"]')).toHaveLength(1);
+});
+
 test("lists per-assertion regressions", async () => {
   const regressed = {
     ...fixtures.diff,

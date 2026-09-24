@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { GitCompareArrows, Search } from "lucide-react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { api } from "@/api/client";
 import type { RunListEntry } from "@/api/types";
+import { RunsDataTable, VIEWS, type View } from "@/components/data-table";
 import { Page } from "@/components/page";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { VerdictBadge } from "@/components/verdict";
-import { formatDateTime, formatRelative } from "@/lib/format";
 import { oldestFirst } from "@/lib/runs";
 import { useApi } from "@/lib/use-api";
 
@@ -27,6 +25,7 @@ const VERDICT_LABELS: Record<(typeof VERDICTS)[number], string> = {
   unreadable: "Unreadable",
 };
 
+/** Every URL filter except the view tab (`kind`), which the tab counts are taken against. */
 function applyFilters(runs: RunListEntry[], params: URLSearchParams): RunListEntry[] {
   const scenario = params.get("scenario");
   const verdict = params.get("verdict");
@@ -39,6 +38,11 @@ function applyFilters(runs: RunListEntry[], params: URLSearchParams): RunListEnt
       (!seed || String(run.seed) === seed) &&
       (!query || `${run.run_id} ${run.scenario ?? ""}`.toLowerCase().includes(query)),
   );
+}
+
+function viewOf(params: URLSearchParams): View {
+  const kind = params.get("kind");
+  return VIEWS.some((view) => view.value === kind) ? (kind as View) : "all";
 }
 
 export function RunsPage() {
@@ -56,8 +60,13 @@ export function RunsPage() {
   }, [live, reload]);
 
   const all = runs.data ?? [];
+  const view = viewOf(params);
   const scenarios = useMemo(() => [...new Set(all.flatMap((run) => (run.scenario ? [run.scenario] : [])))].sort(), [all]);
-  const visible = useMemo(() => applyFilters(all, params), [all, params]);
+  const matching = useMemo(() => applyFilters(all, params), [all, params]);
+  const visible = view === "all" ? matching : matching.filter((run) => run.kind === view);
+  const counts = Object.fromEntries(
+    VIEWS.map(({ value }) => [value, value === "all" ? matching.length : matching.filter((run) => run.kind === value).length]),
+  ) as Record<View, number>;
   const filtered = [...params.keys()].some((key) => params.get(key));
 
   function setFilter(key: string, value: string) {
@@ -67,8 +76,9 @@ export function RunsPage() {
     setParams(next, { replace: true });
   }
 
-  function toggle(runId: string, on: boolean) {
-    setSelected((current) => (on ? [...current.filter((id) => id !== runId), runId].slice(-2) : current.filter((id) => id !== runId)));
+  function select(ids: string[]) {
+    // At most two: a third tick drops the oldest tick.
+    setSelected((current) => [...current.filter((id) => ids.includes(id)), ...ids.filter((id) => !current.includes(id))].slice(-2));
   }
 
   function compare() {
@@ -76,6 +86,67 @@ export function RunsPage() {
     if (!baseline || !candidate) return;
     navigate(`/compare?${new URLSearchParams({ baseline: baseline.run_id, candidate: candidate.run_id })}`);
   }
+
+  const clear = () => setParams({}, { replace: true });
+
+  const toolbar = (
+    <div role="search" aria-label="Filter runs" className="flex flex-wrap items-center gap-2">
+      <div className="relative w-full sm:w-64">
+        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input
+          type="search"
+          placeholder="Search run or scenario"
+          aria-label="Search runs"
+          className="h-8 pl-8"
+          value={params.get("q") ?? ""}
+          onChange={(event) => setFilter("q", event.target.value)}
+        />
+      </div>
+      <Select value={params.get("scenario") ?? ALL} onValueChange={(value) => setFilter("scenario", value)}>
+        <SelectTrigger size="sm" aria-label="Scenario" className="w-full sm:w-64">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All scenarios</SelectItem>
+          {scenarios.map((name) => (
+            <SelectItem key={name} value={name}>
+              {name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={params.get("verdict") ?? ALL} onValueChange={(value) => setFilter("verdict", value)}>
+        <SelectTrigger size="sm" aria-label="Verdict" className="w-[calc(50%-0.25rem)] sm:w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All verdicts</SelectItem>
+          {VERDICTS.map((verdict) => (
+            <SelectItem key={verdict} value={verdict}>
+              {VERDICT_LABELS[verdict]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        inputMode="numeric"
+        placeholder="Seed"
+        aria-label="Seed"
+        className="h-8 w-[calc(50%-0.25rem)] sm:w-24"
+        value={params.get("seed") ?? ""}
+        onChange={(event) => setFilter("seed", event.target.value)}
+      />
+      {filtered && (
+        <Button variant="ghost" size="sm" onClick={clear}>
+          Clear filters
+        </Button>
+      )}
+      <span role="status" className="ml-auto text-xs text-muted-foreground">
+        {runs.data ? `${visible.length} of ${all.length} shown` : ""}
+        {runs.error && runs.data ? ". Refresh failed, showing the last list." : ""}
+      </span>
+    </div>
+  );
 
   return (
     <Page
@@ -88,161 +159,38 @@ export function RunsPage() {
             <Checkbox checked={live} onCheckedChange={(value) => setLive(value === true)} aria-label="Auto-refresh every 5 seconds" />
             Auto-refresh
           </label>
-          <Button onClick={compare} disabled={selected.length !== 2}>
+          <Button size="sm" onClick={compare} disabled={selected.length !== 2}>
             <GitCompareArrows aria-hidden />
             Compare {selected.length}/2
           </Button>
         </>
       }
     >
-      <div role="search" aria-label="Filter runs" className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input
-            type="search"
-            placeholder="Search run or scenario"
-            aria-label="Search runs"
-            className="pl-8"
-            value={params.get("q") ?? ""}
-            onChange={(event) => setFilter("q", event.target.value)}
-          />
-        </div>
-        <Select value={params.get("scenario") ?? ALL} onValueChange={(value) => setFilter("scenario", value)}>
-          <SelectTrigger aria-label="Scenario" className="w-full sm:w-64">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All scenarios</SelectItem>
-            {scenarios.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={params.get("verdict") ?? ALL} onValueChange={(value) => setFilter("verdict", value)}>
-          <SelectTrigger aria-label="Verdict" className="w-[calc(50%-0.25rem)] sm:w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All verdicts</SelectItem>
-            {VERDICTS.map((verdict) => (
-              <SelectItem key={verdict} value={verdict}>
-                {VERDICT_LABELS[verdict]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          inputMode="numeric"
-          placeholder="Seed"
-          aria-label="Seed"
-          className="w-[calc(50%-0.25rem)] sm:w-24"
-          value={params.get("seed") ?? ""}
-          onChange={(event) => setFilter("seed", event.target.value)}
-        />
-        {filtered && (
-          <Button variant="ghost" size="sm" onClick={() => setParams({}, { replace: true })}>
-            Clear filters
-          </Button>
-        )}
-        <span role="status" className="ml-auto text-xs text-muted-foreground">
-          {runs.data ? `${visible.length} of ${all.length} shown` : ""}
-          {runs.error && runs.data ? ". Refresh failed, showing the last list." : ""}
-        </span>
-      </div>
-
       {!runs.data ? (
         runs.error ? <ErrorState error={runs.error} onRetry={reload} /> : <LoadingState label="Loading runs" />
       ) : !all.length ? (
         <EmptyState title="No runs yet">
           Run <code className="font-mono">litetraffic verify scenario.yaml</code>; the list refreshes on its own.
         </EmptyState>
-      ) : !visible.length ? (
-        <EmptyState
-          title="No runs match these filters"
-          action={
-            <Button variant="outline" onClick={() => setParams({}, { replace: true })}>
-              Clear filters
-            </Button>
+      ) : (
+        <RunsDataTable
+          runs={visible}
+          view={view}
+          counts={counts}
+          onViewChange={(value) => setFilter("kind", value)}
+          selected={selected}
+          onSelectedChange={select}
+          toolbar={toolbar}
+          empty={
+            <div className="flex flex-col items-center gap-2">
+              <p className="font-medium">No runs match these filters</p>
+              <Button variant="outline" size="sm" onClick={clear}>
+                Clear filters
+              </Button>
+            </div>
           }
         />
-      ) : (
-        <RunsTable runs={visible} selected={selected} onToggle={toggle} />
       )}
     </Page>
-  );
-}
-
-function RunsTable({ runs, selected, onToggle }: { runs: RunListEntry[]; selected: string[]; onToggle: (id: string, on: boolean) => void }) {
-  return (
-    <div className="rounded-xl border bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">
-              <span className="sr-only">Select</span>
-            </TableHead>
-            <TableHead>Run</TableHead>
-            <TableHead className="hidden md:table-cell">Scenario</TableHead>
-            <TableHead className="hidden md:table-cell">Verdict</TableHead>
-            <TableHead className="hidden md:table-cell">Lifecycle</TableHead>
-            <TableHead className="hidden text-right md:table-cell">Seed</TableHead>
-            <TableHead className="hidden md:table-cell">Finished</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {runs.map((run) => {
-            const isSelected = selected.includes(run.run_id);
-            return (
-              <TableRow key={run.run_id} data-state={isSelected ? "selected" : undefined}>
-                <TableCell>
-                  {run.kind === "run" && (
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={(value) => onToggle(run.run_id, value === true)}
-                      aria-label={`Select ${run.run_id}`}
-                    />
-                  )}
-                </TableCell>
-                <TableCell className="font-mono text-xs">
-                  {run.kind === "series" ? (
-                    <span title="Series have no detail page">{run.run_id}</span>
-                  ) : (
-                    <Link to={`/runs/${encodeURIComponent(run.run_id)}`} className="hover:underline focus-visible:underline">
-                      {run.run_id}
-                    </Link>
-                  )}
-                  {run.kind !== "run" && <span className="ml-2 font-sans text-muted-foreground">{run.kind}</span>}
-                  {/* ponytail: phones keep only this cell; scenario, verdict and age stack here so nothing is clipped. */}
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-muted-foreground md:hidden">
-                    <VerdictBadge verdict={run.verdict} />
-                    <span>{run.scenario ?? "Unknown scenario"}</span>
-                    <span title={formatDateTime(run.finished_at)}>{formatRelative(run.finished_at)}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {run.scenario ? (
-                    <Link to={`/scenarios/${encodeURIComponent(run.scenario)}`} className="hover:underline focus-visible:underline">
-                      {run.scenario}
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground">Unknown</span>
-                  )}
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  <VerdictBadge verdict={run.verdict} />
-                </TableCell>
-                <TableCell className="hidden text-muted-foreground md:table-cell">{run.lifecycle?.replace("_", " ") ?? "Unknown"}</TableCell>
-                <TableCell className="hidden text-right tabular-nums md:table-cell">{run.seed ?? "n/a"}</TableCell>
-                <TableCell className="hidden text-muted-foreground md:table-cell" title={formatDateTime(run.finished_at)}>
-                  {formatRelative(run.finished_at)}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
   );
 }

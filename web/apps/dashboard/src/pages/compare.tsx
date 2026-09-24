@@ -1,10 +1,12 @@
-import { ArrowLeftRight, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, Minus, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { api, ApiError } from "@/api/client";
 import type { CompatibilityField, Comparison, RunListEntry } from "@/api/types";
 import { Facts } from "@/components/facts";
 import { Page } from "@/components/page";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,7 +14,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { VerdictBadge } from "@/components/verdict";
 import { formatChange, formatMs, formatNumber, formatRate } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
-import { cn } from "@/lib/utils";
 
 const FIELD_LABELS: Record<CompatibilityField, string> = {
   scenario_sha256: "The scenario file changed between the runs",
@@ -30,7 +31,6 @@ const P95_LABELS: Record<Comparison["performance"]["p95"]["status"], string> = {
   incomparable: "Not comparable",
 };
 
-const title = "font-heading text-lg font-semibold";
 
 export function ComparePage() {
   const [params, setParams] = useSearchParams();
@@ -108,10 +108,11 @@ function ComparisonResult({ baseline, candidate }: { baseline: string; candidate
   const { data, error, reload } = useApi(`diff:${baseline}:${candidate}`, (signal) => api.diff(baseline, candidate, signal));
   if (error instanceof ApiError && error.status === 409) {
     return (
-      <div role="alert" className="rounded-xl border border-inconclusive/40 bg-inconclusive-muted p-5">
-        <p className="font-semibold">These runs cannot be compared</p>
-        <p className="mt-1 text-sm text-muted-foreground">{error.message}</p>
-      </div>
+      <Alert>
+        <TriangleAlert aria-hidden />
+        <AlertTitle>These runs cannot be compared</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
     );
   }
   if (error) return <ErrorState error={error} onRetry={reload} />;
@@ -119,9 +120,16 @@ function ComparisonResult({ baseline, candidate }: { baseline: string; candidate
   return <ComparisonView diff={data} />;
 }
 
-function Change({ value, unit = "%", worseWhenUp = true }: { value: number | null; unit?: string; worseWhenUp?: boolean }) {
-  const worse = value != null && value !== 0 && value > 0 === worseWhenUp;
-  return <span className={cn("tabular-nums", worse && "text-fail", value != null && value !== 0 && !worse && "text-pass")}>{formatChange(value, unit)}</span>;
+/** Direction is carried by the icon; red only when the server judged it a regression. */
+function Change({ value, worse = false }: { value: number | null; worse?: boolean }) {
+  const Icon = value == null || value === 0 ? Minus : value > 0 ? TrendingUp : TrendingDown;
+  return (
+    <Badge variant={worse ? "destructive" : "outline"} className="tabular-nums">
+      <Icon aria-hidden />
+      {formatChange(value, "%")}
+      {worse && <span className="sr-only"> (worse)</span>}
+    </Badge>
+  );
 }
 
 function ComparisonView({ diff }: { diff: Comparison }) {
@@ -133,7 +141,7 @@ function ComparisonView({ diff }: { diff: Comparison }) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className={cn(title, "flex flex-wrap items-center gap-3")}>
+          <CardTitle className="flex flex-wrap items-center gap-3">
             Result <VerdictBadge verdict={diff.verdict} className="h-6 px-2.5 text-sm" />
           </CardTitle>
           <CardDescription>
@@ -152,23 +160,23 @@ function ComparisonView({ diff }: { diff: Comparison }) {
       </Card>
 
       {!diff.comparable && (
-        <div role="alert" className="flex gap-3 rounded-xl border border-inconclusive/40 bg-inconclusive-muted p-4">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-inconclusive" aria-hidden />
-          <div className="text-sm">
-            <p className="font-semibold">Not comparable, so performance is not judged</p>
-            <ul className="mt-1 list-disc pl-5">
+        <Alert>
+          <TriangleAlert aria-hidden />
+          <AlertTitle>Not comparable, so performance is not judged</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc pl-5">
               {diff.incompatibilities.map((field) => (
                 <li key={field}>{FIELD_LABELS[field] ?? field}</li>
               ))}
             </ul>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className={title}>Correctness</CardTitle>
+            <CardTitle>Correctness</CardTitle>
             <CardDescription>{correctness.regression ? "The candidate regressed." : "No correctness regression."}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -180,7 +188,7 @@ function ComparisonView({ diff }: { diff: Comparison }) {
             </div>
             {correctness.assertion_regressions.length ? (
               <div>
-                <p className="mb-1 text-sm font-medium text-fail">Assertions that newly fail</p>
+                <p className="mb-1 text-sm font-medium">Assertions that newly fail</p>
                 <ul className="grid gap-1" aria-label="Assertion regressions">
                   {correctness.assertion_regressions.map((id) => (
                     <li key={id} className="font-mono text-xs">
@@ -197,7 +205,7 @@ function ComparisonView({ diff }: { diff: Comparison }) {
 
         <Card>
           <CardHeader>
-            <CardTitle className={title}>p95 latency</CardTitle>
+            <CardTitle>p95 latency</CardTitle>
             <CardDescription>
               {P95_LABELS[p95.status]}
               {p95.threshold_percent != null && `, limit ${p95.threshold_percent}%`}
@@ -209,7 +217,7 @@ function ComparisonView({ diff }: { diff: Comparison }) {
               items={[
                 ["Baseline", formatMs(p95.baseline_ms)],
                 ["Candidate", formatMs(p95.candidate_ms)],
-                ["Change", <Change value={p95.change_percent} />],
+                ["Change", <Change value={p95.change_percent} worse={p95.status === "regression"} />],
                 ["HTTP error rate", `${formatRate(performance.http_error_rate.baseline)} to ${formatRate(performance.http_error_rate.candidate)}`],
                 ["Requests per second", `${formatNumber(performance.http_reqs_per_second.baseline, 1)} to ${formatNumber(performance.http_reqs_per_second.candidate, 1)}`],
                 ["Samples", `${p95.samples.baseline} and ${p95.samples.candidate}`],
@@ -221,7 +229,7 @@ function ComparisonView({ diff }: { diff: Comparison }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className={title}>p95 per operation</CardTitle>
+          <CardTitle>p95 per operation</CardTitle>
         </CardHeader>
         <CardContent>
           {operations.length ? (

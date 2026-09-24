@@ -18,6 +18,8 @@ export function AssertionsTable({ assertions }: { assertions: AssertionResult[] 
   if (!assertions.length) return <EmptyState title="This run declared no assertions" />;
 
   const failing = assertions.filter((a) => a.status === "fail").length;
+  const hasReason = assertions.some((a) => a.reason);
+  const columns = hasReason ? 5 : 4;
   return (
     <div className="grid grid-cols-1 gap-3">
       <p className="text-sm text-muted-foreground">
@@ -33,7 +35,7 @@ export function AssertionsTable({ assertions }: { assertions: AssertionResult[] 
               <TableHead>Assertion</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Samples</TableHead>
-              <TableHead>Reason</TableHead>
+              {hasReason && <TableHead>Reason</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -62,11 +64,11 @@ export function AssertionsTable({ assertions }: { assertions: AssertionResult[] 
                       <VerdictBadge verdict={assertion.status} />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{assertion.samples}</TableCell>
-                    <TableCell className="whitespace-normal text-muted-foreground">{assertion.reason ?? ""}</TableCell>
+                    {hasReason && <TableCell className="whitespace-normal text-muted-foreground">{assertion.reason ?? ""}</TableCell>}
                   </TableRow>
                   {isOpen && (
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableCell colSpan={5} id={panelId} className="whitespace-normal">
+                      <TableCell colSpan={columns} id={panelId} className="whitespace-normal">
                         <FailureDetail assertion={assertion} />
                       </TableCell>
                     </TableRow>
@@ -93,7 +95,7 @@ function FailureDetail({ assertion }: { assertion: AssertionResult }) {
           </div>
           <div>
             <p className="mb-1 text-xs text-muted-foreground">Actual</p>
-            <Value value={assertion.actual} className="text-fail" />
+            <Value value={assertion.actual} className="text-destructive" />
           </div>
         </div>
       )}
@@ -116,7 +118,7 @@ function FailureDetail({ assertion }: { assertion: AssertionResult }) {
                 </div>
                 <div>
                   <p className="mb-1 text-xs text-muted-foreground">Actual</p>
-                  <Value value={failure.actual} className="text-fail" />
+                  <Value value={failure.actual} className="text-destructive" />
                 </div>
               </li>
             ))}

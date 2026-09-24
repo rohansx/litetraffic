@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { BrowserRouter, Link, Outlet, Route, Routes } from "react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Page } from "@/components/page";
@@ -15,14 +16,16 @@ import { ScenarioPage, ScenariosPage } from "@/pages/scenarios";
 function Layout() {
   return (
     <TooltipProvider delayDuration={200}>
-      <SidebarProvider>
+      <SidebarProvider
+        style={{ "--sidebar-width": "calc(var(--spacing) * 64)", "--header-height": "calc(var(--spacing) * 12)" } as CSSProperties}
+      >
         <a
           href="#content"
           className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
         >
           Skip to content
         </a>
-        <AppSidebar />
+        <AppSidebar variant="inset" />
         <SidebarInset id="content">
           <Outlet />
         </SidebarInset>

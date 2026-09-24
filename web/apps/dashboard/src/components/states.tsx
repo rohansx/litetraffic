@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { RotateCw, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -17,19 +18,19 @@ export function LoadingState({ label = "Loading" }: { label?: string }) {
 
 export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
   return (
-    <div role="alert" className="flex flex-col items-start gap-3 rounded-xl border border-fail/40 bg-fail-muted p-5 text-fail">
-      <div className="flex items-center gap-2 font-semibold">
-        <TriangleAlert className="size-4" aria-hidden />
-        The dashboard could not load this data
-      </div>
-      <p className="text-sm text-foreground">{error.message}</p>
-      {onRetry && (
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          <RotateCw aria-hidden />
-          Try again
-        </Button>
-      )}
-    </div>
+    <Alert variant="destructive">
+      <TriangleAlert aria-hidden />
+      <AlertTitle>The dashboard could not load this data</AlertTitle>
+      <AlertDescription>
+        <p>{error.message}</p>
+        {onRetry && (
+          <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
+            <RotateCw aria-hidden />
+            Try again
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
   );
 }
 

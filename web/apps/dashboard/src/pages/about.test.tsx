@@ -10,13 +10,14 @@ test("about explains verdicts and shows the runs folder", async () => {
   expect(screen.getByText("Every declared check held with complete evidence.")).toBeInTheDocument();
 });
 
-test("theme toggle forces light or dark on the root element", async () => {
+test("sidebar footer shows the runs folder and version, and its menu forces light or dark", async () => {
   const user = userEvent.setup();
   renderApp("/about");
-  await user.click(screen.getByRole("button", { name: "Theme: system" }));
+  const footer = await screen.findByRole("button", { name: "Runs folder /home/dev/acme-api/runs, LiteTraffic v0.1.0, theme system" });
+  await user.click(footer);
   await user.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
   expect(document.documentElement).toHaveClass("dark");
-  await user.click(screen.getByRole("button", { name: "Theme: dark" }));
+  await user.click(screen.getByRole("button", { name: /theme dark$/ }));
   await user.click(await screen.findByRole("menuitemradio", { name: "System" }));
   expect(document.documentElement).not.toHaveClass("dark");
 });

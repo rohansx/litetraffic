@@ -14,7 +14,7 @@ export function ActivityView({ activity }: { activity: Activity }) {
         <CardContent>
           <Facts
             items={[
-              ["Status", <span className={activity.status === "error" ? "text-fail" : undefined}>{activity.status}</span>],
+              ["Status", <span className={activity.status === "error" ? "text-destructive" : undefined}>{activity.status}</span>],
               ["Target", <span className="font-mono text-xs" title={activity.target}>{activity.target}</span>],
               ["Starting seed", activity.starting_seed],
               ["Slices", activity.max_slices == null ? `${activity.slices.length} (no limit)` : `${activity.slices.length} of ${activity.max_slices}`],
@@ -23,12 +23,12 @@ export function ActivityView({ activity }: { activity: Activity }) {
               ["Scenario digest", <span className="font-mono text-xs" title={activity.scenario_sha256}>{activity.scenario_sha256.slice(0, 12)}</span>],
             ]}
           />
-          {activity.error && <p className="mt-4 text-sm text-fail">{activity.error}</p>}
+          {activity.error && <p className="mt-4 text-sm text-destructive">{activity.error}</p>}
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="font-heading text-lg font-semibold">Slices</CardTitle>
+          <CardTitle>Slices</CardTitle>
           <CardDescription>Background traffic has no verdict. Each slice is an ordinary run; open one for its evidence.</CardDescription>
         </CardHeader>
         <CardContent>
