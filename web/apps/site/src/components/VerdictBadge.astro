@@ -1,5 +1,6 @@
 ---
-import { badgeOutline, verdictDot, type Verdict } from "../lib/ui";
+// Outline badge with the shared three-lamp signal; the verdict word is always shown.
+import { badgeOutline, type Verdict } from "../lib/ui";
 
 interface Props {
   verdict: Verdict;
@@ -8,6 +9,6 @@ interface Props {
 const { verdict, class: extra } = Astro.props;
 const word = { pass: "Pass", fail: "Fail", error: "Error", inconclusive: "Inconclusive" }[verdict];
 ---
-<span class:list={[badgeOutline, "px-1.5 text-muted-foreground", extra]}>
-  <svg viewBox="0 0 12 12" aria-hidden="true" class={verdictDot[verdict]}><circle cx="6" cy="6" r="5"></circle></svg>{word}
+<span class:list={[badgeOutline, "font-mono", extra]}>
+  <span class="signal" data-verdict={verdict} aria-hidden="true"></span>{word}
 </span>

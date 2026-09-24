@@ -1,0 +1,29 @@
+---
+// Section heading in the Signal layout: an optional boxed step number with its motif on the left,
+// a mono kicker, the title and a lead on the right, then a ruler. Numbers are only for the run's
+// own sequence (seed, drive, observe, verdict).
+import { h2, kicker as kickerClass, lead } from "../lib/ui";
+
+interface Props {
+  titleId: string;
+  title: string;
+  kicker: string;
+  number?: string;
+  motif?: string;
+}
+const { titleId, title, kicker, number, motif } = Astro.props;
+---
+<div class="grid gap-6 md:grid-cols-[11rem_1fr] md:gap-8">
+  {number ? (
+    <div class="flex flex-row items-center gap-4 md:flex-col md:items-start md:gap-3 md:pt-7">
+      <span class="section-number is-active [--connector-length:4rem] md:[--connector-length:7rem]" aria-hidden="true">{number}</span>
+      <span class="eyebrow max-md:ml-20">{motif}</span>
+    </div>
+  ) : <div class="max-md:hidden"></div>}
+  <div>
+    <p class={kickerClass}>{kicker}</p>
+    <h2 id={titleId} class={`${h2} mt-2`}>{title}</h2>
+    <p class={lead}><slot /></p>
+  </div>
+</div>
+<hr class="ruler mt-8 sm:mt-10" />

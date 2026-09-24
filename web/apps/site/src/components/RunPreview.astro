@@ -1,0 +1,120 @@
+---
+// 01 · seed / drive: the included checkout example as a replayable run. Values come from
+// examples/checkout/manifest.json and the README's expected first-run result; timings are shortened.
+import SectionHead from "./SectionHead.astro";
+import VerdictBadge from "./VerdictBadge.astro";
+import { button, chip, codeBlock, section, wrap } from "../lib/ui";
+
+const manifest = `{
+  "name": "checkout",
+  "actors": [{"class": "buyer", "count": 8}],
+  "fixtures": {"recipe": "owned-shop"},
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {"name": "warmup",   "seconds": 1, "rate": 1},
+      {"name": "measure",  "seconds": 5, "rate": 2},
+      {"name": "recovery", "seconds": 1, "rate": 1}
+    ]
+  },
+  "assertions": ["one_effect_per_payment",
+                 "accepted_orders_persist",
+                 "order_totals_match"],
+  "budgets": {"max_seconds": 20, "max_requests": 40}
+}`;
+
+// Stage names are the ones run.json records while a run is in progress.
+const steps = [
+  { label: "Seeding", stage: "preparing", log: "Fixture owned-shop created for this run" },
+  { label: "Traffic", stage: "running", log: "k6 v2.2.0 drove 12/12 journeys, 36 requests" },
+  { label: "Observing", stage: "observing", log: "Observer owned-order-ledger read the final state" },
+  { label: "Verdict", stage: "finalizing", log: "3 of 3 assertions hold. report.html written" },
+];
+---
+<section class={`${wrap} ${section}`} id="mechanics" aria-labelledby="mechanics-title">
+  <SectionHead titleId="mechanics-title" number="01" motif="seed · drive" kicker="interactive preview · examples/checkout" title="Seed a world, then drive it.">
+    A scenario names its users, the state they start from, the pace they arrive at, and what must hold afterwards. LiteTraffic sets up that state, runs the journeys on a seeded schedule with stock k6, and reads back the result.
+  </SectionHead>
+
+  <div class="bracket-frame mx-auto mt-12 grid max-w-5xl gap-6 lg:grid-cols-[1.25fr_1fr]" data-run>
+    <div class="window-card min-w-0">
+      <div class="window-card-header"><span>run · checkout</span><span class={`${chip} ml-auto bg-card`}>seed 42</span></div>
+      <div class="p-4 sm:p-5">
+        <figure class="overflow-hidden rounded-md border bg-muted/40">
+          <figcaption class="flex items-center justify-between gap-3 border-b px-3 py-2 font-mono text-xs text-muted-foreground">
+            <span class="text-foreground">manifest.json</span><span>trimmed</span>
+          </figcaption>
+          <pre class={`${codeBlock} px-3 py-3 max-sm:text-[10.5px]`} tabindex="0"><code>{manifest}</code></pre>
+        </figure>
+        <ol class="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-2" aria-label="Run stages">
+          {steps.map((s, i) => (
+            <li class="group flex items-center gap-1.5" data-step data-state="done">
+              {i > 0 && <span class="h-px w-3 bg-rule" aria-hidden="true"></span>}
+              <span class="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1 font-mono text-xs text-muted-foreground group-data-[state=current]:border-brand group-data-[state=current]:text-foreground group-data-[state=done]:text-foreground">
+                <svg class="hidden size-3 fill-none stroke-current stroke-3 group-data-[state=done]:block" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                <span class="size-2 rounded-full bg-lamp-off group-data-[state=current]:bg-brand group-data-[state=current]:motion-safe:animate-pulse group-data-[state=done]:hidden" aria-hidden="true"></span>
+                {s.label}
+                <span class="sr-only" data-step-state>, done</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <button type="button" class={`${button} mt-4 w-full`} data-run-again>
+          <svg class="fill-brand" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z" /></svg>Run again
+        </button>
+      </div>
+    </div>
+
+    <div class="flex min-w-0 flex-col gap-4">
+      <div class="rounded-lg border border-dashed bg-card/60 p-4 sm:p-5">
+        <p class="font-mono text-xs text-muted-foreground">run log</p>
+        <ol class="mt-3 grid gap-2.5" aria-live="polite">
+          {steps.map((s) => (
+            <li class="grid grid-cols-[5.5rem_1fr] gap-2 text-sm" data-log>
+              <span class="font-mono text-xs leading-5 text-brand-text">{s.stage}</span>
+              <span>{s.log}</span>
+            </li>
+          ))}
+        </ol>
+        <div class="mt-4 flex items-center justify-between gap-3 border-t pt-4" data-log>
+          <span class="font-mono text-xs text-muted-foreground">verdict</span>
+          <VerdictBadge verdict="pass" />
+        </div>
+      </div>
+      <p class="text-sm leading-relaxed text-muted-foreground">
+        This replays the documented first run of <code>examples/checkout</code> against its demo server, with the timing shortened. A real run writes every step to <code>.litetraffic/runs/&lt;run_id&gt;/</code>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Replays the four stages. Rendered finished, so the page reads the same without JavaScript.
+  const root = document.querySelector<HTMLElement>("[data-run]")!;
+  const steps = [...root.querySelectorAll<HTMLElement>("[data-step]")];
+  const logs = [...root.querySelectorAll<HTMLElement>("[data-log]")];
+  const again = root.querySelector<HTMLButtonElement>("[data-run-again]")!;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  let timer = 0;
+
+  const show = (n: number) => {
+    steps.forEach((s, i) => {
+      const state = i < n ? "done" : i === n ? "current" : "pending";
+      s.dataset.state = state;
+      s.querySelector("[data-step-state]")!.textContent = state === "current" ? ", in progress" : `, ${state}`;
+    });
+    // One log line per finished stage; the extra last entry (the verdict row) arrives with the last stage.
+    logs.forEach((l, i) => (l.hidden = Math.min(i, steps.length - 1) >= n));
+  };
+
+  again.addEventListener("click", () => {
+    clearTimeout(timer);
+    if (reduced.matches) return show(steps.length);
+    let n = 0;
+    const tick = () => {
+      show(n);
+      if (n++ < steps.length) timer = window.setTimeout(tick, 750);
+    };
+    tick();
+  });
+</script>

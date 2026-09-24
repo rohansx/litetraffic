@@ -1,161 +1,94 @@
 ---
 import Base from "../layouts/Base.astro";
-import DashboardMock from "../components/DashboardMock.astro";
-import Mechanics from "../components/Mechanics.astro";
-import Details from "../components/Details.astro";
-import VerdictBadge from "../components/VerdictBadge.astro";
-import { badgeOutline, badgeSecondary, button, buttonGhostSm, buttonIcon, buttonOutline, buttonOutlineSm, card, cardDescription, cardTitle, h2, label, lead, section, wrap } from "../lib/ui";
+import RunPreview from "../components/RunPreview.astro";
+import VerdictCompare from "../components/VerdictCompare.astro";
+import Features from "../components/Features.astro";
+import Commands from "../components/Commands.astro";
+import Start from "../components/Start.astro";
+import GitHubIcon from "../components/GitHubIcon.astro";
+import { button, buttonGhostSm, buttonIcon, buttonOutline, buttonSm, doc, repo, wrap } from "../lib/ui";
 
-const logo = "M4 17h4v11H4zm7-9h4v20h-4zm7 5h4v15h-4zm7-9h4v24h-4z";
-const bars = [25, 25, 26, 24, 30, 34, 55, 81, 92, 72, 43, 31, 25, 26, 25, 25];
 const nav = [
   ["#mechanics", "How it works"],
-  ["#isolation", "Tenant isolation"],
-  ["#dashboard", "Evidence"],
+  ["#verdict", "Verdicts"],
+  ["#features", "Features"],
   ["#commands", "Commands"],
 ];
-const repo = "https://github.com/rohansx/litetraffic";
+const footer: [string, [string, string][]][] = [
+  ["Product", [["Quickstart", doc("docs/quickstart.md")], ["Installation", doc("docs/installation.md")], ["CLI reference", doc("docs/cli.md")], ["Roadmap", doc("docs/roadmap.md")]]],
+  ["Docs", [["Writing scenarios", doc("docs/scenarios.md")], ["Results and reports", doc("docs/results.md")], ["Safety", doc("docs/safety.md")], ["Troubleshooting", doc("docs/troubleshooting.md")]]],
+  ["Project", [["GitHub", repo], ["Contributing", doc("CONTRIBUTING.md")], ["Security", doc("SECURITY.md")], ["License", doc("LICENSE")]]],
+];
 ---
 <Base
-  title="LiteTraffic — Users as an API"
+  title="LiteTraffic: Users as an API"
   description="LiteTraffic runs stateful synthetic users against a running app on a seeded schedule, checks the business effects they leave behind, and keeps the evidence."
 >
-  <header class="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+  <header class="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
     <div class={`${wrap} flex h-14 items-center justify-between gap-4`}>
       <a class="flex items-center gap-2 font-heading text-base font-semibold whitespace-nowrap" href="#main" aria-label="LiteTraffic home">
-        <span class="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground"><svg class="size-4 fill-current" viewBox="0 0 32 32" aria-hidden="true"><path d={logo}></path></svg></span><span>LiteTraffic</span>
+        <span class="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground" aria-hidden="true">
+          <svg class="size-4" viewBox="0 0 32 32"><path class="fill-current" d="M4 17h4v11H4zm7-9h4v20h-4zm7 5h4v15h-4z"></path><path class="fill-brand" d="M25 4h4v24h-4z"></path></svg>
+        </span><span>LiteTraffic</span>
       </a>
       <nav class="flex items-center gap-1" aria-label="Main navigation">
-        {nav.map(([href, text]) => <a class={`${buttonGhostSm} text-muted-foreground max-lg:hidden`} href={href}>{text}</a>)}
-        <a class={`${buttonOutlineSm} ml-1`} href="#start">Get started</a>
+        {nav.map(([href, text]) => (
+          <a class={`${buttonGhostSm} text-muted-foreground decoration-brand decoration-2 underline-offset-[6px] hover:text-foreground hover:underline max-lg:hidden`} href={href}>{text}</a>
+        ))}
+        <a class={`${buttonGhostSm} font-mono text-xs text-muted-foreground max-sm:hidden`} href={repo}><GitHubIcon />GitHub</a>
         <button id="theme-toggle" type="button" class={buttonIcon} aria-label="Dark mode" aria-pressed="false">
           <svg class="fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path class="fill-current stroke-none" d="M12 3a9 9 0 0 1 0 18z"></path></svg>
         </button>
+        <a class={`${buttonSm} ml-1`} href="#start">Get started</a>
       </nav>
     </div>
   </header>
 
   <main id="main">
-    <section class={`${wrap} grid items-center gap-12 py-16 sm:py-24 lg:grid-cols-[1fr_1fr] lg:gap-16`} aria-labelledby="hero-title">
-      <div>
-        <p class="mb-6 inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-sm font-medium shadow-xs">
-          <span class="size-1.5 rounded-full bg-pass" aria-hidden="true"></span> Open developer preview, 0.1.0.dev0
-        </p>
-        <h1 id="hero-title" class="font-heading text-5xl leading-[1.02] font-bold tracking-tight sm:text-6xl lg:text-7xl">Users<br />as an API.</h1>
-        <p class="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">Give a running app a population of stateful synthetic users. Replay what they do under bounded traffic. Check whether the right business effects survive.</p>
-        <div class="mt-8 flex flex-wrap items-center gap-3">
-          <a class={button} href="#start">Run a scenario</a>
-          <a class={buttonOutline} href="#dashboard">See the evidence</a>
+    <section class="grid-bg border-b [--grid-size:2.5rem]" aria-labelledby="hero-title">
+      <div class={`${wrap} flex flex-col items-center py-20 text-center sm:py-28`}>
+        <p class="eyebrow">developer preview · 0.1.0.dev0</p>
+        <h1 id="hero-title" class="mt-6 font-heading text-6xl leading-[0.95] font-bold tracking-tight sm:text-7xl lg:text-8xl">Users<br />as an API.</h1>
+        <p class="mt-7 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground">Give a running app a population of stateful synthetic users. Replay what they do on a seeded schedule, then check the business effects they leave behind.</p>
+        <div class="mt-9 grid w-full max-w-xs gap-3 sm:flex sm:max-w-none sm:justify-center">
+          <a class={button} href="#start"><svg class="fill-brand" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z" /></svg>Run a scenario</a>
+          <a class={buttonOutline} href={repo}><GitHubIcon />Star on GitHub</a>
         </div>
-        <p class="mt-6 text-sm text-muted-foreground">Localhost, CI preview, or an existing E2B sandbox. No hosted account.</p>
+        <figure class="mt-10 w-full max-w-md rounded-lg border bg-card/80 text-left font-mono text-xs shadow-xs sm:text-[13px]">
+          <figcaption class="sr-only">The documented first run of the checkout example</figcaption>
+          <p class="border-b px-4 whitespace-pre py-2.5 text-muted-foreground"><span class="text-brand-text">$</span> {"litetraffic verify examples/checkout \\\n    --target http://127.0.0.1:8765 --seed 42"}</p>
+          <p class="flex items-center gap-2.5 px-4 py-2.5"><span class="signal [--signal-dot:0.625rem]" data-verdict="pass" aria-hidden="true"></span>pass<span class="text-muted-foreground">· 12/12 journeys · 36 requests</span></p>
+        </figure>
       </div>
-
-      <div
-        class={`${card} min-w-0 gap-0 py-0`}
-        role="img"
-        aria-label="Illustrative checkout run: 12 buyers, cart to order to payment to retry, a seeded burst over 90 seconds, and a passing check of one ledger effect per payment"
-      >
-        <div class="flex items-start justify-between gap-3 border-b px-6 py-5">
-          <div class="grid gap-1.5"><span class={cardTitle}>checkout / scenario 01</span><span class={cardDescription}>Seed 42, 90 seconds</span></div>
-          <span class={badgeSecondary}>illustrative run</span>
-        </div>
-        <div class="grid grid-cols-[80px_1fr_auto] items-center gap-3 border-b px-6 py-4">
-          <span class="text-sm text-muted-foreground">Population</span>
-          <div class="flex pl-2" aria-hidden="true">
-            {["B", "B", "B", "+9"].map((a, i) => (
-              <i class:list={["-ml-2 grid size-7 place-items-center rounded-full border-2 border-card text-[11px] font-medium not-italic", i === 3 ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"]}>{a}</i>
-            ))}
-          </div>
-          <strong class="text-sm font-medium">12 buyers</strong>
-        </div>
-        <div class="grid items-center gap-2 border-b px-6 py-4 sm:grid-cols-[80px_1fr] sm:gap-3">
-          <span class="text-sm text-muted-foreground">Journey</span>
-          <div class="flex items-center gap-1.5">
-            {["cart", "order", "pay", "retry"].map((step, i) => (
-              <>
-                {i > 0 && <b class="h-px min-w-1 flex-1 bg-border"></b>}
-                <span class={badgeOutline}>{step}</span>
-              </>
-            ))}
-          </div>
-        </div>
-        <div class="border-b px-6 py-5">
-          <div class="flex justify-between text-xs text-muted-foreground tabular-nums"><span>Journeys / second</span><span>90 seconds</span></div>
-          <div class="mt-4 flex h-24 items-end gap-1 border-b" aria-hidden="true">
-            {bars.map((h) => <i class="flex-1 rounded-t-sm bg-primary/85" style={`height:${h}%`}></i>)}
-          </div>
-          <div class="mt-2 flex justify-between text-xs text-muted-foreground"><span>baseline</span><span>burst</span><span>recovery</span></div>
-        </div>
-        <div class="flex items-center gap-3 px-6 py-4">
-          <span class="grid size-8 place-items-center rounded-md border bg-muted" aria-hidden="true"><svg class="size-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></svg></span>
-          <span><small class="block text-xs text-muted-foreground">Business assertion</small><strong class="block text-sm font-medium">One ledger effect per payment</strong></span>
-          <VerdictBadge verdict="pass" class="ml-auto" />
-        </div>
-      </div>
+      <div class={wrap}><hr class="ruler" /></div>
     </section>
 
-    <div class="border-y bg-muted/40">
-      <div class={`${wrap} grid text-sm font-medium sm:grid-cols-3`}>
-        {["Believable users", "Controlled pressure", "Proof of effect"].map((t) => (
-          <span class="flex items-center gap-2.5 border-b py-4 last:border-b-0 sm:border-r sm:border-b-0 sm:px-5 sm:py-5 sm:first:pl-0 sm:last:border-r-0">
-            <svg class="size-4 fill-none stroke-muted-foreground stroke-2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>{t}
-          </span>
-        ))}
-      </div>
-    </div>
-
-    <section class={`${wrap} ${section} grid items-center gap-12 lg:grid-cols-[1fr_0.9fr] lg:gap-20`} id="mechanics">
-      <div>
-        <p class={label}>Why this exists</p>
-        <h2 class={h2}>A response is only half the story.</h2>
-        <p class={lead}>Load tests count responses. A real user carries state across requests, retries an action, and expects the system to leave the right result behind. LiteTraffic tests that complete chain.</p>
-      </div>
-      <div class={`${card} gap-0 py-0`} aria-label="Example of a fast but incorrect checkout response">
-        <div class="flex justify-between gap-3 border-b px-6 py-5 text-sm">
-          <span class="text-muted-foreground">What a load test sees</span>
-          <strong class="text-right font-medium tabular-nums">HTTP 200 <small class="mt-1 block text-xs font-normal text-muted-foreground">31 ms</small></strong>
-        </div>
-        <div class="flex justify-between gap-3 border-b px-6 py-5 text-sm">
-          <span class="text-muted-foreground">What the customer gets</span>
-          <strong class="text-right font-medium text-fail tabular-nums">2 charges <small class="mt-1 block text-xs font-normal text-muted-foreground">for 1 payment</small></strong>
-        </div>
-        <p class="bg-muted/50 px-6 py-4 text-sm font-medium rounded-b-xl">A fast response can still be a failed checkout.</p>
-      </div>
-    </section>
-
-    <Mechanics />
-
-    <section class={`${wrap} ${section}`} id="dashboard" aria-labelledby="dashboard-title">
-      <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:gap-16">
-        <div>
-          <p class={label}>Local dashboard</p>
-          <h2 id="dashboard-title" class={h2}>Read the failure, not a log.</h2>
-          <p class={lead}>When a check fails, the run keeps the first failing samples with what the scenario expected and what the app actually did. <code>litetraffic dashboard</code> lists every run on your machine, filters them by scenario, verdict and seed, compares any two you tick, and charts p95 latency per scenario.</p>
-        </div>
-        <ul class="grid gap-3 self-end text-sm sm:grid-cols-2">
-          <li class="rounded-xl border bg-card px-4 py-3.5 shadow-sm">Binds to 127.0.0.1 only, with no host option. Requests with any other <code>Host</code> header are refused.</li>
-          <li class="rounded-xl border bg-card px-4 py-3.5 shadow-sm">Read-only. It serves run artifacts and never contacts a target.</li>
-          <li class="rounded-xl border bg-card px-4 py-3.5 shadow-sm">Follows your light or dark setting, and fits a phone screen.</li>
-          <li class="rounded-xl border bg-card px-4 py-3.5 shadow-sm">Python standard library. Nothing else to install.</li>
-        </ul>
-      </div>
-      <div class="mt-10 sm:mt-14"><DashboardMock /></div>
-    </section>
-
-    <Details />
+    <RunPreview />
+    <VerdictCompare />
+    <Features />
+    <Commands />
+    <Start />
   </main>
 
   <footer class="border-t">
-    <div class={`${wrap} grid gap-4 py-8 text-sm sm:flex sm:items-center sm:justify-between sm:gap-6`}>
-      <a class="flex items-center gap-2 font-heading font-semibold" href="#main">
-        <span class="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground"><svg class="size-4 fill-current" viewBox="0 0 32 32" aria-hidden="true"><path d={logo}></path></svg></span><span>LiteTraffic</span>
-      </a>
-      <p class="text-muted-foreground">Users as an API. Evidence as the result. MIT licensed.</p>
-      <div class="flex gap-5 text-muted-foreground">
-        <a class="hover:text-foreground hover:underline underline-offset-4" href={repo}>GitHub</a>
-        <a class="hover:text-foreground hover:underline underline-offset-4" href={`${repo}/tree/main/docs`}>Documentation</a>
-        <a class="hover:text-foreground hover:underline underline-offset-4" href={`${repo}/blob/main/docs/cli.md`}>CLI reference</a>
+    <div class={`${wrap} grid gap-10 py-12 sm:grid-cols-3 lg:grid-cols-[1.6fr_1fr_1fr_1fr]`}>
+      <div class="sm:col-span-3 lg:col-span-1">
+        <a class="flex items-center gap-2 font-heading text-lg font-semibold" href="#main">LiteTraffic</a>
+        <p class="mt-3 max-w-xs text-sm text-muted-foreground">Users as an API. Evidence as the result.</p>
+        <p class="mt-4 border-l-2 border-brand pl-3 font-mono text-xs text-muted-foreground">Local-first · Linux verified · k6 v2.2.0</p>
       </div>
+      {footer.map(([title, links]) => (
+        <div>
+          <h2 class="font-mono text-xs font-medium text-muted-foreground">{title}</h2>
+          <ul class="mt-3 grid gap-2 text-sm">
+            {links.map(([text, href]) => <li><a class="hover:underline decoration-brand decoration-2 underline-offset-4" href={href}>{text}</a></li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+    <div class={wrap}><div class="flex flex-wrap items-center justify-between gap-3 border-t py-5 font-mono text-xs text-muted-foreground">
+      <span>MIT licensed. k6 is installed separately under AGPL-3.0.</span>
+      <a class="hover:text-foreground" href={doc("THIRD_PARTY_NOTICES.md")}>Third-party notices</a></div>
     </div>
   </footer>
 </Base>
@@ -166,9 +99,7 @@ const repo = "https://github.com/rohansx/litetraffic";
   const toggle = document.getElementById("theme-toggle")!;
   const os = matchMedia("(prefers-color-scheme: dark)");
   const isDark = () => root.classList.contains("dark") || (!root.classList.contains("light") && os.matches);
-  const sync = () => {
-    toggle.setAttribute("aria-pressed", String(isDark()));
-  };
+  const sync = () => toggle.setAttribute("aria-pressed", String(isDark()));
   toggle.addEventListener("click", () => {
     const next = isDark() ? "light" : "dark";
     root.classList.remove("light", "dark");
