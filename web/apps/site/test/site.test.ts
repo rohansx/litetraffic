@@ -56,4 +56,20 @@ describe("landing page", () => {
   test("the dashboard mock is labelled illustrative", () => {
     expect(html).toContain("Illustrative mock");
   });
+
+  test("the mock shows each view's path in its address bar, not as a stray line in the panel", () => {
+    const bar = html.match(/<span\b[^>]*data-dash-url[^>]*>([^<]*)<\/span>/);
+    expect(bar?.[1]).toBe("127.0.0.1:8780/");
+    for (const path of ["/runs?scenario=checkout", "/scenarios/checkout"]) expect(html).toContain(`data-path="${path}"`);
+    expect(html).not.toMatch(/<p\b[^>]*>\/<\/p>/);
+  });
+
+  test("the Inter Tight hero is not tightened again past shadcn's tracking-tight", () => {
+    expect(html.match(/<h1\b[^>]*>/)![0]).not.toContain("tracking-tighter");
+  });
+
+  test("inline code such as --target never splits after its leading dashes", () => {
+    const css = assets.filter((f) => f.endsWith(".css")).map((f) => readFileSync(f, "utf8")).join("");
+    expect(css).toMatch(/:not\(pre\)\s*>\s*code\s*\{[^}]*white-space:\s*nowrap/);
+  });
 });

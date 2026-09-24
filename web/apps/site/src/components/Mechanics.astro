@@ -1,5 +1,5 @@
 ---
-import { card, h2, label, lead, wrap } from "../lib/ui";
+import { badgeOutline, badgeSecondary, card, cardDescription, cardTitle, codeBlock, h2, label, lead, section, tabsList, tabsTrigger, wrap } from "../lib/ui";
 
 const steps = [
   {
@@ -59,68 +59,67 @@ const rows = (failVictim: boolean) => [
   ["victim_unchanged", failVictim ? "fail" : "pass", "10"],
   ["tenant_fixture_intact", "pass", "1"],
 ];
-const toggleBtn =
-  "rounded-md border px-3 py-2 text-xs font-semibold hover:bg-accent aria-pressed:border-brand aria-pressed:bg-brand aria-pressed:text-brand-foreground";
-const pre = "overflow-x-auto font-mono text-[11px] leading-[1.7] sm:text-[12.5px]";
 ---
-<section class="bg-muted py-20 sm:py-28 lg:py-32">
+<section class={`border-y bg-muted/40 ${section}`}>
   <div class={wrap}>
-    <div class="max-w-[780px]">
+    <div class="max-w-2xl">
       <p class={label}>Inside a verification run</p>
       <h2 class={h2}>Make a world. Run it. Check it.</h2>
     </div>
-    <ol class="mt-12 border-t-2 border-foreground sm:mt-16">
+    <ol class="mt-10 grid gap-4 sm:mt-12 md:grid-cols-2 lg:grid-cols-6">
       {steps.map((s, i) => (
-        <li class="grid grid-cols-[36px_1fr] items-start gap-3 border-b py-6 sm:grid-cols-[90px_1fr_130px] sm:gap-6 sm:py-7">
-          <span class="pt-1 text-xs text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
-          <div>
-            <h3 class="text-2xl font-bold sm:text-[1.7rem]">{s.title}</h3>
-            {s.html ? <p class="mt-2 max-w-[620px] text-[15px] leading-normal text-muted-foreground" set:html={s.html} /> : <p class="mt-2 max-w-[620px] text-[15px] leading-normal text-muted-foreground">{s.body}</p>}
+        <li class={`${card} gap-3 px-6 py-5 lg:col-span-2 lg:[&:nth-child(n+4)]:col-span-3`}>
+          <div class="flex items-center justify-between gap-3">
+            <span class="grid size-7 place-items-center rounded-full border text-xs font-medium tabular-nums" aria-hidden="true">{i + 1}</span>
+            <span class={badgeSecondary}>{s.meta}</span>
           </div>
-          <span class="pt-1 text-right text-xs text-muted-foreground max-sm:hidden">{s.meta}</span>
+          <h3 class={`${cardTitle} text-lg`}>{s.title}</h3>
+          {s.html ? <p class={`${cardDescription} leading-relaxed`} set:html={s.html} /> : <p class={`${cardDescription} leading-relaxed`}>{s.body}</p>}
         </li>
       ))}
     </ol>
   </div>
 </section>
 
-<section class={`${wrap} py-20 sm:py-28 lg:py-36`} id="isolation" aria-labelledby="isolation-title">
-  <div class="grid items-end gap-11 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
-    <div class="max-w-[780px]">
-      <p class={`${label} font-mono`}>litetraffic init tenant-isolation</p>
-      <h2 id="isolation-title" class={`${h2} max-sm:text-[2.75rem]`}>From two identities to a <span class="whitespace-nowrap">tenant-isolation</span> check.</h2>
+<section class={`${wrap} ${section}`} id="isolation" aria-labelledby="isolation-title">
+  <div class="grid items-start gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+    <div>
+      <p class="mb-3"><code class={`${badgeOutline} font-mono`}>litetraffic init tenant-isolation</code></p>
+      <h2 id="isolation-title" class={h2}>From two identities to a <span class="whitespace-nowrap">tenant-isolation</span> check.</h2>
       <p class={lead}>Describe who owns what in a small JSON config. The generator writes a complete scenario bundle for you to review and run, with no k6 code to write. The same config always produces the same files and the same digest.</p>
     </div>
-    <dl class="border-t-2 border-foreground">
+    <dl class={`${card} gap-0 divide-y py-0`}>
       {checks.map(([name, text]) => (
-        <div class="border-b py-3.5"><dt><code class="text-[13px] font-semibold">{name}</code></dt><dd class="mt-1 text-sm leading-normal text-muted-foreground">{text}</dd></div>
+        <div class="px-5 py-3.5"><dt><code class="text-[13px] font-medium">{name}</code></dt><dd class="mt-1 text-sm leading-normal text-muted-foreground">{text}</dd></div>
       ))}
     </dl>
   </div>
 
-  <div class="mt-11 grid items-start gap-10 sm:mt-16 lg:grid-cols-[0.9fr_1.1fr]">
-    <figure class={`${card} min-w-0 overflow-hidden`}>
-      <figcaption class="flex justify-between gap-3 border-b bg-muted px-4 py-2.5 text-xs text-muted-foreground">
-        <span class="font-mono font-semibold text-foreground">kit.json</span><span>trimmed</span>
+  <div class="mt-10 grid items-start gap-6 sm:mt-14 lg:grid-cols-[0.9fr_1.1fr]">
+    <figure class={`${card} min-w-0 gap-0 overflow-hidden py-0`}>
+      <figcaption class="flex items-center justify-between gap-3 border-b px-5 py-3 text-xs text-muted-foreground">
+        <span class="font-mono font-medium text-foreground">kit.json</span><span class={badgeSecondary}>trimmed</span>
       </figcaption>
-      <pre class={`${pre} px-4 py-4.5`} tabindex="0"><code>{kitJson}</code></pre>
-      <p class="border-t px-4 py-3.5 text-[13px] leading-normal text-muted-foreground">Identities can also sign in with a minted test JWT (<code>auth</code>) or a ready token from an environment variable (<code>token_env</code>). The full example adds a run-owned fixture and one final observation, <code>tenant_fixture_intact</code>.</p>
+      <pre class={`${codeBlock} bg-muted/40 px-5 py-4`} tabindex="0"><code>{kitJson}</code></pre>
+      <p class="border-t px-5 py-3.5 text-[13px] leading-normal text-muted-foreground">Identities can also sign in with a minted test JWT (<code>auth</code>) or a ready token from an environment variable (<code>token_env</code>). The full example adds a run-owned fixture and one final observation, <code>tenant_fixture_intact</code>.</p>
     </figure>
 
-    <div class="min-w-0 overflow-hidden rounded-xl border bg-sidebar text-foreground shadow-sm scheme-dark">
-      <div class="flex flex-wrap gap-2 border-b px-4 py-3.5 sm:px-5" role="group" aria-label="Example server">
-        <button type="button" class={toggleBtn} aria-pressed="true" data-kit="pass">Correct server</button>
-        <button type="button" class={toggleBtn} aria-pressed="false" data-kit="fail">Silent write</button>
+    <div class={`${card} min-w-0 gap-0 overflow-hidden py-0`}>
+      <div class="border-b px-5 py-3">
+        <div class={tabsList} role="group" aria-label="Example server">
+          <button type="button" class={tabsTrigger} aria-pressed="true" data-kit="pass">Correct server</button>
+          <button type="button" class={tabsTrigger} aria-pressed="false" data-kit="fail">Silent write</button>
+        </div>
       </div>
-      <pre class={`${pre} p-4 sm:p-5`} tabindex="0"><code><span class="text-muted-foreground">$ litetraffic init tenant-isolation \
+      <pre class={`${codeBlock} bg-muted/40 p-5`} tabindex="0"><code><span class="text-muted-foreground">$ litetraffic init tenant-isolation \
     --config kit.json --out isolation
 $ litetraffic verify isolation \
     --target http://127.0.0.1:8769</span>
 {[false, true].map((failing) => (
-  <span data-kit-output={failing ? "fail" : "pass"} hidden={failing}><span class:list={["font-bold", failing ? "text-fail" : "text-pass"]}>verdict: {failing ? "FAIL" : "PASS"}  lifecycle: finished  journeys: 10/10</span>
-{rows(failing).map(([n, s, c]) => <span class:list={[s === "fail" && "font-bold text-fail"]}>{`${n}  ${s}  ${c}\n`}</span>)}unexpected HTTP failure rate: 0.0% (0/100)</span>
+  <span data-kit-output={failing ? "fail" : "pass"} hidden={failing}><span class:list={["font-semibold", failing ? "text-fail" : "text-pass"]}>verdict: {failing ? "FAIL" : "PASS"}  lifecycle: finished  journeys: 10/10</span>
+{rows(failing).map(([n, s, c]) => <span class:list={[s === "fail" && "font-semibold text-fail"]}>{`${n}  ${s}  ${c}\n`}</span>)}unexpected HTTP failure rate: 0.0% (0/100)</span>
 ))}</code></pre>
-      <p class="border-t px-4 pt-3.5 pb-4.5 text-[13px] leading-normal text-muted-foreground sm:px-5" aria-live="polite" data-kit-caption>The included tenant example server, run as shipped. The rejected cross-tenant probes are expected statuses, so none count as unexpected failures.</p>
+      <p class="border-t px-5 py-3.5 text-[13px] leading-normal text-muted-foreground" aria-live="polite" data-kit-caption>The included tenant example server, run as shipped. The rejected cross-tenant probes are expected statuses, so none count as unexpected failures.</p>
     </div>
   </div>
 </section>
