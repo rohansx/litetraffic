@@ -14,6 +14,7 @@ import { formatDateTime } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { ActivityView } from "@/pages/run/activity";
 import { AssertionsTable } from "@/pages/run/assertions";
+import { ExplanationCard } from "@/pages/run/explanation";
 import { Artifacts, Limitations, Metrics, Observations } from "@/pages/run/sections";
 
 export function RunDetailPage() {
@@ -73,6 +74,8 @@ function VerifyRun({ id, detail, crumbs }: { id: string; detail: RunDetail; crum
         </>
       }
     >
+      {detail.explanation && <ExplanationCard key={id} runId={id} explanation={detail.explanation} cached={detail.ai_explanation} />}
+
       <Card className="overflow-hidden pt-0">
         <div className="window-card-header">
           <span className="truncate">run.json · result.json</span>

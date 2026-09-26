@@ -1,5 +1,4 @@
 {
-  "run_id": "run_20260923T023442Z_76ea5574",
   "artifacts": [
     {
       "path": "console.log",
@@ -46,6 +45,34 @@
       "size": 3169
     }
   ],
+  "explanation": {
+    "headline": "All 4 checks passed.",
+    "sections": [
+      {
+        "items": [
+          "18 of 18 planned journeys ran against http://127.0.0.1:14000 with seed 42.",
+          "Schedule: spike-1 3/s for 2s, baseline-2 1/s for 3s, spike-3 3/s for 2s, baseline-4 1/s for 3s.",
+          "144 HTTP requests, 90 of them writes."
+        ],
+        "title": "What ran"
+      },
+      {
+        "items": [
+          "Deliveries acknowledged",
+          "One purchase grant",
+          "Payment success single upgrade",
+          "Purchase rows match journeys"
+        ],
+        "title": "What passed"
+      },
+      {
+        "items": [
+          "Repeat with other seeds (--repeat 3) to rule out seed-sensitive behaviour."
+        ],
+        "title": "Next steps"
+      }
+    ]
+  },
   "fixture": {
     "setup": {
       "argv": [
@@ -271,5 +298,6 @@
     "seed": 42,
     "started_at": "2026-09-23T02:34:42.205918+00:00",
     "target": "http://127.0.0.1:14000"
-  }
+  },
+  "run_id": "run_20260923T023442Z_76ea5574"
 }

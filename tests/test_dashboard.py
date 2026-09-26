@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from litetraffic import dashboard
+from litetraffic import dashboard, explain
 from litetraffic.cli import main
 from test_compare import write_run
 from test_runs import _finish
@@ -204,11 +204,11 @@ def test_every_response_has_security_headers(server, path):
     assert headers["Referrer-Policy"] == "no-referrer"
 
 
-@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
-def test_unsupported_methods_are_rejected_with_security_headers(server, method):
+@pytest.mark.parametrize(("method", "expected"), [("POST", 403), ("PUT", 501), ("DELETE", 501)])
+def test_unsupported_methods_are_rejected_with_security_headers(server, method, expected):
     status, headers, body = raw(server, "/api/runs", method=method)
 
-    assert status == 501 and b"run_a" not in body
+    assert status == expected and b"run_a" not in body
     assert headers["Content-Security-Policy"] == CSP and headers["X-Content-Type-Options"] == "nosniff"
     assert headers["Referrer-Policy"] == "no-referrer"
 
@@ -237,7 +237,7 @@ def test_meta_reports_runs_dir_and_version(server, runs_dir):
     status, body = get_json(server, "/api/meta")
 
     assert status == 200
-    assert body == {"runs_dir": str(runs_dir.resolve()), "version": __version__}
+    assert body == {"explain_cli": explain.available_cli(), "runs_dir": str(runs_dir.resolve()), "version": __version__}
 
 
 def test_api_runs_lists_every_kind_newest_first(server):

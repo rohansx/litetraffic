@@ -108,3 +108,40 @@ test("loading, not found and error states", async () => {
   renderApp("/runs/x", { "/api/runs/x": [500, { error: "result.json is corrupt" }] });
   expect(await screen.findByRole("alert")).toHaveTextContent("result.json is corrupt");
 });
+
+test("explains the run in plain English and asks the local CLI on demand", async () => {
+  const user = userEvent.setup();
+  const answer = { cli: "claude", created_at: "2026-09-26T08:00:00+00:00", text: "What happened\nTenant A read tenant B data." };
+  const { fetchMock } = renderApp(`/runs/${FAIL}`, {
+    [`/api/runs/${FAIL}`]: fixtures.runFail,
+    [`/api/runs/${FAIL}/explain`]: answer,
+  });
+  expect(await screen.findByText("7 of 9 checks failed, starting with: cross tenant balance read blocked.")).toBeInTheDocument();
+  const failed = screen.getByRole("region", { name: "What failed" });
+  expect(within(failed).getByText("Cross tenant balance read blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.")).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Next steps" })).toHaveTextContent("accepted requests it should have refused");
+
+  await user.click(await screen.findByRole("button", { name: "Explain with AI" }));
+  expect(await screen.findByText(/Tenant A read tenant B data\./)).toBeInTheDocument();
+  expect(screen.getByText(/Written by claude/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Explain again" })).toBeEnabled();
+  const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/explain")) as unknown as [string, RequestInit];
+  expect(call[1].method).toBe("POST");
+  expect(call[1].headers).toMatchObject({ "X-LiteTraffic-Action": "explain" });
+});
+
+test("AI explanation shows server errors", async () => {
+  const user = userEvent.setup();
+  renderApp(`/runs/${FAIL}`, {
+    [`/api/runs/${FAIL}`]: fixtures.runFail,
+    [`/api/runs/${FAIL}/explain`]: [502, { error: "claude failed: not logged in" }],
+  });
+  await user.click(await screen.findByRole("button", { name: "Explain with AI" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("claude failed: not logged in");
+});
+
+test("AI explanation button is disabled when no CLI is installed", async () => {
+  renderApp(`/runs/${FAIL}`, { [`/api/runs/${FAIL}`]: fixtures.runFail, "/api/meta": { ...fixtures.meta, explain_cli: null } });
+  expect(await screen.findByText("Install the claude or codex CLI to get a written explanation.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Explain with AI" })).toBeDisabled();
+});

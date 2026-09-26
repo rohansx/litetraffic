@@ -1,5 +1,4 @@
 {
-  "run_id": "run_20260923T023454Z_24eba6f8",
   "artifacts": [
     {
       "path": "console.log",
@@ -46,6 +45,46 @@
       "size": 3979
     }
   ],
+  "explanation": {
+    "headline": "7 of 9 checks failed, starting with: cross tenant balance read blocked.",
+    "sections": [
+      {
+        "items": [
+          "9 of 9 planned journeys ran against http://127.0.0.1:14000 with seed 42.",
+          "Schedule: warmup 1/s for 1s, measure 2/s for 4s.",
+          "81 HTTP requests, 27 of them writes."
+        ],
+        "title": "What ran"
+      },
+      {
+        "items": [
+          "Cross tenant balance read blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Cross tenant template read blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Cross tenant template write blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Cross tenant position create blocked: expected [401, 403, 404] but got 201 in 3 of 9 samples.",
+          "Cross tenant position edit blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Tenant b state intact: expected {\"marker_positions\": 0, \"template_rows\": 1, \"template_subject_is_marker\": false} but got {\"marker_positions\": 2, \"template_rows\": 1, \"template_subject_is_marker\": true} in 3 of 9 samples.",
+          "No probe positions in tenant b: the final state check expected {\"\": {\"len\": 0}} but found {\"\": [{\"position_id\": \"08cbf07a-244f-4d2b-bf3b-d0445782862e\", \"title\": \"LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-\u2026."
+        ],
+        "title": "What failed"
+      },
+      {
+        "items": [
+          "Own org access works",
+          "Unauthenticated request rejected"
+        ],
+        "title": "What passed"
+      },
+      {
+        "items": [
+          "The target accepted requests it should have refused. Check the authorization rule on those routes.",
+          "The final state is wrong after traffic stopped. Compare expected and actual values in the Observations tab.",
+          "Open the Assertions tab for every failing request, or report.html for a shareable copy."
+        ],
+        "title": "Next steps"
+      }
+    ]
+  },
   "fixture": {
     "setup": {
       "argv": [
@@ -533,5 +572,6 @@
     "seed": 42,
     "started_at": "2026-09-23T02:34:54.208443+00:00",
     "target": "http://127.0.0.1:14000"
-  }
+  },
+  "run_id": "run_20260923T023454Z_24eba6f8"
 }

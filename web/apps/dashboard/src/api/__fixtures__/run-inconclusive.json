@@ -1,5 +1,4 @@
 {
-  "run_id": "run_20260923T043011Z_929fe95f",
   "artifacts": [
     {
       "path": "console.log",
@@ -46,6 +45,36 @@
       "size": 4475
     }
   ],
+  "explanation": {
+    "headline": "The run was inconclusive: the evidence was not enough for a verdict.",
+    "sections": [
+      {
+        "items": [
+          "27 of 28 planned journeys ran against http://127.0.0.1:14000 with seed 42.",
+          "Schedule: spike-1 5/s for 2s, baseline-2 1/s for 4s, spike-3 5/s for 2s, baseline-4 1/s for 4s.",
+          "189 HTTP requests, 162 of them writes."
+        ],
+        "title": "What ran"
+      },
+      {
+        "items": [
+          "The run timed out before finishing, so it cannot pass.",
+          "missing assertion evidence: org_balance_debited_once_per_session, usage_rows_match_journeys",
+          "partial assertion evidence: one_debit_response (27/28), one_usage_ledger_row (27/28)",
+          "delivered journeys 27.0 do not match planned journeys 28",
+          "engine stopped after its 12-second share of the 70-second budget",
+          "Evidence is incomplete."
+        ],
+        "title": "Caveats"
+      },
+      {
+        "items": [
+          "Fix the caveats below and run again; an inconclusive run proves nothing either way."
+        ],
+        "title": "Next steps"
+      }
+    ]
+  },
   "fixture": {
     "setup": {
       "argv": [
@@ -206,5 +235,6 @@
     "seed": 42,
     "started_at": "2026-09-23T04:30:11.955873+00:00",
     "target": "http://127.0.0.1:14000"
-  }
+  },
+  "run_id": "run_20260923T043011Z_929fe95f"
 }

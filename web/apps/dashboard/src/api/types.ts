@@ -25,6 +25,8 @@ export type AssertionStatus = "pass" | "fail" | "unknown";
 
 // ---------- GET /api/meta ----------
 export interface Meta {
+  /** Installed CLI used for AI explanations ("claude" or "codex"), or null when neither is on PATH. */
+  explain_cli: string | null;
   runs_dir: string;
   version: string;
 }
@@ -240,7 +242,22 @@ export interface RunDetail {
   observation?: Observation;
   fixture?: Fixture;
   activity?: Activity;
+  /** Plain-English summary built from the evidence (explain.py `summarize`); absent without a result. */
+  explanation?: Explanation;
+  /** Cached write-up from POST /api/runs/:id/explain. */
+  ai_explanation?: AiExplanation;
   artifacts: ArtifactFile[];
+}
+
+export interface Explanation {
+  headline: string;
+  sections: { title: string; items: string[] }[];
+}
+
+export interface AiExplanation {
+  cli: string;
+  created_at: string;
+  text: string;
 }
 
 // ---------- GET /api/diff?baseline=&candidate= (compare.py `compare_runs`) ----------

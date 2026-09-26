@@ -1,4 +1,5 @@
 import type {
+  AiExplanation,
   ApiErrorBody,
   Comparison,
   Meta,
@@ -21,8 +22,8 @@ export class ApiError extends Error {
 
 const seg = encodeURIComponent;
 
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(path, { signal, headers: { Accept: "application/json" } });
+async function getJson<T>(path: string, signal?: AbortSignal, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, { ...init, signal, headers: { Accept: "application/json", ...init.headers } });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
     throw new ApiError(response.status, body?.error ?? `${response.status} ${response.statusText}`);
@@ -55,6 +56,12 @@ export const api = {
     getJson<Comparison>(`/api/diff${query({ baseline, candidate })}`, signal),
   trend: (scenario: string, signal?: AbortSignal) =>
     getJson<TrendPoint[]>(`/api/scenarios/${seg(scenario)}/trend`, signal),
+  /** Asks the local claude/codex CLI to explain a run; the server caches the answer. */
+  explain: (runId: string, signal?: AbortSignal) =>
+    getJson<AiExplanation>(`/api/runs/${seg(runId)}/explain`, signal, {
+      method: "POST",
+      headers: { "X-LiteTraffic-Action": "explain" },
+    }),
   artifactText: async (runId: string, path: string, signal?: AbortSignal): Promise<string> => {
     const response = await fetch(artifactUrl(runId, path), { signal });
     if (!response.ok) throw new ApiError(response.status, `${response.status} ${response.statusText}`);

@@ -1,4 +1,7 @@
-"""Read-only local dashboard: a JSON API over a runs directory plus the built SPA, on 127.0.0.1 with the stdlib."""
+"""Local dashboard: a JSON API over a runs directory plus the built SPA, on 127.0.0.1 with the stdlib.
+
+It only reads runs, except that POST /api/runs/<id>/explain caches an AI write-up as explanation.json in that run.
+"""
 
 from __future__ import annotations
 
@@ -6,18 +9,22 @@ import json
 import math
 import mimetypes
 import os
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from litetraffic import __version__
 from litetraffic.compare import ComparisonError, compare_runs
+from litetraffic.explain import ExplainError, available_cli, explain_with_cli, load_cached, summarize
 from litetraffic.runs import _real_file, list_runs, read_json
 from litetraffic.series import _value
 
 HOST = "127.0.0.1"
 UI_DIR = Path(__file__).parent / "dashboard_ui"
 _LOOPBACK_NAMES = ("127.0.0.1", "localhost", "[::1]")
+ACTION_HEADER = "X-LiteTraffic-Action"
+_EXPLAIN_LOCK = threading.Lock()  # ponytail: one CLI call at a time; per-run locks if that ever queues
 FILTERS = ("scenario", "verdict", "seed")
 _ARTIFACT_TYPES = {".html": "text/html", ".json": "application/json"}  # anything else is shown as plain text
 _UI_TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2"}
@@ -95,6 +102,10 @@ def _detail(path: Path) -> dict:
     for name in ("observation", "fixture", "activity"):
         if (value := _load(path / f"{name}.json")) is not None:
             detail[name] = value
+    if (explanation := summarize(detail)) is not None:
+        detail["explanation"] = explanation
+    if (cached := load_cached(path)) is not None:
+        detail["ai_explanation"] = cached
     return {**detail, "artifacts": _artifacts(path)}
 
 
@@ -140,10 +151,14 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
         def _not_found(self) -> None:
             self._api(404, {"error": "not found"})
 
-        def do_GET(self) -> None:  # noqa: N802 - http.server naming
-            # DNS rebinding guard: only loopback names for this exact port may read anything.
+        def _loopback_host(self) -> str | None:
+            # DNS rebinding guard: only loopback names for this exact port may use anything.
             port = self.server.server_address[1]
-            if (self.headers.get("Host") or "").lower() not in {f"{name}:{port}" for name in _LOOPBACK_NAMES}:
+            host = (self.headers.get("Host") or "").lower()
+            return host if host in {f"{name}:{port}" for name in _LOOPBACK_NAMES} else None
+
+        def do_GET(self) -> None:  # noqa: N802 - http.server naming
+            if not self._loopback_host():
                 return self._send(421, b"Misdirected request\n", "text/plain; charset=utf-8")
             url = urlsplit(self.path)
             parts = [unquote(part) for part in url.path.split("/")[1:]]
@@ -154,7 +169,7 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
         def _route_api(self, parts: list[str], query: str) -> None:
             values = parse_qs(query)
             if parts == ["meta"]:
-                return self._api(200, {"runs_dir": str(runs_dir.resolve()), "version": __version__})
+                return self._api(200, {"explain_cli": available_cli(), "runs_dir": str(runs_dir.resolve()), "version": __version__})
             if parts == ["runs"]:
                 return self._api(200, _entries(runs_dir, query))
             if parts == ["scenarios"]:
@@ -189,6 +204,26 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
                 return self._send(404, b"Not found\n", "text/plain; charset=utf-8")
             # Every other path is a client-side route.
             self._send(200, index.read_bytes(), "text/html; charset=utf-8")
+
+        def do_POST(self) -> None:  # noqa: N802 - http.server naming
+            host = self._loopback_host()
+            if not host:
+                return self._send(421, b"Misdirected request\n", "text/plain; charset=utf-8")
+            # A custom header forces a CORS preflight this server never approves, so other sites cannot POST here.
+            origin = self.headers.get("Origin")
+            if self.headers.get(ACTION_HEADER) != "explain" or (origin is not None and origin.lower() != f"http://{host}"):
+                return self._api(403, {"error": "forbidden"})
+            parts = [unquote(part) for part in urlsplit(self.path).path.split("/")[1:]]
+            if len(parts) != 4 or parts[:2] != ["api", "runs"] or parts[3] != "explain" or not (run := _run_dir(runs_dir, parts[2])):
+                return self._not_found()
+            detail = _detail(run)
+            if detail["result"] is None:
+                return self._api(409, {"error": "This run has no result to explain yet."})
+            with _EXPLAIN_LOCK:
+                try:
+                    return self._api(200, explain_with_cli(run, detail))
+                except ExplainError as exc:
+                    return self._api(exc.status, {"error": str(exc)})
 
         do_HEAD = do_GET  # noqa: N815 - same routes and headers; _send skips the body
 
