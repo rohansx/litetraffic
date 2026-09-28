@@ -151,3 +151,40 @@ test("AI explanation button is disabled when no provider is available", async ()
   expect(await screen.findByText(/install the claude or codex CLI, to get a written explanation\./)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Explain with AI" })).toBeDisabled();
 });
+
+test("server tab shows container peaks and top error signatures, only when captured", async () => {
+  const user = userEvent.setup();
+  const first = renderApp(`/runs/${FAIL}`, { [`/api/runs/${FAIL}`]: fixtures.runFail });
+  await screen.findByText("7 of 9 assertions failed.");
+  await user.click(screen.getByRole("tab", { name: "Server" }));
+  const api = screen.getByRole("cell", { name: "api" }).closest("tr")!;
+  expect(within(api).getByText("0.4%")).toBeInTheDocument();
+  expect(within(api).getByText("63.8%")).toBeInTheDocument();
+  expect(within(api).getByText("177 MiB")).toBeInTheDocument();
+  expect(within(api).getByText("37")).toBeInTheDocument();
+  const signatures = screen.getByRole("table", { name: "Error signatures for api" });
+  expect(within(signatures).getByText("ERROR tenant scope missing for org <uuid> on GET /balances/<uuid>")).toBeInTheDocument();
+  expect(within(signatures).getByText("27")).toBeInTheDocument();
+  // db logged no errors, so it has no signature card.
+  expect(screen.queryByRole("table", { name: "Error signatures for db" })).toBeNull();
+  first.unmount();
+
+  const id = "run_20260923T043011Z_929fe95f";
+  renderApp(`/runs/${id}`, { [`/api/runs/${id}`]: fixtures.runInconclusive });
+  await screen.findByText("Evidence was missing or incomplete, so the run cannot pass.");
+  expect(screen.queryByRole("tab", { name: "Server" })).toBeNull();
+});
+
+test("server tab flags truncated logs and capture problems", async () => {
+  const user = userEvent.setup();
+  const server = fixtures.runFail.server!;
+  const detail = {
+    ...fixtures.runFail,
+    server: { ...server, problems: ["worker: Error: No such container: worker"], containers: { api: { ...server.containers.api, truncated: true } } },
+  };
+  renderApp(`/runs/${FAIL}`, { [`/api/runs/${FAIL}`]: detail });
+  await screen.findByText("7 of 9 assertions failed.");
+  await user.click(screen.getByRole("tab", { name: "Server" }));
+  expect(screen.getByText("truncated")).toBeInTheDocument();
+  expect(within(screen.getByRole("list", { name: "Capture problems" })).getByText("worker: Error: No such container: worker")).toBeInTheDocument();
+});

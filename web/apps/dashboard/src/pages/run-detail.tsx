@@ -16,6 +16,7 @@ import { ActivityView } from "@/pages/run/activity";
 import { AssertionsTable } from "@/pages/run/assertions";
 import { ExplanationCard } from "@/pages/run/explanation";
 import { Artifacts, Limitations, Metrics, Observations } from "@/pages/run/sections";
+import { Server } from "@/pages/run/server";
 
 export function RunDetailPage() {
   const id = useParams().id ?? "";
@@ -111,6 +112,7 @@ function VerifyRun({ id, detail, crumbs }: { id: string; detail: RunDetail; crum
                 Limitations
                 {result.limitations.length > 0 && <Badge variant="secondary" className="tabular-nums">{result.limitations.length}</Badge>}
               </TabsTrigger>
+              {detail.server && <TabsTrigger value="server">Server</TabsTrigger>}
               <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
             </TabsList>
           </div>
@@ -126,6 +128,11 @@ function VerifyRun({ id, detail, crumbs }: { id: string; detail: RunDetail; crum
           <TabsContent value="limitations">
             <Limitations result={result} />
           </TabsContent>
+          {detail.server && (
+            <TabsContent value="server">
+              <Server server={detail.server} />
+            </TabsContent>
+          )}
           <TabsContent value="artifacts">
             <Artifacts runId={id} artifacts={artifacts} />
           </TabsContent>
