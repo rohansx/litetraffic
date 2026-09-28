@@ -30,6 +30,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+ai = ["anthropic>=0.28,<1", "openai>=1.40,<3"]
 dev = ["pytest>=8,<10"]
 
 [project.urls]

@@ -13,6 +13,7 @@ export function ExplanationCard({ runId, explanation, cached }: { runId: string;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const cli = meta.data?.explain_cli;
+  const isLocalCli = cli === "claude" || cli === "codex";
 
   async function explain() {
     setPending(true);
@@ -54,8 +55,8 @@ export function ExplanationCard({ runId, explanation, cached }: { runId: string;
                 {ai
                   ? `Written by ${ai.cli} · ${formatDateTime(ai.created_at)}`
                   : cli
-                    ? `Uses your local ${cli} CLI. It sends this run's result and observations to its model.`
-                    : "Install the claude or codex CLI to get a written explanation."}
+                    ? `${isLocalCli ? `Uses your local ${cli} CLI` : `Uses the ${cli} API`}. It sends this run's result and observations to its model.`
+                    : "Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or install the claude or codex CLI, to get a written explanation."}
               </p>
             </div>
             <Button variant="outline" onClick={explain} disabled={!cli || pending}>

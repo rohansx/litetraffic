@@ -140,8 +140,14 @@ test("AI explanation shows server errors", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("claude failed: not logged in");
 });
 
-test("AI explanation button is disabled when no CLI is installed", async () => {
+test("AI explanation button is enabled with an API provider", async () => {
+  renderApp(`/runs/${FAIL}`, { [`/api/runs/${FAIL}`]: fixtures.runFail, "/api/meta": { ...fixtures.meta, explain_cli: "gpt-4o-mini" } });
+  expect(await screen.findByText(/Uses the gpt-4o-mini API\./)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Explain with AI" })).toBeEnabled();
+});
+
+test("AI explanation button is disabled when no provider is available", async () => {
   renderApp(`/runs/${FAIL}`, { [`/api/runs/${FAIL}`]: fixtures.runFail, "/api/meta": { ...fixtures.meta, explain_cli: null } });
-  expect(await screen.findByText("Install the claude or codex CLI to get a written explanation.")).toBeInTheDocument();
+  expect(await screen.findByText(/install the claude or codex CLI, to get a written explanation\./)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Explain with AI" })).toBeDisabled();
 });

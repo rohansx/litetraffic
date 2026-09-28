@@ -25,7 +25,10 @@ export type AssertionStatus = "pass" | "fail" | "unknown";
 
 // ---------- GET /api/meta ----------
 export interface Meta {
-  /** Installed CLI used for AI explanations ("claude" or "codex"), or null when neither is on PATH. */
+  /**
+   * Provider AI explanations would use: an API model ("claude-haiku-4-5-20251001", "gpt-4o-mini") when its key is set,
+   * else a local CLI ("claude" or "codex"), or null when none is available. Named explain_cli for compatibility.
+   */
   explain_cli: string | null;
   runs_dir: string;
   version: string;

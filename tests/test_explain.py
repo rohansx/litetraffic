@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+import sys
 import threading
 from pathlib import Path
 
@@ -50,6 +51,8 @@ def fake_claude(tmp_path, monkeypatch):
     script.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.delenv("LITETRAFFIC_EXPLAIN_CLI", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     return bin_dir
 
 
@@ -103,9 +106,11 @@ def test_explain_endpoint_rejects_cross_site_requests(served, fake_claude, heade
 
 def test_explain_endpoint_without_cli(served, monkeypatch, tmp_path):
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     port, run = served
     status, body = _post(port, f"/api/runs/{run.name}/explain", {"X-LiteTraffic-Action": "explain"})
-    assert status == 503 and "No claude or codex CLI" in body["error"]
+    assert status == 503 and "No explanation service available" in body["error"]
 
 
 def test_failed_cli_reports_stderr(served, fake_claude):
@@ -113,3 +118,25 @@ def test_failed_cli_reports_stderr(served, fake_claude):
     port, run = served
     status, body = _post(port, f"/api/runs/{run.name}/explain", {"X-LiteTraffic-Action": "explain"})
     assert status == 502 and body["error"] == "claude failed: not logged in"
+
+
+def test_provider_order_is_anthropic_then_openai_then_cli(fake_claude, monkeypatch):
+    assert explain.explain_provider() == "claude"
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    assert explain.explain_provider() == explain.OPENAI_MODEL
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    assert explain.explain_provider() == explain.ANTHROPIC_MODEL
+    monkeypatch.setenv("PATH", "/nonexistent")
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    monkeypatch.delenv("OPENAI_API_KEY")
+    assert explain.explain_provider() is None
+
+
+@pytest.mark.parametrize(("key", "module"), [("ANTHROPIC_API_KEY", "anthropic"), ("OPENAI_API_KEY", "openai")])
+def test_missing_sdk_is_503(fake_claude, monkeypatch, tmp_path, key, module):
+    monkeypatch.setenv(key, "sk-test")
+    monkeypatch.setitem(sys.modules, module, None)
+    with pytest.raises(explain.ExplainError) as caught:
+        explain.explain(tmp_path, _fixture("run-fail"))
+    assert caught.value.status == 503 and "litetraffic[ai]" in str(caught.value)
+    assert not (tmp_path / "explanation.json").exists()

@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from litetraffic import __version__
 from litetraffic.compare import ComparisonError, compare_runs
-from litetraffic.explain import ExplainError, available_cli, explain_with_cli, load_cached, summarize
+from litetraffic.explain import ExplainError, explain, explain_provider, load_cached, summarize
 from litetraffic.runs import _real_file, list_runs, read_json
 from litetraffic.series import _value
 
@@ -169,7 +169,7 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
         def _route_api(self, parts: list[str], query: str) -> None:
             values = parse_qs(query)
             if parts == ["meta"]:
-                return self._api(200, {"explain_cli": available_cli(), "runs_dir": str(runs_dir.resolve()), "version": __version__})
+                return self._api(200, {"explain_cli": explain_provider(), "runs_dir": str(runs_dir.resolve()), "version": __version__})
             if parts == ["runs"]:
                 return self._api(200, _entries(runs_dir, query))
             if parts == ["scenarios"]:
@@ -221,7 +221,7 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
                 return self._api(409, {"error": "This run has no result to explain yet."})
             with _EXPLAIN_LOCK:
                 try:
-                    return self._api(200, explain_with_cli(run, detail))
+                    return self._api(200, explain(run, detail))
                 except ExplainError as exc:
                     return self._api(exc.status, {"error": str(exc)})
 

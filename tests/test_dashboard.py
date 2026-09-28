@@ -237,7 +237,7 @@ def test_meta_reports_runs_dir_and_version(server, runs_dir):
     status, body = get_json(server, "/api/meta")
 
     assert status == 200
-    assert body == {"explain_cli": explain.available_cli(), "runs_dir": str(runs_dir.resolve()), "version": __version__}
+    assert body == {"explain_cli": explain.explain_provider(), "runs_dir": str(runs_dir.resolve()), "version": __version__}
 
 
 def test_api_runs_lists_every_kind_newest_first(server):
