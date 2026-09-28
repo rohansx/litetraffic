@@ -13,6 +13,7 @@ from litetraffic.capture import Capture
 from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
+from litetraffic.funnel import journey_funnels, unfinished_journeys
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
 from litetraffic.observation import observe, sent_request
 from litetraffic.process import GROUP_SURVIVED, _communicate, _stop_process
@@ -383,6 +384,8 @@ def _verify(
     if thresholds_breached:
         limitations.append("k6 thresholds breached")
     limitations.extend(overlap_shortfalls(metrics, bundle.manifest.journeys))
+    funnels, funnel_limitations = journey_funnels(bundle.manifest.journeys, events, metrics.get("iterations"))
+    limitations.extend(funnel_limitations)
     if malformed_events:
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:
@@ -422,6 +425,10 @@ def _verify(
         verdict = "error"
     elif completeness == "incomplete":
         verdict = "inconclusive"
+    elif unfinished := unfinished_journeys(funnels):
+        # A green run where no journey finished is a silent failure, not a pass.
+        verdict, completeness = "inconclusive", "incomplete"
+        limitations.extend(unfinished)
     else:
         verdict = "pass"
 
@@ -438,6 +445,8 @@ def _verify(
         # Honesty notes describe what this preview never measures; they do not affect completeness.
         "notes": ["per-arrival lateness not measured", "workload is synthetic (no traces supplied)"],
     }
+    if funnels:
+        result["journeys"] = funnels
     if server and server["problems"]:
         # Added after the verdict on purpose: server capture is context, never evidence for or against the run.
         result["limitations"].append("Server capture incomplete: " + "; ".join(server["problems"]))

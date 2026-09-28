@@ -15,7 +15,7 @@
       "create_body": {"tenant_a_value": "alpha", "tenant_b_value": "beta"}
     }
   },
-  "journeys": [{"name": "read-own-and-probe-other", "max_requests": 3, "max_writes": 0}],
+  "journeys": [{"name": "read-own-and-probe-other", "max_requests": 3, "max_writes": 0, "stages": ["read_own", "probed_other_tenant"]}],
   "schedule": {
     "unit": "journeys_per_second",
     "phases": [

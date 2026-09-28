@@ -14,6 +14,7 @@ import { formatDateTime } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { ActivityView } from "@/pages/run/activity";
 import { AssertionsTable } from "@/pages/run/assertions";
+import { Journeys } from "@/pages/run/journeys";
 import { ExplanationCard } from "@/pages/run/explanation";
 import { Artifacts, Limitations, Metrics, Observations } from "@/pages/run/sections";
 import { Server } from "@/pages/run/server";
@@ -106,33 +107,39 @@ function VerifyRun({ id, detail, crumbs }: { id: string; detail: RunDetail; crum
                 Assertions
                 <Badge variant="secondary" className="tabular-nums">{result.assertions.length}</Badge>
               </TabsTrigger>
+              {result.journeys && <TabsTrigger value="journeys">Journeys</TabsTrigger>}
               <TabsTrigger value="observations">Observations</TabsTrigger>
               <TabsTrigger value="metrics">Metrics</TabsTrigger>
+              {detail.server && <TabsTrigger value="server">Server</TabsTrigger>}
               <TabsTrigger value="limitations">
                 Limitations
                 {result.limitations.length > 0 && <Badge variant="secondary" className="tabular-nums">{result.limitations.length}</Badge>}
               </TabsTrigger>
-              {detail.server && <TabsTrigger value="server">Server</TabsTrigger>}
               <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="assertions">
             <AssertionsTable assertions={result.assertions} />
           </TabsContent>
+          {result.journeys && (
+            <TabsContent value="journeys">
+              <Journeys journeys={result.journeys} />
+            </TabsContent>
+          )}
           <TabsContent value="observations">
             <Observations observation={detail.observation} fixture={detail.fixture} />
           </TabsContent>
           <TabsContent value="metrics">
             <Metrics metrics={result.metrics} />
           </TabsContent>
-          <TabsContent value="limitations">
-            <Limitations result={result} />
-          </TabsContent>
           {detail.server && (
             <TabsContent value="server">
               <Server server={detail.server} />
             </TabsContent>
           )}
+          <TabsContent value="limitations">
+            <Limitations result={result} />
+          </TabsContent>
           <TabsContent value="artifacts">
             <Artifacts runId={id} artifacts={artifacts} />
           </TabsContent>

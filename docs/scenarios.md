@@ -78,7 +78,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `fixtures.owned_http` | no | Run-owned HTTP fixture the controller creates and deletes ([below](#run-owned-fixtures)) |
 | `fixtures.command` | no | Setup and teardown commands run on the controller host ([below](#command-fixtures)); cannot be combined with `owned_http` |
 | `fixtures.pool` | no | Bundle-relative JSON array file with one item per journey ([below](#fixture-pool)) |
-| `journeys` | yes | `[{"name", "max_requests", "max_writes", "min_overlap"?, "expected_statuses"?}]` per-journey maxima used for budget checks; optional `min_overlap` maps a k6 `operation` tag to the minimum number of those requests that must be observed in flight at once (a client-side overlap check: it shows requests were in flight together, not that the server executed them concurrently), positive integers; when several journeys name the same operation the largest minimum applies; optional `expected_statuses` maps a k6 `operation` tag to a non-empty list of HTTP status codes (100-599) that are intended outcomes for that operation, merged across journeys and used only for `metrics.unexpected_http_failure_rate` (see [results](results.md)) |
+| `journeys` | yes | `[{"name", "max_requests", "max_writes", "min_overlap"?, "expected_statuses"?, "stages"?}]` per-journey maxima used for budget checks; optional `stages` is an ordered list of 1-12 unique milestone names (each matching `^[a-z][a-z0-9_]{0,39}$`) that the script reports with `lt.stage(name)`, turned into a per-journey funnel in `result.json` (see [journey stages](#journey-stages)); optional `min_overlap` maps a k6 `operation` tag to the minimum number of those requests that must be observed in flight at once (a client-side overlap check: it shows requests were in flight together, not that the server executed them concurrently), positive integers; when several journeys name the same operation the largest minimum applies; optional `expected_statuses` maps a k6 `operation` tag to a non-empty list of HTTP status codes (100-599) that are intended outcomes for that operation, merged across journeys and used only for `metrics.unexpected_http_failure_rate` (see [results](results.md)) |
 | `schedule` | yes | `unit: "journeys_per_second"` plus exactly one of `phases` or `profile` |
 | `assertions` | yes | Assertion IDs that must receive evidence for a pass |
 | `observer` | yes | Descriptive label for how the effect is observed |
@@ -154,6 +154,7 @@ export default function () {
 | `options()` | k6 options: one `ramping-arrival-rate` scenario named `traffic` built from `LT_SCHEDULE_JSON` and `LT_MAX_IN_FLIGHT`, running the script's default export, with `maxRedirects: 0` |
 | `journeyKey()` | `<run_id>-<k6 scenario name>-<iterationInTest>`; the same for every call within one journey and independent of the VU that runs it |
 | `evidence(assertion, passed, {logicalKey, expected, actual, detail})` | Logs one `LT_EVENT` line. `logicalKey` defaults to `journeyKey()`; `expected`/`actual`/`detail` are included only when given; `detail` is cut to 500 characters |
+| `stage(name)` | Logs one `LT_EVENT` line of type `stage` recording that the current journey (`journeyKey()`) reached `name`, one of its declared `stages`. Call it after the step succeeds, once per milestone |
 | `rng(iteration)` | Returns a function yielding numbers in `[0, 1)`, seeded from `LT_SEED` and `iteration` (default: the current `iterationInTest`), so the same seed replays the same choices per journey |
 | `poolItem(index)` | Returns the [fixture pool](#fixture-pool) item for `index` (default: the current `iterationInTest`). Throws when no pool is set or the index is out of range |
 | `deepEqual(a, b)` | `true` when two JSON-like values are structurally equal: object key order is ignored, array order is not, `NaN` equals `NaN`, and a key set to `undefined` differs from a missing key. Use it instead of comparing `JSON.stringify` output, which depends on key order |
@@ -182,6 +183,20 @@ function evidence(assertion, passed, logicalKey) {
 Every event must carry a non-empty `logical_key` string identifying its journey (`lt.evidence` uses `journeyKey()` unless you pass `logicalKey`). Events may also carry optional diagnostic fields: `expected` and `actual` (any JSON value) and `detail` (a string of at most 500 characters). These do not change the verdict; the first three failing samples of each assertion are copied into `result.json` and shown in `report.html`. For example, `evidence("order_totals_match", body.total === 1250, key)` could add `expected: 1250, actual: body.total`.
 
 Events with a different `run_id`, a non-boolean `passed`, a non-string `logical_key` or `detail`, a `detail` longer than 500 characters, or invalid JSON are ignored and reported as a limitation. An assertion passes only when every sample passes, every sample has a non-empty `logical_key`, and the number of distinct keys equals the planned journeys. Any `false` sample fails it. Otherwise, a sample without a key (or with `""`) makes the assertion `unknown` with the limitation `evidence without journey identity for <assertion>`, and a key that appears twice makes it `unknown` with `duplicate evidence for <key>`, so one journey reporting twice cannot stand in for a journey that reported nothing.
+
+### Journey stages
+
+A verdict is per assertion; stages show how far each journey got, so a failure points at a step and a silent stall (journeys that stop without any failing assertion) is visible. Declare the milestones on the journey and report them from the script:
+
+```json
+"journeys": [{"name": "purchase", "max_requests": 3, "max_writes": 2, "stages": ["paid", "retried", "confirmed"]}]
+```
+
+```js
+if ([200, 201].includes(created.status)) lt.stage("paid");
+```
+
+Without the helper, log `{"schema_version": 1, "type": "stage", "run_id", "stage", "logical_key"}` as an `LT_EVENT` line; stage events with a malformed name or an empty `logical_key` are ignored and counted as malformed events. A stage event belongs to the journey that declares its name; a name no journey declares is attributed to the journey only when a single journey declares stages. Stage events are evidence, not assertions: see [results](results.md#journey-funnel) for how they are counted and the one case where they affect the verdict.
 
 Check the business effect, not just the status code — for example, read the ledger back after a retried payment rather than checking that the payment call returned 200.
 

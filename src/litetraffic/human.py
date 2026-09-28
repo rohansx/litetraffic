@@ -59,6 +59,8 @@ def format_diff(result: dict) -> list[str]:
     for name, item in result["performance"].get("by_operation", {}).items():
         change = "" if item["change_percent"] is None else f" ({item['change_percent']:+}%)"
         lines.append(f"p95 {name}: {item['baseline_p95_ms']}ms -> {item['candidate_p95_ms']}ms{change}")
+    for name, stages in result.get("journeys", {}).items():
+        lines += [f"journey {name} {stage}: {item['baseline']} -> {item['candidate']} reached ({item['change']:+})" for stage, item in stages.items()]
     return lines
 
 
@@ -74,6 +76,7 @@ def format_inspect(result: dict) -> list[str]:
     ]
     lines += [f"phase: {phase['name']}  {phase['seconds']}s at {phase['rate']}/s" for phase in result["resolved_schedule"]]
     lines += [f"assertion: {assertion}" for assertion in result["assertions"]]
+    lines += [f"stages {name}: {' -> '.join(stages)}" for name, stages in result.get("stages", {}).items()]
     command = result.get("fixture", {}).get("command")
     if command:
         # ponytail: space-joined for reading, not shell-quoted; --json has the exact argv.
