@@ -238,6 +238,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "maximum_journey_writes": manifest.maximum_journey_writes,
             "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
             "assertions": manifest.assertions,
+            "stages": {journey.name: journey.stages for journey in manifest.journeys if journey.stages},
             "actors": [actor.model_dump(by_alias=True, exclude_none=True) for actor in manifest.actors],
             "budgets": manifest.budgets.model_dump(),
             "fixture": {

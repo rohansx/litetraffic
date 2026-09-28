@@ -15,6 +15,7 @@ from litetraffic.target import normalize_origin
 
 AUTH_PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 AUTH_NAMES = {"run_id", "actor_index"}
+STAGE_NAME = r"^[a-z][a-z0-9_]{0,39}$"
 
 
 def _strings(value: JsonValue):
@@ -134,6 +135,14 @@ class Journey(StrictModel):
     expected_statuses: dict[
         Annotated[str, Field(min_length=1)], Annotated[list[Annotated[int, Field(strict=True, ge=100, le=599)]], Field(min_length=1)]
     ] = Field(default_factory=dict)
+    # ordered milestones the script reports with stage(name); result.json counts how many journeys reached each
+    stages: list[Annotated[str, Field(pattern=STAGE_NAME)]] | None = Field(default=None, min_length=1, max_length=12)
+
+    @model_validator(mode="after")
+    def require_unique_stages(self) -> "Journey":
+        if self.stages and len(set(self.stages)) != len(self.stages):
+            raise ValueError("journey stages must be unique")
+        return self
 
 
 class Phase(StrictModel):
