@@ -27,6 +27,24 @@ def test_failing_run_is_explained_from_evidence():
     assert sections["Next steps"][0].startswith("The target accepted requests it should have refused")
 
 
+def test_failure_count_is_not_capped_by_stored_examples():
+    # Only 3 example failures are stored; the line must count all 10.
+    failure = {"expected": 403, "actual": 200}
+    assertion = {"id": "cross_tenant_blocked", "status": "fail", "samples": 10, "failed": 10, "failures": [failure] * 3}
+    assert explain._failure_line(assertion) == "Cross tenant blocked: expected 403 but got 200 in 10 of 10 samples."
+
+
+def test_evidence_row_records_total_failed_count():
+    from litetraffic import evidence
+
+    events = [
+        {"assertion": "a", "passed": False, "logical_key": f"k{i}", "sequence": i, "expected": 403, "actual": 200}
+        for i in range(5)
+    ]
+    row = evidence.evaluate_assertions(["a"], events, [], 5)[0][0]
+    assert (row["failed"], len(row["failures"])) == (5, evidence.MAX_FAILURE_SAMPLES)
+
+
 def test_server_section_lists_containers_that_logged_errors():
     sections = {s["title"]: s["items"] for s in explain.summarize(_fixture("run-fail"))["sections"]}
     # db logged no errors, so only api gets a line.

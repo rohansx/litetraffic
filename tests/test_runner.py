@@ -257,6 +257,7 @@ def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
             "id": "accepted_orders_persist",
             "status": "fail",
             "samples": 1,
+            "failed": 1,
             "failures": [{"sequence": 1, "logical_key": events[0]["logical_key"], "expected": None, "actual": None, "detail": None}],
         }
     ]

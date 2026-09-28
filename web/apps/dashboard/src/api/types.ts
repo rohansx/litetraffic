@@ -96,6 +96,8 @@ export interface AssertionResult {
   reason?: string;
   expected?: Record<string, unknown>;
   actual?: Record<string, unknown>;
+  /** Total failing samples; `failures` keeps only the first few. */
+  failed?: number;
   /** First failing samples, expected vs actual. */
   failures?: AssertionFailure[];
 }

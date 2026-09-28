@@ -52,7 +52,8 @@ def _failure_line(assertion: dict) -> str:
         first = failures[0]
         return (
             f"{name}: expected {_short(first.get('expected'))} but got {_short(first.get('actual'))}"
-            f" in {len(failures)} of {_count(samples)} samples."
+            # ponytail: older runs lack "failed"; their stored examples are a lower bound.
+            f" in {_count(assertion.get('failed', len(failures)))} of {_count(samples)} samples."
         )
     if "expected" in assertion or "actual" in assertion:
         return f"{name}: the final state check expected {_short(assertion.get('expected'))} but found {_short(assertion.get('actual'))}."

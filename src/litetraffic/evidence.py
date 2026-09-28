@@ -77,6 +77,7 @@ def evaluate_assertions(
             missing.append(assertion_id)
         elif failures:
             row["status"] = "fail"
+            row["failed"] = len(failures)
             row["failures"] = [
                 {key: event.get(key) for key in ("sequence", "logical_key", "expected", "actual", "detail")}
                 for event in failures[:MAX_FAILURE_SAMPLES]
