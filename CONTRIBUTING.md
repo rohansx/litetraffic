@@ -17,7 +17,7 @@ The unit tests use engine doubles and do not need k6 or a running app. To check 
 
 ### Web UI
 
-The dashboard (`web/apps/dashboard`, Vite + React + shadcn/ui) and the landing page (`web/apps/site`, Astro) share one design system in `web/packages/design`. Colours live only in `web/packages/design/tokens.css`; a test rejects colour literals anywhere else. With Node 26 and pnpm 11:
+The dashboard (`web/apps/dashboard`, Vite + React + shadcn/ui) uses the design system in `web/packages/design`; the landing page lives in the separate litetraffic-web repo with a copy of the same tokens. Colours live only in `web/packages/design/tokens.css`; a test rejects colour literals anywhere else. With Node 26 and pnpm 11:
 
 ```bash
 pnpm -C web install --frozen-lockfile

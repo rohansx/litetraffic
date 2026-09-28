@@ -1,6 +1,6 @@
 # @litetraffic/design: Signal
 
-The one place LiteTraffic colors, fonts, radius and shared surface utilities are defined. The dashboard (`apps/dashboard`, Vite + React + shadcn/ui) and the landing page (`apps/site`, Astro) both import it, so they look like one product.
+The one place LiteTraffic colors, fonts, radius and shared surface utilities are defined. The local dashboard (`apps/dashboard`, Vite + React + shadcn/ui) imports it. The landing page lives in the separate litetraffic-web repo with its own copy: change a token in both places so the site and dashboard still look like one product.
 
 **Signal** is a blueprint-on-paper look (warm paper / deep asphalt, faint grid, corner brackets, ruler ticks, mono labels, black ink buttons) with one personal touch: traffic signals. LiteTraffic's output is pass / inconclusive / fail, so the brand accent is **signal amber**, the verdict triad is green / amber / red (used only for meaning), window chrome dots are a traffic light, and a three-lamp **signal** indicator shows a verdict in both apps. Section motif: SEED · DRIVE · OBSERVE · VERDICT.
 
