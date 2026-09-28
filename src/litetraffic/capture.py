@@ -15,6 +15,8 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
+from litetraffic.auth import redact
+
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 LOG_CAP_BYTES = 5 * 1024 * 1024
 STATS_INTERVAL_SECONDS = 2.0
@@ -74,14 +76,15 @@ def parse_stats(line: str) -> dict | None:
         cpu = float(str(raw["CPUPerc"]).rstrip("%"))
     except (ValueError, KeyError, TypeError):
         return None
-    return {"name": raw.get("Name") or raw.get("Container"), "cpu_percent": cpu, "mem_mb": _mib(str(raw.get("MemUsage", "")).split("/")[0])}
+    # .Container echoes the NAME/ID the user passed (what samples are keyed by); .Name is always the canonical name.
+    return {"name": raw.get("Container") or raw.get("Name"), "cpu_percent": cpu, "mem_mb": _mib(str(raw.get("MemUsage", "")).split("/")[0])}
 
 
 class _Log:
     """Drains one `docker logs -f` into a capped file and counts lines, error lines and error signatures."""
 
-    def __init__(self, name: str, path: Path) -> None:
-        self.name, self.path = name, path
+    def __init__(self, name: str, path: Path, secrets: list[str] = ()) -> None:
+        self.name, self.path, self.secrets = name, path, secrets
         self.lines = self.error_lines = self.written = 0
         self.truncated = False
         self.signatures: Counter[str] = Counter()
@@ -103,6 +106,8 @@ class _Log:
     def _count(self, line: str) -> None:
         self.lines += 1
         at, message = _split_timestamp(line)
+        # Redact before signature()/truncation: either can split a secret so the exact-match redaction later misses it.
+        message = redact(message, self.secrets)
         if not ERROR_LINE.search(message):
             return
         self.error_lines += 1
@@ -137,8 +142,8 @@ def _stop(process: subprocess.Popen) -> None:
 class Capture:
     """start() right before traffic, stop() once observations are done; stop() is safe to call again."""
 
-    def __init__(self, containers: list[str], server_dir: Path) -> None:
-        self.containers, self.server_dir = containers, server_dir
+    def __init__(self, containers: list[str], server_dir: Path, secrets: list[str] = ()) -> None:
+        self.containers, self.server_dir, self.secrets = containers, server_dir, secrets
         self.problems: list[str] = []
         self.logs: list[_Log] = []
         self.samples: dict[str, list[dict]] = {}
@@ -174,7 +179,7 @@ class Capture:
             if found.returncode:
                 self._problem(f"{name}: {(found.stderr.strip().splitlines() or ['docker inspect failed'])[-1]}")
                 continue
-            log = _Log(name, self.server_dir / f"{name}.log")
+            log = _Log(name, self.server_dir / f"{name}.log", self.secrets)
             try:
                 log.process = subprocess.Popen(
                     [self.docker, "logs", "-f", "--timestamps", "--since", since, name],
@@ -228,6 +233,9 @@ class Capture:
                 self._problem(f"{log.name}: docker logs exited with status {log.process.returncode}")
         if self.stats_thread:
             self.stats_thread.join()
+        for name, samples in self.samples.items():
+            if not samples:
+                self._problem(f"{name}: no resource samples from docker stats")
         return self.summary()
 
     @staticmethod

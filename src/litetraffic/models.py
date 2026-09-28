@@ -346,6 +346,10 @@ class ScenarioManifest(StrictModel):
             raise ValueError("allowed_origins_env must name an uppercase environment variable")
         if any(not re.fullmatch(ENV_NAME, name) for name in self.secret_env):
             raise ValueError("secret_env entries must name uppercase environment variables")
+        # Stage events carry no journey name, so a stage shared by two journeys could never be attributed.
+        stages = [stage for journey in self.journeys for stage in journey.stages or []]
+        if len(set(stages)) != len(stages):
+            raise ValueError("stage names must be unique across journeys")
         token_envs = [token_env_name(actor.actor_class) for actor in self.actors if actor.auth]
         if len(set(token_envs)) != len(token_envs):
             raise ValueError(f"actor classes with auth must map to distinct token variables: {', '.join(token_envs)}")

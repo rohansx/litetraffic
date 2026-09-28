@@ -60,12 +60,12 @@ def _restrict(run_dir: Path) -> None:
             path.chmod(0o700 if path.is_dir() else 0o600)
 
 
-def _scrub_raw(run_dir: Path, secrets: list[str]) -> list[str]:
+def _scrub_raw(run_dir: Path, secrets: list[str], skip: str | None = None) -> list[str]:
     """Scrub every file in the run directory of the run's secrets; a file that cannot be scrubbed is deleted.
-    Rewrites only files that change, so already-redacted artifacts are left alone."""
+    Rewrites only files that change, so already-redacted artifacts are left alone. `skip` names a subdirectory left as is."""
     limitations = []
     for path in sorted(run_dir.rglob("*")) if secrets else ():
-        if path.is_symlink() or not path.is_file():
+        if path.is_symlink() or not path.is_file() or (skip and path.is_relative_to(run_dir / skip)):
             continue
         try:
             text = path.read_text(errors="replace")
@@ -249,7 +249,7 @@ def _verify(
         try:
             engine_seconds = bundle.manifest.budgets.max_seconds - sum(o.reserved_seconds for o in bundle.manifest.observations) - bundle.manifest.fixtures.reserved_seconds
             if capture:
-                server_capture = Capture(capture, run_dir / "server")
+                server_capture = Capture(capture, run_dir / "server", secrets)
                 owed["capture"] = server_capture.stop  # stops docker children however the run ends
                 server_capture.start()
             engine_started = _now()
@@ -283,7 +283,8 @@ def _verify(
     _write_text(run_dir / "engine.stdout.log", redact(stdout, secrets))
     _write_text(run_dir / "engine.stderr.log", redact(stderr, secrets))
     # k6 writes console.log and metrics.jsonl itself; scrub any token or secret a script printed.
-    scrub_limitations = _scrub_raw(run_dir, secrets)
+    # Capture is still draining into server/: rewriting a file there would orphan its fd; it is scrubbed after stop().
+    scrub_limitations = _scrub_raw(run_dir, secrets, skip="server" if "capture" in owed else None)
 
     events, malformed_events = _read_events(console_path, run_id)
     metrics, malformed_metrics = _read_metrics(metrics_path, bundle.manifest.journeys)

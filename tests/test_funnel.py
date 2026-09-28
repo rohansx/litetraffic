@@ -11,6 +11,7 @@ from litetraffic.models import Journey
 from litetraffic.runner import _read_events, verify
 from test_compare import write_run
 from test_runner import assertion, fake_k6
+from litetraffic.scenario import load_scenario
 from test_scenario import manifest, write_bundle
 
 STAGES = ["created_record", "read_back"]
@@ -167,3 +168,11 @@ def test_inspect_lists_stages():
          "stages": {"purchase": STAGES}}
     )
     assert "stages purchase: created_record -> read_back" in lines
+
+
+def test_manifest_rejects_a_stage_name_shared_by_two_journeys(tmp_path):
+    # Stage events carry no journey name, so a shared stage would leave every such event unattributed.
+    data = manifest()
+    data["journeys"] = [{**data["journeys"][0], "stages": ["login", "done"]}, {"name": "refund", "max_requests": 3, "max_writes": 1, "stages": ["login"]}]
+    with pytest.raises(ValidationError, match="unique across journeys"):
+        load_scenario(write_bundle(tmp_path, data))

@@ -56,6 +56,11 @@ def fake_docker(tmp_path, monkeypatch):
         "elif args[0] == 'logs':\n"
         f"    lines = {LOGS!r} * int(os.environ.get('FAKE_DOCKER_REPEAT', '1'))\n"
         "    sys.stdout.write(''.join(line + '\\n' for line in lines)); sys.stdout.flush()\n"
+        "    late = os.environ.get('FAKE_DOCKER_LATE')\n"
+        "    while late and not pathlib.Path(late).exists():\n"
+        "        time.sleep(0.02)\n"
+        "    if late:\n"
+        "        print('2026-09-28T10:00:09.000000001Z logged after k6 exited', flush=True)\n"
         "    time.sleep(60)\n"
         "elif args[0] == 'stats':\n"
         f"    state = pathlib.Path({str(state)!r})\n"
@@ -207,3 +212,52 @@ def test_a_run_interrupted_mid_way_still_stops_every_docker_child(tmp_path, fake
     assert result["lifecycle"] == "cancelled"
     assert started and all(log.process.poll() is not None for log in started[0].logs)
     assert started[0].stats_thread is not None and not started[0].stats_thread.is_alive()
+
+
+def test_parse_stats_keys_by_the_name_or_id_the_user_passed():
+    # `--capture docker:3f2a9c1b`: .Container echoes the ID, .Name is the canonical name the samples are not keyed by.
+    assert parse_stats('{"Container": "3f2a9c1b", "Name": "api", "CPUPerc": "1%", "MemUsage": "1MiB / 2MiB"}')["name"] == "3f2a9c1b"
+
+
+def test_capture_reports_a_container_without_resource_samples(tmp_path, fake_docker, monkeypatch):
+    monkeypatch.setattr(capture_module, "parse_stats", lambda line: None)
+    run = Capture(["api"], tmp_path / "server")
+    run.start()
+    _wait(lambda: (tmp_path / "stats-calls").exists())
+    assert run.stop()["problems"] == ["api: no resource samples from docker stats"]
+
+
+def test_error_signatures_are_redacted_before_normalising_and_truncating(tmp_path):
+    secret = "tok_Ab3/98765Qz+Lm0p-4412xyzW"
+    log = capture_module._Log("api", tmp_path / "api.log", [secret])
+    log._count(f"ERROR auth failed Authorization: Bearer {secret}")
+    log._count("ERROR " + "x" * (capture_module.EXAMPLE_LIMIT - 10) + secret)  # the secret straddles the example cut
+    text = json.dumps(log.summary())
+    assert "Ab3/" not in text and "Qz+Lm0p" not in text and "tok_" not in text
+
+
+def test_verify_capture_keeps_log_lines_written_after_k6_exits(tmp_path, fake_docker, monkeypatch):
+    # The first scrub used to os.replace server/api.log under the drain thread, orphaning everything written later.
+    flag = tmp_path / "late"
+    monkeypatch.setenv("FAKE_DOCKER_LATE", str(flag))
+    monkeypatch.setenv("FAKE_DOCKER_REPEAT", "2000")  # past the drain's write buffer, so the secret is on disk
+    started = []
+
+    class Recording(Capture):
+        def start(self):
+            started.append(self)
+            super().start()
+            _wait(lambda: self.logs[0].lines >= 2000 * len(LOGS))
+
+    read_events = runner._read_events
+
+    def after_first_scrub(*args):
+        flag.touch()
+        _wait(lambda: started[0].logs[0].lines > 2000 * len(LOGS))
+        return read_events(*args)
+
+    monkeypatch.setattr(runner, "Capture", Recording)
+    monkeypatch.setattr(runner, "_read_events", after_first_scrub)
+    result = _passing_run(tmp_path, monkeypatch, capture=["api"])
+    log = (tmp_path / "runs" / result["run_id"] / "server" / "api.log").read_text()
+    assert "logged after k6 exited" in log and "super-secret-value" not in log
