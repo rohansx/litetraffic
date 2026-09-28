@@ -38,9 +38,10 @@ def _count(value: object) -> str:
 
 def _refused_but_accepted(failure: dict) -> bool:
     expected, actual = failure.get("expected"), failure.get("actual")
+    codes = [expected] if isinstance(expected, int) else expected
     return (
         isinstance(actual, int) and 200 <= actual < 300
-        and isinstance(expected, list) and bool(expected) and all(isinstance(code, int) and code >= 400 for code in expected)
+        and isinstance(codes, list) and bool(codes) and all(isinstance(code, int) and code >= 400 for code in codes)
     )
 
 
