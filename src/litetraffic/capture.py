@@ -21,6 +21,7 @@ STATS_INTERVAL_SECONDS = 2.0
 DOCKER_TIMEOUT_SECONDS = 10
 STOP_WAIT_SECONDS = 3
 TOP_SIGNATURES = 8
+MAX_DISTINCT_SIGNATURES = 10_000
 EXAMPLE_LIMIT = 300
 ERROR_LINE = re.compile(r"(?i:\b(?:error|critical|fatal|panic|timed out|refused)\b)|Traceback|Exception| 5\d\d(?: |$)")
 _NORMALISE = [
@@ -106,6 +107,8 @@ class _Log:
             return
         self.error_lines += 1
         key = signature(message)
+        if key not in self.signatures and len(self.signatures) >= MAX_DISTINCT_SIGNATURES:
+            return  # ponytail: bounded memory; later new signatures go uncounted, only error_lines sees them
         self.signatures[key] += 1
         self.first.setdefault(key, (at, message[:EXAMPLE_LIMIT]))
 
