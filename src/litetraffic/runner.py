@@ -12,6 +12,7 @@ from litetraffic.artifacts import MANIFEST, artifact_files
 from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
+from litetraffic.funnel import journey_funnels, unfinished_journeys
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
 from litetraffic.observation import observe, sent_request
 from litetraffic.process import GROUP_SURVIVED, _communicate, _stop_process
@@ -369,6 +370,8 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     if thresholds_breached:
         limitations.append("k6 thresholds breached")
     limitations.extend(overlap_shortfalls(metrics, bundle.manifest.journeys))
+    funnels, funnel_limitations = journey_funnels(bundle.manifest.journeys, events, metrics.get("iterations"))
+    limitations.extend(funnel_limitations)
     if malformed_events:
         limitations.append(f"ignored {malformed_events} malformed event record(s)")
     if malformed_metrics:
@@ -408,6 +411,10 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         verdict = "error"
     elif completeness == "incomplete":
         verdict = "inconclusive"
+    elif unfinished := unfinished_journeys(funnels):
+        # A green run where no journey finished is a silent failure, not a pass.
+        verdict, completeness = "inconclusive", "incomplete"
+        limitations.extend(unfinished)
     else:
         verdict = "pass"
 
@@ -424,6 +431,8 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         # Honesty notes describe what this preview never measures; they do not affect completeness.
         "notes": ["per-arrival lateness not measured", "workload is synthetic (no traces supplied)"],
     }
+    if funnels:
+        result["journeys"] = funnels
     # Assertions have already seen the real values; everything kept or returned from here is a scrubbed copy.
     result = redact_value(result, secrets)
     _write_json(run_dir / "result.json", result)

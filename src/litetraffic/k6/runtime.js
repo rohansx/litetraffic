@@ -60,6 +60,19 @@ export function evidence(assertion, passed, { logicalKey, expected, actual, deta
   console.log(`LT_EVENT ${JSON.stringify(event)}`);
 }
 
+// Record that this journey reached a declared stage (manifest journeys[].stages).
+// Call it once per milestone, in order; the controller builds the funnel from these.
+export function stage(name) {
+  const event = {
+    schema_version: 1,
+    type: "stage",
+    run_id: __ENV.LT_RUN_ID,
+    stage: String(name),
+    logical_key: journeyKey(),
+  };
+  console.log(`LT_EVENT ${JSON.stringify(event)}`);
+}
+
 // Deterministic [0, 1) generator seeded by LT_SEED and the iteration (mulberry32).
 export function rng(iteration = exec.scenario.iterationInTest) {
   let state = 2166136261;
