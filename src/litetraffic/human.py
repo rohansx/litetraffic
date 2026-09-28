@@ -59,6 +59,8 @@ def format_diff(result: dict) -> list[str]:
     for name, item in result["performance"].get("by_operation", {}).items():
         change = "" if item["change_percent"] is None else f" ({item['change_percent']:+}%)"
         lines.append(f"p95 {name}: {item['baseline_p95_ms']}ms -> {item['candidate_p95_ms']}ms{change}")
+    for name, stages in result.get("journeys", {}).items():
+        lines += [f"journey {name} {stage}: {item['baseline']} -> {item['candidate']} reached ({item['change']:+})" for stage, item in stages.items()]
     return lines
 
 
