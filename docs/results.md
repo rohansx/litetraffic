@@ -18,9 +18,24 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 | `engine.stdout.log`, `engine.stderr.log` | Captured engine diagnostics |
 | `observation.json` | Optional final observer expectations, compact recorded actual fields, per-pointer `checks` (matcher, actual, pass), and `expressions` (the original `${...}` forms of resolved expected values, only when used); a list with one such entry per observation when the manifest uses `observations` |
 | `fixture.json` | Optional fixture outcomes: `owned_http` create/cleanup, or `command` setup/teardown argv, exit code, duration and stderr tail |
+| `server.json`, `server/` | Only with `verify --capture`: container summary, raw `server/NAME.log` logs and `server/stats.jsonl` samples ([server capture](#server-capture)) |
 | `artifacts.json` | Finalization manifest, written last: `{"schema_version", "run_id", "files", "total_bytes"}`, where `files` lists every other run file as `{path, bytes, sha256}` sorted by path and `total_bytes` is their sum. It excludes itself; the `max_artifact_bytes` budget is summed over the same file set |
 
 The controller restricts permissions on directories and files it creates. Raw engine output may still contain anything the script logs. Treat the entire run directory as potentially sensitive and review it before sharing. Scripts and imported files are recorded by hash in `scenario.lock.json` but **not** copied into the run directory.
+
+## Server capture
+
+`verify --capture docker:api,worker` writes `server.json`:
+
+```json
+{"schema_version": 1, "source": "docker", "problems": [],
+ "containers": {"api": {"baseline_cpu_percent": 0.4, "peak_cpu_percent": 87.1, "peak_at": "2026-09-28T10:00:04+00:00",
+   "baseline_mem_mb": 120.5, "peak_mem_mb": 188.0, "log_lines": 912, "error_lines": 37, "truncated": false,
+   "signatures": [{"signature": "ERROR db timeout after <n>ms for <uuid>", "count": 37,
+     "first_seen": "2026-09-28T10:00:03.1Z", "example": "ERROR db timeout after 5000ms for 1b4e..."}]}}}
+```
+
+Baseline is the first `docker stats` sample; peaks are the maxima over the run (`null` without samples). Memory is in MiB. An error line matches `error`, `critical`, `fatal`, `panic`, `timed out`, `refused` (as words, any case), `Traceback`, `Exception`, or a ` 5xx ` status. A signature is the line with quoted strings, timestamps, UUIDs, hex and numbers of four or more digits replaced, so repeats collapse; the top 8 per container are kept with the first matching line as `example` (at most 300 characters). Signatures, examples and the raw server files are scrubbed of the run's secrets. `problems` lists what could not be captured; when it is not empty, `result.json` gets one `Server capture incomplete: ...` limitation, appended after the verdict is decided, so capture never changes the verdict. Without `--capture` none of these files exist.
 
 ## Verdict and lifecycle
 

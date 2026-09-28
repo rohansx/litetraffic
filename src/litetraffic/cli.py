@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from litetraffic import __version__
 from litetraffic.activity import up
 from litetraffic.approval import approve, require_approval
+from litetraffic.capture import parse_spec
 from litetraffic.auth import secret_env_names
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard import serve
@@ -77,6 +78,7 @@ def _parser() -> argparse.ArgumentParser:
     verify_command.add_argument("--same-seed", action="store_true", help="repeat --seed instead of consecutive seeds")
     verify_command.add_argument("--require-approval", action="store_true", help="refuse to run an unapproved digest/origin")
     verify_command.add_argument("--approved-digest", metavar="SHA", help="CI approval: must equal the scenario digest")
+    verify_command.add_argument("--capture", metavar="docker:NAME[,NAME...]", help="record these containers' logs and resource use")
     verify_command.add_argument("--json", action="store_true")
 
     up_command = commands.add_parser("up", help="run repeated bounded slices as a background activity (no verdict)")
@@ -194,11 +196,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError("repeat must be at least 1")
             if args.same_seed and args.repeat < 2:
                 raise ValueError("--same-seed requires --repeat of at least 2")
+            capture = parse_spec(args.capture) if args.capture is not None else None
             target = resolve_target(args.target, args.e2b_sandbox_id, args.e2b_port)
             if args.require_approval or args.approved_digest is not None:
                 require_approval(load_scenario(args.scenario).digest, target, args.approved_digest)
             if args.repeat == 1:
-                payload = verify(target, args.scenario, args.output_dir, args.k6_path, args.seed)
+                payload = verify(target, args.scenario, args.output_dir, args.k6_path, args.seed, capture)
             else:
                 payload = repeat_verify(
                     target,
@@ -208,6 +211,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.seed,
                     args.repeat,
                     same_seed=args.same_seed,
+                    capture=capture,
                 )
             _emit(payload, args.json, lambda result: format_verify(result, args.output_dir))
             if payload["lifecycle"] == "cancelled":

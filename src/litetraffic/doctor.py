@@ -92,13 +92,26 @@ def _check_disk(output_dir: Path) -> Check:
     return Check(name="disk", ok=ok, detail=detail)
 
 
+def _check_docker() -> list[Check]:
+    # Informational only: docker matters just for `verify --capture`, so it never fails the doctor.
+    executable = shutil.which("docker")
+    if not executable:
+        return []
+    try:
+        result = subprocess.run([executable, "--version"], capture_output=True, check=False, text=True, timeout=5)
+        detail = (result.stdout or result.stderr).strip() or f"docker --version exited {result.returncode}"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        detail = f"cannot execute docker: {exc}"
+    return [Check(name="docker", ok=True, detail=f"{detail} (optional, for verify --capture)")]
+
+
 def run_doctor(
     target: str | None = None,
     k6_path: str | None = None,
     transport: httpx.BaseTransport | None = None,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
 ) -> DoctorReport:
-    checks = [_check_k6(k6_path), _check_python(), _check_output_dir(output_dir), _check_disk(output_dir)]
+    checks = [_check_k6(k6_path), _check_python(), _check_output_dir(output_dir), _check_disk(output_dir), *_check_docker()]
     if target is None:
         return DoctorReport(checks=checks)
 
