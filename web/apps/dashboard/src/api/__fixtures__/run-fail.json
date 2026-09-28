@@ -77,6 +77,12 @@
       },
       {
         "items": [
+          "api: 37 error lines; most common: ERROR tenant scope missing for org <uuid> on GET /balances/<uuid> (x27)."
+        ],
+        "title": "Server"
+      },
+      {
+        "items": [
           "The target accepted requests it should have refused. Check the authorization rule on those routes.",
           "The final state is wrong after traffic stopped. Compare expected and actual values in the Observations tab.",
           "Open the Assertions tab for every failing request, or report.html for a shareable copy."
@@ -573,5 +579,53 @@
     "started_at": "2026-09-23T02:34:54.208443+00:00",
     "target": "http://127.0.0.1:14000"
   },
-  "run_id": "run_20260923T023454Z_24eba6f8"
+  "run_id": "run_20260923T023454Z_24eba6f8",
+  "server": {
+    "containers": {
+      "api": {
+        "baseline_cpu_percent": 0.42,
+        "baseline_mem_mb": 118.4,
+        "error_lines": 37,
+        "log_lines": 412,
+        "peak_at": "2026-09-23T02:34:58.120418+00:00",
+        "peak_cpu_percent": 63.8,
+        "peak_mem_mb": 176.9,
+        "signatures": [
+          {
+            "count": 27,
+            "example": "ERROR tenant scope missing for org 3f1c2a9e-8b7d-4e0f-9a61-2c5d7e8f9a01 on GET /balances/9b2e4c1d-5f6a-4b7c-8d9e-0a1b2c3d4e5f",
+            "first_seen": "2026-09-23T02:34:55.401932117Z",
+            "signature": "ERROR tenant scope missing for org <uuid> on GET /balances/<uuid>"
+          },
+          {
+            "count": 6,
+            "example": "WARNING slow query 1204ms: SELECT * FROM templates WHERE id = 'tpl_7'",
+            "first_seen": "2026-09-23T02:34:56.018220004Z",
+            "signature": "WARNING slow query <n>ms: SELECT * FROM templates WHERE id = <str>"
+          },
+          {
+            "count": 4,
+            "example": "172.18.0.1 - \"POST /positions HTTP/1.1\" 500 1532",
+            "first_seen": "2026-09-23T02:34:57.330117890Z",
+            "signature": "172.18.0.1 - <str> 500 <n>"
+          }
+        ],
+        "truncated": false
+      },
+      "db": {
+        "baseline_cpu_percent": 1.1,
+        "baseline_mem_mb": 64.2,
+        "error_lines": 0,
+        "log_lines": 18,
+        "peak_at": "2026-09-23T02:34:57.119004+00:00",
+        "peak_cpu_percent": 22.5,
+        "peak_mem_mb": 71.8,
+        "signatures": [],
+        "truncated": false
+      }
+    },
+    "problems": [],
+    "schema_version": 1,
+    "source": "docker"
+  }
 }
