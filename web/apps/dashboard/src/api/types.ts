@@ -139,6 +139,15 @@ export interface RunMetrics {
   /** Client-side peak concurrent journeys per operation. */
   overlap?: Record<string, number>;
 }
+/** Per-journey stage funnel; present only when a journey declares stages. */
+export interface JourneyFunnel {
+  started: number;
+  stages: { name: string; reached: number }[];
+  /** Journeys that started ("start") or reached a stage but not the next one. */
+  stalled: { after: string; count: number }[];
+  /** Stage names the journey reported but does not declare. */
+  undeclared: string[];
+}
 export interface RunResult {
   schema_version: 1;
   run_id: string;
@@ -157,6 +166,7 @@ export interface RunResult {
   metrics: RunMetrics;
   limitations: string[];
   notes: string[];
+  journeys?: Record<string, JourneyFunnel>;
 }
 
 // ---------- observation.json (observation.py; object for a legacy single observation, else a list) ----------
