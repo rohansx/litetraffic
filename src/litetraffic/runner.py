@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from litetraffic.artifacts import MANIFEST, artifact_files
+from litetraffic.capture import Capture
 from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
@@ -84,12 +85,13 @@ def verify(
     output_dir: Path,
     k6_path: str | None = None,
     seed: int = 0,
+    capture: list[str] | None = None,
 ) -> dict:
     owed: dict = {}  # fixture teardown/cleanup not yet run; runs even when the run raises
     state: dict = {}  # filled once the run directory exists, so a stray Ctrl-C can still finalize it
     try:
         try:
-            return _verify(target, scenario, output_dir, k6_path, seed, owed, state)
+            return _verify(target, scenario, output_dir, k6_path, seed, owed, state, capture)
         finally:
             for release in list(owed.values()):
                 release()
@@ -133,7 +135,9 @@ def _finalize_cancelled(state: dict) -> dict:
     return result
 
 
-def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, seed: int, owed: dict, state: dict) -> dict:
+def _verify(
+    target: str, scenario: Path, output_dir: Path, k6_path: str | None, seed: int, owed: dict, state: dict, capture: list[str] | None
+) -> dict:
     target = _target(target)
     bundle = load_scenario(Path(scenario))
     executable, engine_version = _engine(k6_path)
@@ -203,7 +207,7 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
     state["secrets"] = secrets  # every finalization path scrubs the raw files with these
     process: subprocess.Popen[str] | None = None
     group_survived = False
-    engine_started = engine_finished = None
+    engine_started = engine_finished = server = None
     fixture = hooks = None
     commands = bundle.manifest.fixtures.command
     if commands and lifecycle == "running":
@@ -243,6 +247,10 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         _record_stage(run_dir, run, "running")
         try:
             engine_seconds = bundle.manifest.budgets.max_seconds - sum(o.reserved_seconds for o in bundle.manifest.observations) - bundle.manifest.fixtures.reserved_seconds
+            if capture:
+                server_capture = Capture(capture, run_dir / "server")
+                owed["capture"] = server_capture.stop  # stops docker children however the run ends
+                server_capture.start()
             engine_started = _now()
             # k6 runs a staged copy so the bundled runtime helper sits next to the script.
             with staged(bundle) as root:
@@ -305,6 +313,12 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
                 lifecycle = "cancelled"
                 record.update(reason="observation cancelled", requested=True)
         observations.append(record)
+    if "capture" in owed:
+        server = owed["capture"]()
+        del owed["capture"]  # only once stopped: a Ctrl-C inside stop() leaves it for the finally
+        server["problems"] += _scrub_raw(run_dir / "server", secrets) if (run_dir / "server").is_dir() else []
+        server = redact_value(server, secrets)
+        _write_json(run_dir / "server.json", server)
     if observations:
         metrics["observer_requests"] = sum(record.pop("requested") for record in observations)
         # The legacy single `observation` keeps its single-object observation.json.
@@ -424,13 +438,17 @@ def _verify(target: str, scenario: Path, output_dir: Path, k6_path: str | None, 
         # Honesty notes describe what this preview never measures; they do not affect completeness.
         "notes": ["per-arrival lateness not measured", "workload is synthetic (no traces supplied)"],
     }
+    if server and server["problems"]:
+        # Added after the verdict on purpose: server capture is context, never evidence for or against the run.
+        result["limitations"].append("Server capture incomplete: " + "; ".join(server["problems"]))
     # Assertions have already seen the real values; everything kept or returned from here is a scrubbed copy.
     result = redact_value(result, secrets)
     _write_json(run_dir / "result.json", result)
     _record_stage(run_dir, run, lifecycle)
     report_path = run_dir / result["report"]
     _write_text(report_path, render_report(result, run))
-    artifact_bytes = sum(entry["bytes"] for entry in artifact_files(run_dir))
+    # Server logs are excluded so that capture cannot turn a verdict into an artifact-budget error.
+    artifact_bytes = sum(entry["bytes"] for entry in artifact_files(run_dir) if not entry["path"].startswith(("server/", "server.json")))
     if artifact_bytes > bundle.manifest.budgets.max_artifact_bytes:
         result["verdict"] = "error"
         result["completeness"] = "incomplete"

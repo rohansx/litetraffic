@@ -38,9 +38,10 @@ def _count(value: object) -> str:
 
 def _refused_but_accepted(failure: dict) -> bool:
     expected, actual = failure.get("expected"), failure.get("actual")
+    codes = [expected] if isinstance(expected, int) else expected
     return (
         isinstance(actual, int) and 200 <= actual < 300
-        and isinstance(expected, list) and bool(expected) and all(isinstance(code, int) and code >= 400 for code in expected)
+        and isinstance(codes, list) and bool(codes) and all(isinstance(code, int) and code >= 400 for code in codes)
     )
 
 
@@ -90,6 +91,29 @@ def _next_steps(result: dict, failed: list[dict]) -> list[str]:
     return steps
 
 
+def _containers(detail: dict) -> dict:
+    server = detail.get("server")
+    containers = server.get("containers") if isinstance(server, dict) else None
+    return {name: value for name, value in containers.items() if isinstance(value, dict)} if isinstance(containers, dict) else {}
+
+
+def _signatures(container: dict) -> list[dict]:
+    items = container.get("signatures")
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
+
+
+def _server_lines(detail: dict) -> list[str]:
+    lines = []
+    for name, container in _containers(detail).items():
+        if not container.get("error_lines"):
+            continue
+        line = f"{name}: {_count(container['error_lines'])} error lines"
+        if top := next(iter(_signatures(container)), None):
+            line += f"; most common: {_short(top.get('signature'))} (x{_count(top.get('count'))})"
+        lines.append(line + ".")
+    return lines
+
+
 def summarize(detail: dict) -> dict | None:
     """Deterministic explanation built only from run evidence; None when the run has no result."""
     result, run = detail.get("result"), detail.get("run") or {}
@@ -114,6 +138,7 @@ def summarize(detail: dict) -> dict | None:
         {"title": "What ran", "items": _what_ran(run, result)},
         {"title": "What failed", "items": [_failure_line(a) for a in failed]},
         {"title": "What passed", "items": [_human(a["id"]) for a in passed]},
+        {"title": "Server", "items": _server_lines(detail)},
         {"title": "Caveats", "items": caveats},
         {"title": "Next steps", "items": _next_steps(result, failed)},
     ]
@@ -145,6 +170,20 @@ def _evidence(detail: dict) -> str:
         "observation": detail.get("observation"),
         # Commands are left out: they describe the operator's machine, not the target's behaviour.
         "fixture": {k: v.get("status") for k, v in fixture.items() if isinstance(v, dict)} if isinstance(fixture, dict) else None,
+        # Signatures were redacted with the run's secrets when server.json was written.
+        "server": {
+            name: {
+                "peak_cpu_percent": container.get("peak_cpu_percent"),
+                "peak_mem_mb": container.get("peak_mem_mb"),
+                "error_lines": container.get("error_lines"),
+                "top_signatures": [
+                    {"signature": item.get("signature"), "count": item.get("count")}
+                    for item in _signatures(container)[:3]
+                ],
+            }
+            for name, container in _containers(detail).items()
+        }
+        or None,
     }
     text = json.dumps(trimmed, sort_keys=True, indent=1)
     return text if len(text) <= _PROMPT_LIMIT else text[:_PROMPT_LIMIT] + "\n…(truncated)"

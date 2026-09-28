@@ -27,6 +27,31 @@ def test_failing_run_is_explained_from_evidence():
     assert sections["Next steps"][0].startswith("The target accepted requests it should have refused")
 
 
+def test_server_section_lists_containers_that_logged_errors():
+    sections = {s["title"]: s["items"] for s in explain.summarize(_fixture("run-fail"))["sections"]}
+    # db logged no errors, so only api gets a line.
+    assert sections["Server"] == ["api: 37 error lines; most common: ERROR tenant scope missing for org <uuid> on GET /balances/<uuid> (x27)."]
+    assert "Server" not in {s["title"] for s in explain.summarize(_fixture("run-pass"))["sections"]}
+
+
+def test_prompt_carries_peaks_and_top_three_signatures_per_container():
+    detail = _fixture("run-fail")
+    detail["server"]["containers"]["api"]["signatures"].append({"signature": "fourth", "count": 1})
+    evidence = json.loads(explain._evidence(detail))["server"]
+    assert evidence["api"]["peak_cpu_percent"] == 63.8 and evidence["api"]["peak_mem_mb"] == 176.9
+    assert [item["count"] for item in evidence["api"]["top_signatures"]] == [27, 6, 4]
+    assert explain._evidence({"result": {}})  # no server block, no crash
+    assert json.loads(explain._evidence({"result": {}}))["server"] is None
+
+
+def test_a_single_refused_status_that_was_accepted_suggests_the_authorization_rule():
+    failed = [{"id": "cross_tenant_read_blocked", "status": "fail", "failures": [{"expected": 403, "actual": 200}]}]
+    detail = {"run": {}, "result": {"verdict": "fail", "assertions": failed, "limitations": []}}
+    steps = {s["title"]: s["items"] for s in explain.summarize(detail)["sections"]}["Next steps"]
+    assert steps[0].startswith("The target accepted requests it should have refused")
+    assert not explain._refused_but_accepted({"expected": 200, "actual": 201})
+
+
 def test_passing_and_unfinished_runs():
     assert explain.summarize(_fixture("run-pass"))["headline"].startswith("All ")
     assert explain.summarize({"run": None, "result": None}) is None

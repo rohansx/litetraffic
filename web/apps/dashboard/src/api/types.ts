@@ -229,6 +229,36 @@ export interface Activity {
   slices: ActivitySlice[];
 }
 
+// ---------- server.json (verify --capture) ----------
+export interface ErrorSignature {
+  /** The error line with timestamps, ids, numbers and quoted strings normalised; redacted. */
+  signature: string;
+  count: number;
+  first_seen: string | null;
+  example: string;
+}
+
+export interface ContainerCapture {
+  baseline_cpu_percent: number | null;
+  peak_cpu_percent: number | null;
+  peak_at: string | null;
+  baseline_mem_mb: number | null;
+  peak_mem_mb: number | null;
+  log_lines: number;
+  error_lines: number;
+  truncated: boolean;
+  /** Top signatures by count, at most 8. */
+  signatures: ErrorSignature[];
+}
+
+export interface ServerCapture {
+  schema_version: 1;
+  source: "docker";
+  containers: Record<string, ContainerCapture>;
+  /** What could not be captured; never affects the verdict. */
+  problems: string[];
+}
+
 // ---------- GET /api/runs/{id} ----------
 export interface ArtifactFile {
   /** Path relative to the run directory, "/"-separated. */
@@ -245,6 +275,8 @@ export interface RunDetail {
   observation?: Observation;
   fixture?: Fixture;
   activity?: Activity;
+  /** server.json, only for runs verified with --capture. */
+  server?: ServerCapture;
   /** Plain-English summary built from the evidence (explain.py `summarize`); absent without a result. */
   explanation?: Explanation;
   /** Cached write-up from POST /api/runs/:id/explain. */

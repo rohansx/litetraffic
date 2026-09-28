@@ -99,7 +99,7 @@ def _scenarios(runs_dir: Path) -> list[str]:
 
 def _detail(path: Path) -> dict:
     detail = {"run_id": path.name, "run": read_json(path / "run.json"), "result": read_json(path / "result.json")}
-    for name in ("observation", "fixture", "activity"):
+    for name in ("observation", "fixture", "activity", "server"):
         if (value := _load(path / f"{name}.json")) is not None:
             detail[name] = value
     if (explanation := summarize(detail)) is not None:

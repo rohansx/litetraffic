@@ -35,7 +35,7 @@ def served(tmp_path):
         detail = _fixture(name)
         run = root / detail["run_id"]
         run.mkdir()
-        for part in ("run", "result", "observation", "fixture", "activity"):
+        for part in ("run", "result", "observation", "fixture", "activity", "server"):
             if detail.get(part) is not None:
                 (run / f"{part}.json").write_text(json.dumps(detail[part]))
     ui = tmp_path / "ui"

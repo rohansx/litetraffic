@@ -52,13 +52,14 @@ def repeat_verify(
     seed: int = 0,
     repeats: int = 3,
     same_seed: bool = False,
+    capture: list[str] | None = None,
 ) -> dict:
     if repeats < 2:
         raise runner.RunnerError("repeats must be at least 2")
 
     runs = []
     for current_seed in [seed] * repeats if same_seed else range(seed, seed + repeats):
-        result = runner.verify(target, scenario, output_dir, k6_path, current_seed)  # module lookup: stubbable
+        result = runner.verify(target, scenario, output_dir, k6_path, current_seed, capture)  # module lookup: stubbable
         runs.append(result)
         if result["lifecycle"] == "cancelled":
             break
