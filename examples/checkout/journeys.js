@@ -15,15 +15,18 @@ export default function checkout() {
     JSON.stringify({ logical_key: key, total: 1250 }),
     { headers, tags: { operation: "create_payment" } },
   );
+  if ([200, 201].includes(created.status)) lt.stage("paid");
   const retried = http.post(
     `${__ENV.LT_TARGET}/payments`,
     JSON.stringify({ logical_key: key, total: 1250 }),
     { headers, tags: { operation: "retry_payment" } },
   );
+  if ([200, 201].includes(retried.status)) lt.stage("retried");
   const observed = http.get(`${__ENV.LT_TARGET}/payments/${encodeURIComponent(key)}`, {
     headers,
     tags: { operation: "observe_payment" },
   });
+  if (observed.status === 200) lt.stage("confirmed");
   let body = {};
   try {
     body = observed.json();
