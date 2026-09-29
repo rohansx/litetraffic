@@ -4,7 +4,7 @@ The MIT license in this repository applies to LiteTraffic's original code and do
 
 | Component | Use | Upstream license |
 |---|---|---|
-| [k6](https://github.com/grafana/k6/blob/v2.2.0/LICENSE.md) | Separately installed executable invoked as a child process; no engine source or binary bundled | AGPL-3.0 |
+| [k6](https://github.com/grafana/k6/blob/v2.2.0/LICENSE.md) | Executable invoked as a child process. The repository and Python package bundle no engine source or binary; the container image includes the unmodified official v2.2.0 release binary as a separate executable (source: the upstream `v2.2.0` tag) | AGPL-3.0 |
 | [HTTPX](https://github.com/encode/httpx/blob/master/LICENSE.md) | Installed by pip for fixture and observer HTTP calls | BSD-3-Clause |
 | [Pydantic](https://github.com/pydantic/pydantic/blob/main/LICENSE) | Installed by pip for manifest validation | MIT |
 | [pytest](https://github.com/pytest-dev/pytest/blob/main/LICENSE) | Optional development dependency | MIT |

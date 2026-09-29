@@ -8,6 +8,8 @@ Use Python **3.11+**, Git, and the official **k6 v2.2.0** executable. Real-engin
 
 `inspect` and `diff` do not need k6 or a running target. `verify` requires both. Your app must already be running and expose the endpoints used by the scenario. Authenticated apps need test credentials supplied by your journey or observer recipe. No LLM credentials or E2B account are required for local runs.
 
+Prefer not to install Python or k6? The container image bundles both: see [self-hosting](self-hosting.md).
+
 ## Install k6
 
 Download the archive for your platform from the [official v2.2.0 release](https://github.com/grafana/k6/releases/tag/v2.2.0). Verify its SHA-256 against the release checksums, extract it, and put the executable on your `PATH`.
