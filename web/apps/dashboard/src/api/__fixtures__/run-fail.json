@@ -1,0 +1,631 @@
+{
+  "artifacts": [
+    {
+      "path": "console.log",
+      "size": 19242
+    },
+    {
+      "path": "engine.stderr.log",
+      "size": 0
+    },
+    {
+      "path": "engine.stdout.log",
+      "size": 801
+    },
+    {
+      "path": "events/000001.jsonl",
+      "size": 21051
+    },
+    {
+      "path": "fixture.json",
+      "size": 585
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 241258
+    },
+    {
+      "path": "observation.json",
+      "size": 3324
+    },
+    {
+      "path": "report.html",
+      "size": 8578
+    },
+    {
+      "path": "result.json",
+      "size": 10234
+    },
+    {
+      "path": "run.json",
+      "size": 799
+    },
+    {
+      "path": "scenario.lock.json",
+      "size": 3979
+    }
+  ],
+  "explanation": {
+    "headline": "7 of 9 checks failed, starting with: cross tenant balance read blocked.",
+    "sections": [
+      {
+        "items": [
+          "9 of 9 planned journeys ran against http://127.0.0.1:14000 with seed 42.",
+          "Schedule: warmup 1/s for 1s, measure 2/s for 4s.",
+          "81 HTTP requests, 27 of them writes."
+        ],
+        "title": "What ran"
+      },
+      {
+        "items": [
+          "Cross tenant balance read blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Cross tenant template read blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Cross tenant template write blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Cross tenant position create blocked: expected [401, 403, 404] but got 201 in 3 of 9 samples.",
+          "Cross tenant position edit blocked: expected [401, 403, 404] but got 200 in 3 of 9 samples.",
+          "Tenant b state intact: expected {\"marker_positions\": 0, \"template_rows\": 1, \"template_subject_is_marker\": false} but got {\"marker_positions\": 2, \"template_rows\": 1, \"template_subject_is_marker\": true} in 3 of 9 samples.",
+          "No probe positions in tenant b: the final state check expected {\"\": {\"len\": 0}} but found {\"\": [{\"position_id\": \"08cbf07a-244f-4d2b-bf3b-d0445782862e\", \"title\": \"LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-\u2026."
+        ],
+        "title": "What failed"
+      },
+      {
+        "items": [
+          "Own org access works",
+          "Unauthenticated request rejected"
+        ],
+        "title": "What passed"
+      },
+      {
+        "items": [
+          "api: 37 error lines; most common: ERROR tenant scope missing for org <uuid> on GET /balances/<uuid> (x27)."
+        ],
+        "title": "Server"
+      },
+      {
+        "items": [
+          "The target accepted requests it should have refused. Check the authorization rule on those routes.",
+          "The final state is wrong after traffic stopped. Compare expected and actual values in the Observations tab.",
+          "Open the Assertions tab for every failing request, or report.html for a shareable copy."
+        ],
+        "title": "Next steps"
+      }
+    ]
+  },
+  "fixture": {
+    "setup": {
+      "argv": [
+        "sh",
+        "-c",
+        "set -e; for f in reset compat seed; do docker exec -i supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -q < ../../seed/$f.sql; done; sleep 1"
+      ],
+      "duration_seconds": 1.183,
+      "exit_code": 0,
+      "status": "ok",
+      "stderr": ""
+    },
+    "teardown": {
+      "argv": [
+        "sh",
+        "-c",
+        "docker exec -i supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -q < ../../seed/reset.sql"
+      ],
+      "duration_seconds": 0.085,
+      "exit_code": 0,
+      "status": "ok",
+      "stderr": ""
+    }
+  },
+  "observation": {
+    "actual": {
+      "": [
+        {
+          "position_id": "08cbf07a-244f-4d2b-bf3b-d0445782862e",
+          "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-0"
+        },
+        {
+          "position_id": "6685ead8-6913-441a-a0f9-7f462a3c98ca",
+          "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-1"
+        },
+        {
+          "position_id": "c8128254-ce06-4368-a293-3155de1d71a3",
+          "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-2"
+        }
+      ]
+    },
+    "assertion": "no_probe_positions_in_tenant_b",
+    "checks": {
+      "": {
+        "actual": [
+          {
+            "position_id": "08cbf07a-244f-4d2b-bf3b-d0445782862e",
+            "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-0"
+          },
+          {
+            "position_id": "6685ead8-6913-441a-a0f9-7f462a3c98ca",
+            "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-1"
+          },
+          {
+            "position_id": "c8128254-ce06-4368-a293-3155de1d71a3",
+            "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-2"
+          }
+        ],
+        "matcher": {
+          "len": 0
+        },
+        "pass": false
+      }
+    },
+    "expected": {
+      "": {
+        "len": 0
+      }
+    },
+    "status": "fail"
+  },
+  "result": {
+    "assertions": [
+      {
+        "id": "own_org_access_works",
+        "samples": 9,
+        "status": "pass"
+      },
+      {
+        "id": "unauthenticated_request_rejected",
+        "samples": 9,
+        "status": "pass"
+      },
+      {
+        "failures": [
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-0",
+            "sequence": 3
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-1",
+            "sequence": 11
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-2",
+            "sequence": 19
+          }
+        ],
+        "id": "cross_tenant_balance_read_blocked",
+        "samples": 9,
+        "status": "fail"
+      },
+      {
+        "failures": [
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-0",
+            "sequence": 4
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-1",
+            "sequence": 12
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-2",
+            "sequence": 20
+          }
+        ],
+        "id": "cross_tenant_template_read_blocked",
+        "samples": 9,
+        "status": "fail"
+      },
+      {
+        "failures": [
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-0",
+            "sequence": 5
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-1",
+            "sequence": 13
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-2",
+            "sequence": 21
+          }
+        ],
+        "id": "cross_tenant_template_write_blocked",
+        "samples": 9,
+        "status": "fail"
+      },
+      {
+        "failures": [
+          {
+            "actual": 201,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-0",
+            "sequence": 6
+          },
+          {
+            "actual": 201,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-1",
+            "sequence": 14
+          },
+          {
+            "actual": 201,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-2",
+            "sequence": 22
+          }
+        ],
+        "id": "cross_tenant_position_create_blocked",
+        "samples": 9,
+        "status": "fail"
+      },
+      {
+        "failures": [
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-0",
+            "sequence": 7
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-1",
+            "sequence": 15
+          },
+          {
+            "actual": 200,
+            "detail": null,
+            "expected": [
+              401,
+              403,
+              404
+            ],
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-2",
+            "sequence": 23
+          }
+        ],
+        "id": "cross_tenant_position_edit_blocked",
+        "samples": 9,
+        "status": "fail"
+      },
+      {
+        "failures": [
+          {
+            "actual": {
+              "marker_positions": 2,
+              "template_rows": 1,
+              "template_subject_is_marker": true
+            },
+            "detail": null,
+            "expected": {
+              "marker_positions": 0,
+              "template_rows": 1,
+              "template_subject_is_marker": false
+            },
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-0",
+            "sequence": 8
+          },
+          {
+            "actual": {
+              "marker_positions": 2,
+              "template_rows": 1,
+              "template_subject_is_marker": true
+            },
+            "detail": null,
+            "expected": {
+              "marker_positions": 0,
+              "template_rows": 1,
+              "template_subject_is_marker": false
+            },
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-1",
+            "sequence": 16
+          },
+          {
+            "actual": {
+              "marker_positions": 2,
+              "template_rows": 1,
+              "template_subject_is_marker": true
+            },
+            "detail": null,
+            "expected": {
+              "marker_positions": 0,
+              "template_rows": 1,
+              "template_subject_is_marker": false
+            },
+            "logical_key": "run_20260923T023454Z_24eba6f8-traffic-2",
+            "sequence": 24
+          }
+        ],
+        "id": "tenant_b_state_intact",
+        "samples": 9,
+        "status": "fail"
+      },
+      {
+        "actual": {
+          "": [
+            {
+              "position_id": "08cbf07a-244f-4d2b-bf3b-d0445782862e",
+              "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-0"
+            },
+            {
+              "position_id": "6685ead8-6913-441a-a0f9-7f462a3c98ca",
+              "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-1"
+            },
+            {
+              "position_id": "c8128254-ce06-4368-a293-3155de1d71a3",
+              "title": "LT-PROBE-run_20260923T023454Z_24eba6f8-traffic-2"
+            }
+          ]
+        },
+        "expected": {
+          "": {
+            "len": 0
+          }
+        },
+        "id": "no_probe_positions_in_tenant_b",
+        "samples": 1,
+        "status": "fail"
+      }
+    ],
+    "completeness": "complete",
+    "engine_exit_code": 0,
+    "finished_at": "2026-09-23T02:35:01.005343+00:00",
+    "lifecycle": "finished",
+    "limitations": [],
+    "metrics": {
+      "by_operation": {
+        "balances-cross": {
+          "failed_rate": 0.0,
+          "p95": 9.115,
+          "samples": 9
+        },
+        "balances-no-auth": {
+          "failed_rate": 1.0,
+          "p95": 1.223,
+          "samples": 9
+        },
+        "balances-own": {
+          "failed_rate": 0.0,
+          "p95": 16.622,
+          "samples": 9
+        },
+        "email-template-get": {
+          "failed_rate": 0.0,
+          "p95": 6.658,
+          "samples": 9
+        },
+        "email-template-put": {
+          "failed_rate": 0.0,
+          "p95": 20.728,
+          "samples": 9
+        },
+        "observer:postgrest": {
+          "failed_rate": 0.0,
+          "p95": 1.494,
+          "samples": 18
+        },
+        "position-create-cross": {
+          "failed_rate": 0.0,
+          "p95": 16.181,
+          "samples": 9
+        },
+        "position-edit-cross": {
+          "failed_rate": 0.0,
+          "p95": 19.132,
+          "samples": 9
+        }
+      },
+      "elapsed_seconds": 6.7969,
+      "http_req_duration_ms": {
+        "average": 7.77,
+        "max": 27.258,
+        "p50": 7.361,
+        "p95": 17.914,
+        "samples": 81
+      },
+      "http_req_failed_rate": {
+        "failed": 9,
+        "rate": 0.111111,
+        "samples": 81
+      },
+      "http_reqs": 81.0,
+      "http_reqs_per_second": 14.727,
+      "iterations": 9.0,
+      "iterations_per_second": 1.636,
+      "observer_requests": 1,
+      "overlap": {
+        "balances-cross": 1,
+        "balances-no-auth": 1,
+        "balances-own": 1,
+        "email-template-get": 1,
+        "email-template-put": 1,
+        "observer:postgrest": 1,
+        "position-create-cross": 1,
+        "position-edit-cross": 1
+      },
+      "total_http_reqs": 82.0,
+      "unexpected_http_failure_rate": {
+        "failed": 0,
+        "rate": 0.0,
+        "samples": 81
+      },
+      "vus_max": 6,
+      "write_attempts": 27
+    },
+    "mode": "verify",
+    "notes": [
+      "per-arrival lateness not measured",
+      "workload is synthetic (no traces supplied)"
+    ],
+    "planned_journeys": 9,
+    "planned_journeys_per_second": 1.8,
+    "report": "report.html",
+    "run_id": "run_20260923T023454Z_24eba6f8",
+    "schema_version": 1,
+    "seed": 42,
+    "verdict": "fail"
+  },
+  "run": {
+    "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, linux/amd64)",
+    "engine_exit_code": 0,
+    "engine_finished_at": "2026-09-23T02:35:00.892698+00:00",
+    "engine_started_at": "2026-09-23T02:34:55.392526+00:00",
+    "finished_at": "2026-09-23T02:35:01.005343+00:00",
+    "lifecycle": "finished",
+    "mode": "verify",
+    "resolved_schedule": [
+      {
+        "name": "warmup",
+        "rate": 1,
+        "seconds": 1
+      },
+      {
+        "name": "measure",
+        "rate": 2,
+        "seconds": 4
+      }
+    ],
+    "run_id": "run_20260923T023454Z_24eba6f8",
+    "scenario": "acme-tenant-isolation-v2",
+    "scenario_sha256": "f9b65f2dcaf25d10a18215cb66e630df3f1761ef4261f035dac0630ac7417eba",
+    "schema_version": 1,
+    "seed": 42,
+    "started_at": "2026-09-23T02:34:54.208443+00:00",
+    "target": "http://127.0.0.1:14000"
+  },
+  "run_id": "run_20260923T023454Z_24eba6f8",
+  "server": {
+    "containers": {
+      "api": {
+        "baseline_cpu_percent": 0.42,
+        "baseline_mem_mb": 118.4,
+        "error_lines": 37,
+        "log_lines": 412,
+        "peak_at": "2026-09-23T02:34:58.120418+00:00",
+        "peak_cpu_percent": 63.8,
+        "peak_mem_mb": 176.9,
+        "signatures": [
+          {
+            "count": 27,
+            "example": "ERROR tenant scope missing for org 3f1c2a9e-8b7d-4e0f-9a61-2c5d7e8f9a01 on GET /balances/9b2e4c1d-5f6a-4b7c-8d9e-0a1b2c3d4e5f",
+            "first_seen": "2026-09-23T02:34:55.401932117Z",
+            "signature": "ERROR tenant scope missing for org <uuid> on GET /balances/<uuid>"
+          },
+          {
+            "count": 6,
+            "example": "WARNING slow query 1204ms: SELECT * FROM templates WHERE id = 'tpl_7'",
+            "first_seen": "2026-09-23T02:34:56.018220004Z",
+            "signature": "WARNING slow query <n>ms: SELECT * FROM templates WHERE id = <str>"
+          },
+          {
+            "count": 4,
+            "example": "172.18.0.1 - \"POST /positions HTTP/1.1\" 500 1532",
+            "first_seen": "2026-09-23T02:34:57.330117890Z",
+            "signature": "172.18.0.1 - <str> 500 <n>"
+          }
+        ],
+        "truncated": false
+      },
+      "db": {
+        "baseline_cpu_percent": 1.1,
+        "baseline_mem_mb": 64.2,
+        "error_lines": 0,
+        "log_lines": 18,
+        "peak_at": "2026-09-23T02:34:57.119004+00:00",
+        "peak_cpu_percent": 22.5,
+        "peak_mem_mb": 71.8,
+        "signatures": [],
+        "truncated": false
+      }
+    },
+    "problems": [],
+    "schema_version": 1,
+    "source": "docker"
+  }
+}

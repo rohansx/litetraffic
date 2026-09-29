@@ -18,9 +18,24 @@ The default output is `.litetraffic/runs/`. Every invocation gets a unique `run_
 | `engine.stdout.log`, `engine.stderr.log` | Captured engine diagnostics |
 | `observation.json` | Optional final observer expectations, compact recorded actual fields, per-pointer `checks` (matcher, actual, pass), and `expressions` (the original `${...}` forms of resolved expected values, only when used); a list with one such entry per observation when the manifest uses `observations` |
 | `fixture.json` | Optional fixture outcomes: `owned_http` create/cleanup, or `command` setup/teardown argv, exit code, duration and stderr tail |
+| `server.json`, `server/` | Only with `verify --capture`: container summary, raw `server/NAME.log` logs and `server/stats.jsonl` samples ([server capture](#server-capture)) |
 | `artifacts.json` | Finalization manifest, written last: `{"schema_version", "run_id", "files", "total_bytes"}`, where `files` lists every other run file as `{path, bytes, sha256}` sorted by path and `total_bytes` is their sum. It excludes itself; the `max_artifact_bytes` budget is summed over the same file set |
 
 The controller restricts permissions on directories and files it creates. Raw engine output may still contain anything the script logs. Treat the entire run directory as potentially sensitive and review it before sharing. Scripts and imported files are recorded by hash in `scenario.lock.json` but **not** copied into the run directory.
+
+## Server capture
+
+`verify --capture docker:api,worker` writes `server.json`:
+
+```json
+{"schema_version": 1, "source": "docker", "problems": [],
+ "containers": {"api": {"baseline_cpu_percent": 0.4, "peak_cpu_percent": 87.1, "peak_at": "2026-09-28T10:00:04+00:00",
+   "baseline_mem_mb": 120.5, "peak_mem_mb": 188.0, "log_lines": 912, "error_lines": 37, "truncated": false,
+   "signatures": [{"signature": "ERROR db timeout after <n>ms for <uuid>", "count": 37,
+     "first_seen": "2026-09-28T10:00:03.1Z", "example": "ERROR db timeout after 5000ms for 1b4e..."}]}}}
+```
+
+Baseline is the first `docker stats` sample; peaks are the maxima over the run (`null` without samples). Memory is in MiB. An error line matches `error`, `critical`, `fatal`, `panic`, `timed out`, `refused` (as words, any case), `Traceback`, `Exception`, or a ` 5xx ` status. A signature is the line with quoted strings, timestamps, UUIDs, hex and numbers of four or more digits replaced, so repeats collapse; the top 8 per container are kept with the first matching line as `example` (at most 300 characters). Signatures, examples and the raw server files are scrubbed of the run's secrets. `problems` lists what could not be captured; when it is not empty, `result.json` gets one `Server capture incomplete: ...` limitation, appended after the verdict is decided, so capture never changes the verdict. Without `--capture` none of these files exist.
 
 ## Verdict and lifecycle
 
@@ -50,6 +65,23 @@ When any journey declares `expected_statuses`, `metrics.unexpected_http_failure_
 `planned_journeys_per_second` is the resolved schedule's admitted journeys divided by its total seconds; compare it with the observed `metrics.iterations_per_second` (iterations divided by the engine window only, from `engine_started_at` to `engine_finished_at` in `run.json`; fixture setup, observation and cleanup are excluded, as they are from `metrics.http_reqs_per_second`, while `metrics.elapsed_seconds` stays the whole run's wall-clock time). When k6 reports a nonzero `dropped_iterations` metric, `limitations` contains `k6 dropped N iterations (under-delivered load)` and the run cannot pass.
 
 Every result also has `notes`, which list what this preview never measures: `per-arrival lateness not measured` and `workload is synthetic (no traces supplied)`. Notes are separate from `limitations` and do not affect completeness or the verdict. Those are observations, not automatic performance promises. Expected application rejections may contribute to k6's HTTP failure rate even when the business assertion passes; declare them in `expected_statuses` to get `unexpected_http_failure_rate` alongside it.
+
+## Journey funnel
+
+When any journey declares `stages` ([scenarios](scenarios.md#journey-stages)), `result.json` has a `journeys` object keyed by journey name (absent otherwise):
+
+```json
+"journeys": {"purchase": {
+  "started": 12,
+  "stages": [{"name": "paid", "reached": 12}, {"name": "retried", "reached": 12}, {"name": "confirmed", "reached": 9}],
+  "stalled": [{"after": "start", "count": 0}, {"after": "paid", "count": 0}, {"after": "retried", "count": 3}],
+  "undeclared": []
+}}
+```
+
+`started` is the k6 `iterations` count when the scenario has one journey; with several journeys k6 does not split iterations, so it is the number of distinct journey keys that reported any stage. `reached` counts distinct journey keys that reported that stage; a later stage says nothing about earlier ones, so each stage counts only what was reported. `stalled` has one entry per position: journeys that started (`"after": "start"`) or reached a stage but did not report the next one. `undeclared` lists stage names the journey reported but does not declare; each adds the limitation `journey NAME reported undeclared stage(s): ...`, and names no single journey can own add `stage events match no single journey: ...`. Stage events are written to `events/000001.jsonl` in order with the assertion events.
+
+The funnel is evidence, not a pass/fail rule, with one exception: when a run would otherwise pass but zero journeys reached a journey's final stage, the verdict is `inconclusive` with the limitation `No journey reached its final stage 'NAME': the checks passed on journeys that never finished.` A green run where nothing finished is a silent failure, not a pass. The dashboard shows the funnel on the run page's Journeys tab, the plain-English explanation adds a "Where journeys stopped" section, and `diff` adds a `journeys` object with per-stage `baseline`, `candidate`, and `change` reached counts for journeys and stages both runs recorded; it does not affect the comparison verdict.
 
 ## Repeat summaries
 

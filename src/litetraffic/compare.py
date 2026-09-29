@@ -68,6 +68,34 @@ def _operation_p95_changes(baseline: dict, candidate: dict) -> dict:
     return changes
 
 
+def _reached(result: dict) -> dict[str, dict[str, int]]:
+    journeys = result.get("journeys")
+    if not isinstance(journeys, dict):
+        return {}
+    return {
+        name: {
+            stage["name"]: stage["reached"]
+            for stage in funnel.get("stages", [])
+            if isinstance(stage, dict) and isinstance(stage.get("name"), str) and _finite_number(stage.get("reached"))
+        }
+        for name, funnel in journeys.items()
+        if isinstance(funnel, dict) and isinstance(funnel.get("stages"), list)
+    }
+
+
+def _stage_changes(baseline: dict, candidate: dict) -> dict:
+    """Reached counts per stage both runs recorded; evidence only, never part of the verdict."""
+    before, after = _reached(baseline), _reached(candidate)
+    return {
+        name: {
+            stage: {"baseline": before[name][stage], "candidate": after[name][stage], "change": after[name][stage] - before[name][stage]}
+            for stage in before[name]
+            if stage in after[name]
+        }
+        for name in before.keys() & after.keys()
+    }
+
+
 def _rate_change(baseline_metrics: dict, candidate_metrics: dict, key: str) -> dict:
     before = baseline_metrics.get(key, {}).get("rate")
     after = candidate_metrics.get(key, {}).get("rate")
@@ -232,7 +260,7 @@ def compare_runs(
         progress,
     )
 
-    return {
+    comparison = {
         "schema_version": 1,
         "baseline_run_id": baseline_run["run_id"],
         "candidate_run_id": candidate_run["run_id"],
@@ -244,3 +272,6 @@ def compare_runs(
         "progress": progress,
         "performance": performance,
     }
+    if journeys := _stage_changes(baseline, candidate):
+        comparison["journeys"] = journeys
+    return comparison

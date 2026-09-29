@@ -1,0 +1,69 @@
+{
+  "baseline_run_id": "run_20260923T023707Z_19df8da1",
+  "candidate_run_id": "run_20260923T023501Z_4f537506",
+  "comparable": false,
+  "correctness": {
+    "assertion_regressions": [],
+    "baseline_verdict": "pass",
+    "candidate_verdict": "fail",
+    "regression": false
+  },
+  "incompatibilities": [
+    "scenario_sha256"
+  ],
+  "performance": {
+    "by_operation": {
+      "observer:postgrest": {
+        "baseline_p95_ms": 2.021,
+        "candidate_p95_ms": 2.068,
+        "change_percent": 2.326
+      },
+      "position-create": {
+        "baseline_p95_ms": 22.585,
+        "candidate_p95_ms": 22.057,
+        "change_percent": -2.338
+      },
+      "position-edit": {
+        "baseline_p95_ms": 21.238,
+        "candidate_p95_ms": 21.448,
+        "change_percent": 0.989
+      }
+    },
+    "http_error_rate": {
+      "baseline": 0.0,
+      "candidate": 0.0,
+      "change_percentage_points": 0.0
+    },
+    "http_reqs_per_second": {
+      "baseline": 8.454,
+      "candidate": 8.415,
+      "change_percent": -0.461
+    },
+    "p95": {
+      "baseline_ms": 21.138,
+      "candidate_ms": 21.312,
+      "change_percent": 0.823,
+      "samples": {
+        "baseline": 88,
+        "candidate": 88
+      },
+      "status": "incomparable",
+      "threshold_percent": null
+    }
+  },
+  "progress": {
+    "http_reqs": {
+      "baseline": 88.0,
+      "candidate": 88.0
+    },
+    "iterations": {
+      "baseline": 22.0,
+      "candidate": 22.0
+    }
+  },
+  "reasons": [
+    "incompatible runs: scenario_sha256"
+  ],
+  "schema_version": 1,
+  "verdict": "inconclusive"
+}

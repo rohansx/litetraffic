@@ -27,3 +27,22 @@ jobs:
           for scenario in examples/*/; do
             litetraffic inspect "$scenario" --seed 42 --json > /dev/null
           done
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm -C web install --frozen-lockfile
+      - run: pnpm -C web typecheck
+      - run: pnpm -C web test
+      - run: pnpm -C web build
+      # The committed bundle must be exactly what the source builds.
+      - run: git diff --exit-code src/litetraffic/dashboard_ui

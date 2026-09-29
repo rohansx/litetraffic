@@ -1,0 +1,346 @@
+/*
+ * @litetraffic/design: "Signal", the single source of truth for LiteTraffic colors, fonts, radius
+ * and the shared surface utilities (grid, brackets, eyebrows, lane markings, window cards, signals).
+ * Import AFTER `@import "tailwindcss";` in each app's entry CSS. Apps must not define colors.
+ *
+ * Paper (light) and asphalt (dark) surfaces, black ink, one brand accent (signal amber), and the
+ * traffic-light verdict triad (pass green / inconclusive amber / fail red) used only for meaning.
+ * Variable names are shadcn's, so shadcn components restyle without being forked. Each light/dark
+ * pair is written once as light-dark(light, dark): the theme follows the OS (color-scheme: light dark)
+ * unless <html> carries `.light` or `.dark`.
+ */
+
+/* Inter (body), Inter Tight (headings, KPIs), JetBrains Mono (labels, chips, ids, code):
+   variable woff2, self-hosted via Fontsource (SIL OFL-1.1). */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/inter-tight";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* `dark:` utilities: explicit .dark, or the OS preference when .light is not forced. */
+@custom-variant dark {
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:not(.light, .light *)) {
+      @slot;
+    }
+  }
+}
+
+:root {
+  color-scheme: light dark;
+  --radius: 0.5rem;
+
+  /* surfaces: warm paper / cool asphalt; ink text */
+  --background: light-dark(oklch(0.972 0.005 95), oklch(0.170 0.008 255));
+  --foreground: light-dark(oklch(0.190 0.008 255), oklch(0.955 0.005 95));
+  --card: light-dark(oklch(0.992 0.003 95), oklch(0.212 0.009 255));
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(oklch(0.190 0.008 255), oklch(0.955 0.005 95));
+  --primary-foreground: light-dark(oklch(0.985 0.003 95), oklch(0.170 0.008 255));
+  --secondary: light-dark(oklch(0.940 0.006 95), oklch(0.262 0.010 255));
+  --secondary-foreground: var(--foreground);
+  --muted: light-dark(oklch(0.940 0.006 95), oklch(0.262 0.010 255));
+  --muted-foreground: light-dark(oklch(0.490 0.012 255), oklch(0.735 0.010 255));
+  --accent: light-dark(oklch(0.935 0.012 85), oklch(0.275 0.014 255));
+  --accent-foreground: var(--foreground);
+  --destructive: light-dark(oklch(0.520 0.180 27.5), oklch(0.720 0.150 27.5));
+  --border: light-dark(oklch(0.885 0.007 95), oklch(0.315 0.010 255));
+  --input: light-dark(oklch(0.800 0.008 95), oklch(0.420 0.010 255));
+  --ring: light-dark(oklch(0.600 0.150 62), oklch(0.800 0.155 72));
+
+  /* chart series: amber leads; green/red stay reserved for verdicts */
+  --chart-1: light-dark(oklch(0.690 0.160 65), oklch(0.800 0.155 72));
+  --chart-2: light-dark(oklch(0.520 0.130 255), oklch(0.720 0.120 255));
+  --chart-3: light-dark(oklch(0.560 0.090 200), oklch(0.760 0.090 200));
+  --chart-4: light-dark(oklch(0.450 0.012 255), oklch(0.820 0.010 255));
+  --chart-5: light-dark(oklch(0.530 0.130 330), oklch(0.740 0.110 330));
+
+  --sidebar: light-dark(oklch(0.958 0.006 95), oklch(0.192 0.009 255));
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: light-dark(oklch(0.925 0.012 85), oklch(0.262 0.012 255));
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  /* signal amber: the brand. --brand is a fill (with --brand-foreground on it); --brand-text is
+     amber that reads as text on background/card. */
+  --brand: oklch(0.800 0.155 72);
+  --brand-foreground: oklch(0.190 0.008 255);
+  --brand-text: light-dark(oklch(0.520 0.120 58), oklch(0.800 0.155 72));
+
+  /* structure lines: blueprint grid, stronger rules for ticks, brackets and lane markings */
+  --grid-line: light-dark(oklch(0.190 0.008 255 / 5%), oklch(0.955 0.005 95 / 5%));
+  --rule: light-dark(oklch(0.640 0.010 255), oklch(0.500 0.010 255));
+
+  /* traffic-light lamps: vivid, decorative (window dots, signal indicator); never carry meaning alone */
+  --lamp-stop: light-dark(oklch(0.630 0.200 27), oklch(0.680 0.190 27));
+  --lamp-caution: light-dark(oklch(0.790 0.160 72), oklch(0.820 0.150 76));
+  --lamp-go: light-dark(oklch(0.680 0.160 150), oklch(0.760 0.160 152));
+  --lamp-off: light-dark(oklch(0.870 0.006 95), oklch(0.340 0.010 255));
+
+  /* verdicts: text color on card/background/muted, and a tinted surface for badges */
+  --pass: light-dark(oklch(0.475 0.100 152), oklch(0.820 0.110 152));
+  --pass-muted: light-dark(oklch(0.935 0.035 152), oklch(0.290 0.050 152));
+  --fail: light-dark(oklch(0.500 0.170 27.5), oklch(0.780 0.120 27.5));
+  --fail-muted: light-dark(oklch(0.935 0.030 27.5), oklch(0.290 0.060 27.5));
+  --inconclusive: light-dark(oklch(0.500 0.110 70), oklch(0.830 0.140 78));
+  --inconclusive-muted: light-dark(oklch(0.940 0.050 85), oklch(0.300 0.050 75));
+  --error: light-dark(oklch(0.474 0.157 302.5), oklch(0.786 0.106 305.1));
+  --error-muted: light-dark(oklch(0.935 0.027 307.0), oklch(0.285 0.052 299.6));
+}
+
+:root.light { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Inter Tight Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-text: var(--brand-text);
+  --color-grid-line: var(--grid-line);
+  --color-rule: var(--rule);
+  --color-lamp-stop: var(--lamp-stop);
+  --color-lamp-caution: var(--lamp-caution);
+  --color-lamp-go: var(--lamp-go);
+  --color-lamp-off: var(--lamp-off);
+  --color-pass: var(--pass);
+  --color-pass-muted: var(--pass-muted);
+  --color-fail: var(--fail);
+  --color-fail-muted: var(--fail-muted);
+  --color-inconclusive: var(--inconclusive);
+  --color-inconclusive-muted: var(--inconclusive-muted);
+  --color-error: var(--error);
+  --color-error-muted: var(--error-muted);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  h1, h2, h3, [data-slot="card-title"] {
+    @apply font-heading;
+  }
+  code, kbd, samp, pre {
+    @apply font-mono;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--brand) 45%, transparent);
+  }
+}
+
+/*
+ * Signal surface utilities. Components layer, so Tailwind utilities on the same element win.
+ * See README "Utilities" for markup.
+ */
+@layer components {
+  /* Faint blueprint grid. --grid-size tunes the cell. */
+  .grid-bg {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: var(--grid-size, 2rem) var(--grid-size, 2rem);
+    background-position: -1px -1px;
+  }
+
+  /* Corner brackets drawn just outside the box. --bracket-size / --bracket-inset / --bracket-color tune it. */
+  .bracket-frame {
+    position: relative;
+  }
+  .bracket-frame::before {
+    --_c: var(--bracket-color, var(--rule));
+    --_s: var(--bracket-size, 0.875rem);
+    content: "";
+    position: absolute;
+    inset: calc(var(--bracket-inset, 0.75rem) * -1);
+    pointer-events: none;
+    background:
+      linear-gradient(var(--_c) 0 0) top left / var(--_s) 1px no-repeat,
+      linear-gradient(var(--_c) 0 0) top left / 1px var(--_s) no-repeat,
+      linear-gradient(var(--_c) 0 0) top right / var(--_s) 1px no-repeat,
+      linear-gradient(var(--_c) 0 0) top right / 1px var(--_s) no-repeat,
+      linear-gradient(var(--_c) 0 0) bottom left / var(--_s) 1px no-repeat,
+      linear-gradient(var(--_c) 0 0) bottom left / 1px var(--_s) no-repeat,
+      linear-gradient(var(--_c) 0 0) bottom right / var(--_s) 1px no-repeat,
+      linear-gradient(var(--_c) 0 0) bottom right / 1px var(--_s) no-repeat;
+  }
+
+  /* Mono small-caps label with an amber diamond: <p class="eyebrow">01 · seed</p> */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    font-variant-caps: all-small-caps;
+    letter-spacing: 0.08em;
+    color: var(--muted-foreground);
+  }
+  .eyebrow::before {
+    content: "\25C6" / "";
+    color: var(--brand);
+    font-size: 0.8em;
+  }
+
+  /* Boxed step number with a connector line to the right: <span class="section-number">01</span>.
+     Filled with ink when [aria-current] or .is-active. --connector-length: 0 hides the line. */
+  .section-number {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--foreground);
+    border-radius: calc(var(--radius) - 4px);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--foreground);
+  }
+  .section-number::after {
+    content: "";
+    position: absolute;
+    left: calc(100% + 1px);
+    top: 50%;
+    width: var(--connector-length, 5rem);
+    height: 1px;
+    background: var(--rule);
+  }
+  .section-number:is([aria-current], .is-active) {
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  /* Dashed road marking. Works on <hr>. --lane-color defaults to the rule; set var(--brand) for a highlight. */
+  .lane-divider {
+    display: block;
+    height: 2px;
+    border: 0;
+    margin: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--lane-color, var(--rule)) 0 1.5rem,
+      transparent 1.5rem 2.5rem
+    );
+  }
+
+  /* Ruler ticks along a baseline: minor every --tick (1rem), major every 5 ticks. */
+  .ruler {
+    display: block;
+    height: 0.625rem;
+    border: 0;
+    margin: 0;
+    border-bottom: 1px solid var(--rule);
+    background:
+      repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px calc(var(--tick, 1rem) * 5)) bottom / 100% 100% no-repeat,
+      repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px var(--tick, 1rem)) bottom / 100% 40% no-repeat;
+  }
+
+  /* Preview window: <div class="window-card"><div class="window-card-header">run · checkout</div>…</div>.
+     The header's traffic-light dots are decorative. */
+  .window-card {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--card-foreground);
+    box-shadow: 0 1px 0 var(--grid-line), 0 12px 32px -20px color-mix(in oklab, var(--foreground) 30%, transparent);
+  }
+  .window-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.25rem;
+    padding: 0.375rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+  .window-card-header::before {
+    content: "";
+    flex: none;
+    width: 2.625rem;
+    height: 0.625rem;
+    background:
+      radial-gradient(circle closest-side, var(--lamp-stop) 92%, transparent) 0 0 / 0.625rem 100% no-repeat,
+      radial-gradient(circle closest-side, var(--lamp-caution) 92%, transparent) 1rem 0 / 0.625rem 100% no-repeat,
+      radial-gradient(circle closest-side, var(--lamp-go) 92%, transparent) 2rem 0 / 0.625rem 100% no-repeat;
+  }
+
+  /* Verdict signal: three lamps (stop, caution, go), one lit.
+     <span class="signal" data-verdict="pass" role="img" aria-label="Pass"></span>
+     Pair it with the verdict word; color alone never carries the verdict. --signal-dot sizes it. */
+  .signal {
+    --_d: var(--signal-dot, 0.5rem);
+    --_stop: var(--lamp-off);
+    --_caution: var(--lamp-off);
+    --_go: var(--lamp-off);
+    display: inline-block;
+    flex: none;
+    vertical-align: middle;
+    width: calc(var(--_d) * 3 + var(--_d) * 0.75);
+    height: var(--_d);
+    background:
+      radial-gradient(circle closest-side, var(--_stop) 92%, transparent) left / var(--_d) 100% no-repeat,
+      radial-gradient(circle closest-side, var(--_caution) 92%, transparent) center / var(--_d) 100% no-repeat,
+      radial-gradient(circle closest-side, var(--_go) 92%, transparent) right / var(--_d) 100% no-repeat;
+  }
+  .signal[data-verdict="fail"] { --_stop: var(--lamp-stop); }
+  .signal[data-verdict="inconclusive"] { --_caution: var(--lamp-caution); }
+  .signal[data-verdict="pass"] { --_go: var(--lamp-go); }
+  /* error = the run itself broke: all lamps show the error color, like a signal in fault mode */
+  .signal[data-verdict="error"] { --_stop: var(--error); --_caution: var(--error); --_go: var(--error); }
+}

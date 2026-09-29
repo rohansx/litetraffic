@@ -19,6 +19,7 @@ Runs these checks, each reported with `name`, `ok`, and `detail`:
 | `output_dir` | `--output-dir` (default `.litetraffic/runs`) is writable, or would be creatable under its nearest existing parent; nothing is created |
 | `disk` | The filesystem holding the output directory has at least 100 MiB free; `detail` reports free bytes |
 | `target` | Only with `--target`: the GET returns a 2xx or 3xx status |
+| `docker` | Informational, never fails: listed only when `docker` is on `PATH`, with its `--version` output (used by `verify --capture`) |
 
 With a target, it first applies the same URL checks as `verify` (link-local and metadata targets exit `3` without a request), then sends one GET with a three-second HTTP timeout and no redirect following. Any other status fails with `reachable but not ready (HTTP N)`. This command does not install dependencies or write to the target.
 
@@ -45,7 +46,8 @@ litetraffic verify (SCENARIO | --scenario SCENARIO)
   [--target URL | --e2b-sandbox-id ID --e2b-port PORT]
   [--output-dir PATH] [--k6-path PATH]
   [--seed INTEGER] [--repeat COUNT [--same-seed]]
-  [--require-approval] [--approved-digest SHA] [--json]
+  [--require-approval] [--approved-digest SHA]
+  [--capture docker:NAME[,NAME...]] [--json]
 ```
 
 Exactly one target form is required. URL targets must use HTTP/HTTPS, must not contain URL credentials, and must not be a link-local or cloud-metadata address (for example `169.254.169.254`, `fe80::/10`, or `metadata.google.internal`); such targets exit `3`. Loopback targets such as `localhost` and `127.0.0.1` are allowed. Hostnames are not resolved, so this check covers literal addresses and known metadata names only. k6 runs with `--max-redirects 0`. E2B coordinates must include both sandbox ID and a port from 1 through 65535. Prefer an origin URL; the controller appends declared fixture/observation paths to it.
@@ -59,7 +61,10 @@ Exactly one target form is required. URL targets must use HTTP/HTTPS, must not c
 | `--same-seed` | Off | With `--repeat` of 2 or more, run `--seed` every time instead of consecutive seeds |
 | `--require-approval` | Off | Exit `3` before running unless `.litetraffic/approvals.json` (in the working directory) has a record with the scenario's current digest and the target's origin |
 | `--approved-digest` | None | Exit `3` before running unless SHA equals the scenario's current digest; when it matches, the approvals file is not consulted (for CI) |
+| `--capture` | Off | `docker:NAME[,NAME...]`: record these local containers' logs and resource use during the run (see below). Each name must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`; anything else exits `3`. With `--repeat`, each run captures its own window |
 | `--json` | Off | Emit one JSON object to stdout |
+
+With `--capture`, capture starts right before k6 and stops after the final observations. For each container that `docker inspect` finds, `docker logs`, followed with timestamps from the capture start, is written to `server/NAME.log` (capped at 5 MiB; the rest is still read and counted, and the container is marked `truncated`), and a one-shot `docker stats` sample of every container is taken every 2 seconds into `server/stats.jsonl`. The summary goes to `server.json` ([results](results.md#server-capture)). Capture never changes the verdict: a missing `docker`, an unknown container, or a daemon permission error is listed in `server.json` `problems` and as one `Server capture incomplete: ...` limitation, added after the verdict is decided. Server files are scrubbed of the run's secrets and do not count toward `max_artifact_bytes`. Every docker child process is stopped (SIGTERM, then SIGKILL after 3 seconds) however the run ends.
 
 One run validates inputs, optionally creates a fixture, runs k6, collects evidence, optionally observes final state, attempts configured cleanup, and writes artifacts. Lifecycle and business verdict are separate fields. Ctrl+C during engine execution finalizes available evidence and exits 130. [Results](results.md) and [safety](safety.md).
 
@@ -106,22 +111,34 @@ litetraffic diff BASELINE CANDIDATE [--runs-dir DIR]
 litetraffic dashboard [--runs-dir DIR] [--port PORT]
 ```
 
-Serves a read-only web page over `--runs-dir` (default `.litetraffic/runs`) on `http://127.0.0.1:PORT/` (default port `8780`, clear of the example servers' ports 8765-8769; `0` picks a free port; a port outside 0-65535 is a usage error and exits 2). It always binds to `127.0.0.1`; there is no `--host` option. It prints the URL, uses only the Python standard library, and does not contact a target.
+Serves a read-only dashboard over `--runs-dir` (default `.litetraffic/runs`) on `http://127.0.0.1:PORT/` (default port `8780`, clear of the example servers' ports 8765-8769; `0` picks a free port; a port outside 0-65535 is a usage error and exits 2). It always binds to `127.0.0.1`; there is no `--host` option. It prints the URL, uses only the Python standard library at runtime, and does not contact a target. The UI is a prebuilt single-page app shipped inside the package (`src/litetraffic/dashboard_ui/`), so no Node is needed to run it; a checkout without the bundle serves a plain page on `/` explaining how to build it (`pnpm -C web install && pnpm -C web build`), and the JSON API still works.
 
-| Route | Shows |
+Pages (client-side routes; the server returns the app for any path outside `/api/`):
+
+| Page | Shows |
 |---|---|
-| `/` | Runs, series and `up` activities, newest first: a selection checkbox (runs only), run ID, kind, scenario (linked to its trend page), lifecycle (an activity's status), seed, finished time, and a verdict badge with the verdict as text (an activity shows a `background` badge instead). Ticking exactly two runs enables **Compare**, which opens `/diff` with the older ticked run as baseline. Filters: `?scenario=NAME`, `?verdict=VERDICT` (`pass`, `fail`, `inconclusive`, `error`, `unreadable`, `background`) and `?seed=N`, combinable; each must match exactly. The table refreshes from `/api/runs` (with the same filters) every 5 seconds without reloading the page, keeping ticked boxes, and rebuilds the **Scenario** filter options from `/api/scenarios` so newly recorded scenarios appear; untick **Auto-refresh** to stop |
-| `/runs/ACTIVITY_ID` | An activity's `background` badge, status, target, starting seed and slice table; never a verdict |
-| `/runs/RUN_ID` | Verdict badge, lifecycle, seed, limitations, assertion table, failing samples with expected/actual values (a value longer than 300 characters is collapsed into an expandable preview of its first 80), an operations table (per-operation samples, p95, failed rate from `metrics.by_operation` and peak in flight from `metrics.overlap`), all metrics, a link to `report.html` when present, and a link to every file in the run directory |
-| `/runs/RUN_ID/PATH` | A file under the run directory (for example `report.html`, `result.json`, `events/000001.jsonl`): `.html` as HTML, `.json` as JSON, anything else as plain text |
-| `/scenarios/NAME` | For runs whose scenario is `NAME`, oldest first: an inline SVG chart of p95 HTTP latency per run with a marker per run coloured by verdict (runs spaced evenly, not on a time scale; runs without a p95 are left off the chart), and a table of run, finished time, seed, verdict and p95. 404 when no run has that scenario |
-| `/diff?a=BASELINE&b=CANDIDATE` | The `diff` text summary for two run IDs; incompatible runs are `INCONCLUSIVE`. `/diff?run=NEWER&run=OLDER` (what **Compare** sends) is the same with the second ID as baseline |
-| `/api/runs` | The run index as JSON; accepts the same `scenario`, `verdict` and `seed` filters as `/` |
-| `/api/scenarios` | Every scenario name in the run index as a sorted JSON list, ignoring filters |
+| `/` Overview | Runs total, pass rate, failing scenarios, last run time, a per-scenario status grid, and the most recent runs that did not pass |
+| `/runs` | Runs, series and `up` activities, newest first, with search and scenario, verdict and seed filters. Tick exactly two runs and press **Compare** (the older is the baseline). **Auto-refresh** reloads the list every 5 seconds |
+| `/runs/RUN_ID` | Verdict, lifecycle, seed, scenario, digest, target, then tabs: Assertions (failing ones expand to their first failing samples, expected vs actual), Observations, Metrics (p50/p95/max, per-operation table, client-side overlap), Limitations, Artifacts (every file, plus `report.html`). An `up` activity shows its status and slice table, never a verdict |
+| `/compare?baseline=ID&candidate=ID` | Whether the runs are comparable, correctness regression, per-assertion regressions, p95 change and per-operation p95 |
+| `/scenarios`, `/scenarios/NAME` | Scenario list; per scenario a chart of p95 per run over time with verdict-coloured markers, and the same data as a table |
+| `/about` | What the dashboard is |
 
-Every route also answers `HEAD` with the same status and headers and no body. Links percent-encode run IDs and scenario names, so names containing `#` or `?` work. Files are served as their raw bytes, so a `report.html` that is not valid UTF-8 is still delivered. A run directory deleted while the index is being built does not fail the page. The trend chart's y-axis label sits above the plot area, and chart text is enlarged on screens up to 560px wide so it renders at 11px or more at 375px.
+JSON API:
 
-Pages follow the system light/dark preference; the **Theme** button switches between them and the choice is kept in the browser's `localStorage` (when storage is unavailable the button still works for the current page). Pages fit a 375px-wide screen, with wide tables scrolling inside their own box, and every control is a native link, button, checkbox, select or input reachable by keyboard.
+| Route | Returns |
+|---|---|
+| `/api/meta` | `{runs_dir, version}` |
+| `/api/runs?scenario=&verdict=&seed=` | The run index; filters combine and must match exactly |
+| `/api/scenarios` | Every scenario name, sorted |
+| `/api/runs/ID` | `{run_id, run, result, observation?, fixture?, activity?, artifacts: [{path, size}]}` |
+| `/api/runs/ID/artifacts/PATH` | A raw file under the run directory, served with a sandboxing Content-Security-Policy (`report.html` as `text/html`) |
+| `/api/diff?baseline=ID&candidate=ID` | The `diff --json` comparison; 409 `{error}` when the runs cannot be read |
+| `/api/scenarios/NAME/trend` | `[{run_id, finished_at, p95, verdict}]`, oldest first; 404 when no run has that scenario |
+
+Unknown `/api/` paths and unknown runs are 404 JSON. A request whose `Host` is not a loopback name for this port gets 421 and no data. Symlinks and paths outside the runs folder are never followed. Every response carries a strict Content-Security-Policy, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`; every route also answers `HEAD`.
+
+The dashboard follows the system light/dark preference; the theme menu in the sidebar footer picks light, dark or system and remembers it in `localStorage`. It fits a 375px-wide screen (the sidebar becomes a sheet), and every control is reachable by keyboard.
 
 To block DNS rebinding, every request must carry a `Host` header of exactly `127.0.0.1:PORT`, `localhost:PORT` or `[::1]:PORT` (the bound port, name case-insensitive); any other `Host`, including a missing one or one without the port, gets `421 Misdirected Request` and no run data. Run IDs must be plain subdirectory names of `--runs-dir`; an ID containing `/`, `\`, or `..`, an unknown ID, and any other path return 404. A file path under a run must not contain `.` or `..` segments, symlinks are not followed, and nothing outside the run directory is served. Symlinks are never followed when reading run data either: a symlinked run directory or `series_*.json` under `--runs-dir` is not listed, and a `run.json`, `result.json` or `activity.json` that is a symlink is treated as missing, so such a run shows as `unreadable` and `diff` refuses it. All values are HTML-escaped, including scenario names in pages, links and the chart. A `result.json` field with the wrong type (for example `"metrics": null`), including an assertion's `failures` list and any non-object sample in it, is shown as empty rather than failing the page. A `verdict` that is not one of the known strings (for example `[]`, `{}`, `5` or `null`) makes that run or series `unreadable` in the index, and `diff` refuses it as an invalid result artifact. Ctrl+C stops the server and exits 130. A port that cannot be bound exits 3.
 

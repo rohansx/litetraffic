@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+
+from litetraffic.models import STAGE_NAME
 
 MAX_DETAIL_CHARS = 500
 MAX_FAILURE_SAMPLES = 3
@@ -20,7 +23,18 @@ def _read_events(path: Path, run_id: str) -> tuple[list[dict], int]:
             continue
         try:
             event, _ = decoder.raw_decode(line[marker + len("LT_EVENT ") :])
-            if (
+            if event.get("type") == "stage":
+                # Stage names are shape-checked so undeclared ones stay short, safe labels in results and prompts.
+                if (
+                    event.get("schema_version") != 1
+                    or event.get("run_id") != run_id
+                    or not isinstance(event.get("stage"), str)
+                    or not re.fullmatch(STAGE_NAME, event["stage"])
+                    or not isinstance(event.get("logical_key"), str)
+                    or not event["logical_key"]
+                ):
+                    raise ValueError
+            elif (
                 event.get("schema_version") != 1
                 or event.get("type") != "assertion"
                 or event.get("run_id") != run_id
@@ -55,7 +69,7 @@ def evaluate_assertions(
             row = {"id": assertion_id, "status": status, "samples": int(status != "unknown")}
             rows.append(row | {key: observation[key] for key in ("expected", "actual", "reason") if key in observation})
             continue
-        samples = [event for event in events if event["assertion"] == assertion_id]
+        samples = [event for event in events if event.get("assertion") == assertion_id]
         failures = [event for event in samples if not event["passed"]]
         row = {"id": assertion_id, "samples": len(samples)}
         if not samples:
@@ -63,6 +77,7 @@ def evaluate_assertions(
             missing.append(assertion_id)
         elif failures:
             row["status"] = "fail"
+            row["failed"] = len(failures)
             row["failures"] = [
                 {key: event.get(key) for key in ("sequence", "logical_key", "expected", "actual", "detail")}
                 for event in failures[:MAX_FAILURE_SAMPLES]

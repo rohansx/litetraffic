@@ -2,7 +2,7 @@
 
 **Users as an API.** Stateful application traffic, repeatable runs, and evidence of what changed.
 
-[Documentation](docs/README.md) · [Installation](docs/installation.md) · [Quickstart](docs/quickstart.md) · [CLI reference](docs/cli.md) · [MIT license](LICENSE)
+[Documentation](docs/README.md) · [Installation](docs/installation.md) · [Quickstart](docs/quickstart.md) · [CLI reference](docs/cli.md) · [CI recipe](docs/ci.md) · [MIT license](LICENSE)
 
 LiteTraffic runs reviewed HTTP journeys against an application and checks their business effects. It uses stock k6 to apply a seeded traffic schedule, collects assertion evidence, and writes a JSON verdict and a standalone HTML report.
 
@@ -108,6 +108,14 @@ python -m pytest -q
 ```
 
 The test suite uses controlled engine doubles and does not require a live target or real k6. The `real_k6`-marked conformance test (`tests/test_conformance.py`) starts every example server, reference and each wrong flag, and expects `pass` and `fail` respectively; it is skipped unless k6 v2.2.0 is on `PATH`, and default CI runs `pytest -m "not real_k6"`. Run it alone with `python -m pytest -q -m real_k6`. See [CONTRIBUTING.md](CONTRIBUTING.md) for development and packaging checks.
+
+The dashboard UI lives in `web/` (a pnpm workspace; Node 26 and pnpm 11). The built dashboard is committed under `src/litetraffic/dashboard_ui/`, so you only need Node when changing the UI:
+
+```bash
+pnpm -C web install --frozen-lockfile
+pnpm -C web typecheck && pnpm -C web test
+pnpm -C web build   # rebuilds src/litetraffic/dashboard_ui/
+```
 
 ## License
 

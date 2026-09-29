@@ -3,7 +3,7 @@ import json
 from litetraffic.cli import main
 from litetraffic.runs import list_runs, prune
 from test_compare import write_run
-from test_dashboard import get, runs_dir, server  # noqa: F401 - pytest fixtures
+from test_dashboard import get, runs_dir, server, ui_dir  # noqa: F401 - pytest fixtures
 from test_runs import _finish
 
 SENTINEL = "SENTINEL_OUTSIDE_RUNS_DIR"
@@ -22,8 +22,8 @@ def test_symlinked_run_dir_and_series_file_are_not_listed(tmp_path, runs_dir, se
 
     ids = [entry["run_id"] for entry in list_runs(runs_dir)]
     assert "run_link" not in ids and "series_link" not in ids
-    assert SENTINEL not in get(server, "/")[2]
-    assert get(server, "/runs/run_link")[0] == 404
+    assert SENTINEL not in get(server, "/api/runs")[2]
+    assert get(server, "/api/runs/run_link")[0] == 404
 
 
 def test_series_never_reads_run_json_outside_runs_dir(runs_dir):
@@ -44,7 +44,7 @@ def test_metadata_symlinks_to_external_files_are_unreadable(tmp_path, runs_dir, 
     [entry] = [entry for entry in list_runs(runs_dir) if entry["run_id"] == "run_evil"]
     assert entry["verdict"] == "unreadable"
     assert entry["scenario"] is None
-    for path in ("/", "/api/runs", "/runs/run_evil", "/diff?a=run_evil&b=run_a", f"/scenarios/{SENTINEL}"):
+    for path in ("/api/runs", "/api/scenarios", "/api/runs/run_evil", "/api/diff?baseline=run_evil&candidate=run_a", f"/api/scenarios/{SENTINEL}/trend"):
         assert SENTINEL not in get(server, path)[2]
 
 
@@ -54,10 +54,10 @@ def test_activity_symlink_is_not_read(tmp_path, runs_dir, server):
     run.mkdir()
     (run / "activity.json").symlink_to(tmp_path / "activity.json")
 
-    assert SENTINEL not in get(server, "/")[2]
-    status, _, body = get(server, "/runs/act")
+    assert SENTINEL not in get(server, "/api/runs")[2]
+    status, _, body = get(server, "/api/runs/act")
     assert status == 200 and SENTINEL not in body
-    assert "Activity act" not in body  # a symlinked activity.json is missing, so this renders as an unreadable run
+    assert "activity" not in json.loads(body)  # a symlinked activity.json is missing, so this reads as an unreadable run
 
 
 def test_prune_never_reads_symlinked_metadata(tmp_path):
@@ -111,4 +111,4 @@ def test_symlink_to_sibling_run_dir_is_404(runs_dir, server):
     [real] = [child for child in runs_dir.iterdir() if child.is_dir()][:1]
     (runs_dir / "alias").symlink_to(real, target_is_directory=True)
 
-    assert get(server, "/runs/alias")[0] == 404
+    assert get(server, "/api/runs/alias")[0] == 404

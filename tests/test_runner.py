@@ -257,6 +257,7 @@ def test_verify_reports_definite_assertion_failure(tmp_path, monkeypatch):
             "id": "accepted_orders_persist",
             "status": "fail",
             "samples": 1,
+            "failed": 1,
             "failures": [{"sequence": 1, "logical_key": events[0]["logical_key"], "expected": None, "actual": None, "detail": None}],
         }
     ]
@@ -676,7 +677,7 @@ def test_repeat_verify_runs_consecutive_seeds_and_exposes_mixed_results(tmp_path
 
     calls = []
 
-    def run_once(target, scenario, output_dir, k6_path, seed):
+    def run_once(target, scenario, output_dir, k6_path, seed, capture=None):
         calls.append(seed)
         verdict = "fail" if seed == 43 else "pass"
         return {
@@ -706,7 +707,7 @@ def test_repeat_verify_same_seed_repeats_one_seed_and_reports_dispersion(tmp_pat
     calls = []
     p95s, failed, rps = [10.0, 20.0, 30.0, 40.0, 50.0], [0.0, 0.1, 0.0, 0.2, 0.0], [5.0, 6.0, 7.0, 8.0, 9.0]
 
-    def run_once(target, scenario, output_dir, k6_path, seed):
+    def run_once(target, scenario, output_dir, k6_path, seed, capture=None):
         index = len(calls)
         calls.append(seed)
         return {
@@ -774,7 +775,7 @@ def test_repeat_verify_stops_after_user_cancellation(tmp_path, monkeypatch):
 
     calls = []
 
-    def cancel(target, scenario, output_dir, k6_path, seed):
+    def cancel(target, scenario, output_dir, k6_path, seed, capture=None):
         calls.append(seed)
         return {"run_id": "cancelled", "seed": seed, "verdict": "inconclusive", "lifecycle": "cancelled"}
 

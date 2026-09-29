@@ -204,7 +204,7 @@ def test_cancelled_verify_returns_shell_interrupt_status(monkeypatch, capsys):
 def test_verify_repeat_emits_a_series_result(monkeypatch, capsys):
     calls = []
 
-    def run_series(target, scenario, output_dir, k6_path, seed, repeats, same_seed=False):
+    def run_series(target, scenario, output_dir, k6_path, seed, repeats, same_seed=False, capture=None):
         calls.append((seed, repeats, same_seed))
         return {"mode": "repeat", "lifecycle": "finished", "verdict": "fail", "runs": []}
 
@@ -239,7 +239,7 @@ def test_verify_same_seed_passes_through_to_the_series(monkeypatch, capsys):
                    "--repeat", "5", "--same-seed", "--json"])
 
     assert status == 0
-    assert calls == [((42, 5), {"same_seed": True})]
+    assert calls == [((42, 5), {"same_seed": True, "capture": None})]
 
 
 def test_verify_same_seed_requires_a_repeat(capsys):

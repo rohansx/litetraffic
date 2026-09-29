@@ -15,6 +15,7 @@ from litetraffic.target import normalize_origin
 
 AUTH_PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 AUTH_NAMES = {"run_id", "actor_index"}
+STAGE_NAME = r"^[a-z][a-z0-9_]{0,39}$"
 
 
 def _strings(value: JsonValue):
@@ -134,6 +135,14 @@ class Journey(StrictModel):
     expected_statuses: dict[
         Annotated[str, Field(min_length=1)], Annotated[list[Annotated[int, Field(strict=True, ge=100, le=599)]], Field(min_length=1)]
     ] = Field(default_factory=dict)
+    # ordered milestones the script reports with stage(name); result.json counts how many journeys reached each
+    stages: list[Annotated[str, Field(pattern=STAGE_NAME)]] | None = Field(default=None, min_length=1, max_length=12)
+
+    @model_validator(mode="after")
+    def require_unique_stages(self) -> "Journey":
+        if self.stages and len(set(self.stages)) != len(self.stages):
+            raise ValueError("journey stages must be unique")
+        return self
 
 
 class Phase(StrictModel):
@@ -337,6 +346,10 @@ class ScenarioManifest(StrictModel):
             raise ValueError("allowed_origins_env must name an uppercase environment variable")
         if any(not re.fullmatch(ENV_NAME, name) for name in self.secret_env):
             raise ValueError("secret_env entries must name uppercase environment variables")
+        # Stage events carry no journey name, so a stage shared by two journeys could never be attributed.
+        stages = [stage for journey in self.journeys for stage in journey.stages or []]
+        if len(set(stages)) != len(stages):
+            raise ValueError("stage names must be unique across journeys")
         token_envs = [token_env_name(actor.actor_class) for actor in self.actors if actor.auth]
         if len(set(token_envs)) != len(token_envs):
             raise ValueError(f"actor classes with auth must map to distinct token variables: {', '.join(token_envs)}")

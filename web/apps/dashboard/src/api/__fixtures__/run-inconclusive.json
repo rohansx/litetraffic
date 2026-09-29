@@ -1,0 +1,240 @@
+{
+  "artifacts": [
+    {
+      "path": "console.log",
+      "size": 16956
+    },
+    {
+      "path": "engine.stderr.log",
+      "size": 63
+    },
+    {
+      "path": "engine.stdout.log",
+      "size": 798
+    },
+    {
+      "path": "events/000001.jsonl",
+      "size": 18837
+    },
+    {
+      "path": "fixture.json",
+      "size": 851
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 535326
+    },
+    {
+      "path": "observation.json",
+      "size": 250
+    },
+    {
+      "path": "report.html",
+      "size": 2608
+    },
+    {
+      "path": "result.json",
+      "size": 2169
+    },
+    {
+      "path": "run.json",
+      "size": 957
+    },
+    {
+      "path": "scenario.lock.json",
+      "size": 4475
+    }
+  ],
+  "explanation": {
+    "headline": "The run was inconclusive: the evidence was not enough for a verdict.",
+    "sections": [
+      {
+        "items": [
+          "27 of 28 planned journeys ran against http://127.0.0.1:14000 with seed 42.",
+          "Schedule: spike-1 5/s for 2s, baseline-2 1/s for 4s, spike-3 5/s for 2s, baseline-4 1/s for 4s.",
+          "189 HTTP requests, 162 of them writes."
+        ],
+        "title": "What ran"
+      },
+      {
+        "items": [
+          "The run timed out before finishing, so it cannot pass.",
+          "missing assertion evidence: org_balance_debited_once_per_session, usage_rows_match_journeys",
+          "partial assertion evidence: one_debit_response (27/28), one_usage_ledger_row (27/28)",
+          "delivered journeys 27.0 do not match planned journeys 28",
+          "engine stopped after its 12-second share of the 70-second budget",
+          "Evidence is incomplete."
+        ],
+        "title": "Caveats"
+      },
+      {
+        "items": [
+          "Fix the caveats below and run again; an inconclusive run proves nothing either way."
+        ],
+        "title": "Next steps"
+      }
+    ]
+  },
+  "fixture": {
+    "setup": {
+      "argv": [
+        "sh",
+        "-c",
+        "set -e; for f in reset compat seed; do docker exec -i supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -q < sql/$f.sql; done; sleep 1; docker exec supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -Atc \"select json_build_object('pool', json_agg(json_build_object('session_id', testsession_id) order by testsession_id)) from testsessions where testsession_id::text like 'a"
+      ],
+      "duration_seconds": 1.267,
+      "exit_code": 0,
+      "status": "ok",
+      "stderr": ""
+    },
+    "teardown": {
+      "argv": [
+        "sh",
+        "-c",
+        "docker exec -i supabase_db_utk-litetraffic psql -U postgres -v ON_ERROR_STOP=1 -q < sql/reset.sql"
+      ],
+      "duration_seconds": 0.082,
+      "exit_code": 0,
+      "status": "ok",
+      "stderr": ""
+    }
+  },
+  "observation": [
+    {
+      "assertion": "org_balance_debited_once_per_session",
+      "reason": "engine did not finish",
+      "status": "unknown"
+    },
+    {
+      "assertion": "usage_rows_match_journeys",
+      "reason": "engine did not finish",
+      "status": "unknown"
+    }
+  ],
+  "result": {
+    "assertions": [
+      {
+        "id": "one_debit_response",
+        "samples": 27,
+        "status": "unknown"
+      },
+      {
+        "id": "one_usage_ledger_row",
+        "samples": 27,
+        "status": "unknown"
+      },
+      {
+        "id": "org_balance_debited_once_per_session",
+        "reason": "engine did not finish",
+        "samples": 0,
+        "status": "unknown"
+      },
+      {
+        "id": "usage_rows_match_journeys",
+        "reason": "engine did not finish",
+        "samples": 0,
+        "status": "unknown"
+      }
+    ],
+    "completeness": "incomplete",
+    "engine_exit_code": 105,
+    "finished_at": "2026-09-23T04:30:25.703509+00:00",
+    "lifecycle": "timed_out",
+    "limitations": [
+      "missing assertion evidence: org_balance_debited_once_per_session, usage_rows_match_journeys",
+      "partial assertion evidence: one_debit_response (27/28), one_usage_ledger_row (27/28)",
+      "delivered journeys 27.0 do not match planned journeys 28",
+      "engine stopped after its 12-second share of the 70-second budget"
+    ],
+    "metrics": {
+      "by_operation": {
+        "observer:postgrest": {
+          "failed_rate": 0.0,
+          "p95": 2.9,
+          "samples": 27
+        },
+        "usage-debit": {
+          "failed_rate": 0.0,
+          "p95": 44.491,
+          "samples": 162
+        }
+      },
+      "elapsed_seconds": 13.747636,
+      "http_req_duration_ms": {
+        "average": 22.916,
+        "max": 92.708,
+        "p50": 20.468,
+        "p95": 44.022,
+        "samples": 189
+      },
+      "http_req_failed_rate": {
+        "failed": 0,
+        "rate": 0.0,
+        "samples": 189
+      },
+      "http_reqs": 189.0,
+      "http_reqs_per_second": 15.259,
+      "iterations": 27.0,
+      "iterations_per_second": 2.18,
+      "observer_requests": 0,
+      "overlap": {
+        "observer:postgrest": 1,
+        "usage-debit": 6
+      },
+      "total_http_reqs": 189.0,
+      "vus_max": 12,
+      "write_attempts": 162
+    },
+    "mode": "verify",
+    "notes": [
+      "per-arrival lateness not measured",
+      "workload is synthetic (no traces supplied)"
+    ],
+    "planned_journeys": 28,
+    "planned_journeys_per_second": 2.333,
+    "report": "report.html",
+    "run_id": "run_20260923T043011Z_929fe95f",
+    "schema_version": 1,
+    "seed": 42,
+    "verdict": "inconclusive"
+  },
+  "run": {
+    "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, linux/amd64)",
+    "engine_exit_code": 105,
+    "engine_finished_at": "2026-09-23T04:30:25.609752+00:00",
+    "engine_started_at": "2026-09-23T04:30:13.224008+00:00",
+    "finished_at": "2026-09-23T04:30:25.703509+00:00",
+    "lifecycle": "timed_out",
+    "mode": "verify",
+    "resolved_schedule": [
+      {
+        "name": "spike-1",
+        "rate": 5,
+        "seconds": 2
+      },
+      {
+        "name": "baseline-2",
+        "rate": 1,
+        "seconds": 4
+      },
+      {
+        "name": "spike-3",
+        "rate": 5,
+        "seconds": 2
+      },
+      {
+        "name": "baseline-4",
+        "rate": 1,
+        "seconds": 4
+      }
+    ],
+    "run_id": "run_20260923T043011Z_929fe95f",
+    "scenario": "acme-usage-debit-once-v2",
+    "scenario_sha256": "d5bdea0dfe480614228bcd306f36d7d6446b9dc40c9e3f7250bb5dbf63f9180b",
+    "schema_version": 1,
+    "seed": 42,
+    "started_at": "2026-09-23T04:30:11.955873+00:00",
+    "target": "http://127.0.0.1:14000"
+  },
+  "run_id": "run_20260923T043011Z_929fe95f"
+}
