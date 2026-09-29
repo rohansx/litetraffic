@@ -2,7 +2,7 @@
 
 **Users as an API.** Stateful application traffic, repeatable runs, and evidence of what changed.
 
-[Documentation](docs/README.md) · [Installation](docs/installation.md) · [Quickstart](docs/quickstart.md) · [CLI reference](docs/cli.md) · [MIT license](LICENSE)
+[Documentation](docs/README.md) · [Installation](docs/installation.md) · [Quickstart](docs/quickstart.md) · [CLI reference](docs/cli.md) · [CI recipe](docs/ci.md) · [MIT license](LICENSE)
 
 LiteTraffic runs reviewed HTTP journeys against an application and checks their business effects. It uses stock k6 to apply a seeded traffic schedule, collects assertion evidence, and writes a JSON verdict and a standalone HTML report.
 
