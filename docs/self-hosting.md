@@ -14,7 +14,7 @@ docker pull ghcr.io/rohansx/litetraffic:main
 |---|---|
 | `:main` | The latest commit on `main` |
 | `:sha-<short>` | That commit on `main`; pin this in CI for reproducible runs |
-| `:X.Y.Z`, `:latest` | A `vX.Y.Z` release tag |
+| `:X.Y.Z` | A `vX.Y.Z` release tag; `:latest` also moves to it unless it is a pre-release |
 
 Images are published for `linux/amd64` and `linux/arm64`, each with the matching official k6 archive checked against its SHA-256 from the release checksums file. End-to-end `verify` runs have been checked on amd64; the arm64 image builds the same way but has not been run end to end yet.
 
