@@ -1,0 +1,26 @@
+# The checkout example server plus a one-shot verify, both from the LiteTraffic image.
+# From this directory: mkdir -p .litetraffic/runs && docker compose up --build --exit-code-from verify
+services:
+  checkout:
+    image: ghcr.io/rohansx/litetraffic:main
+    build: ../..
+    init: true  # forwards Ctrl+C / stop signals to the server
+    entrypoint: ["python", "/work/examples/checkout/server.py", "--port", "8765"]
+    volumes:
+      - ../checkout:/work/examples/checkout:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8765))"]
+      interval: 1s
+      retries: 30
+
+  verify:
+    image: ghcr.io/rohansx/litetraffic:main
+    # Shares the server's network namespace, so the server's 127.0.0.1 is reachable as-is.
+    network_mode: service:checkout
+    depends_on:
+      checkout:
+        condition: service_healthy
+    command: ["verify", "examples/checkout", "--target", "http://127.0.0.1:8765", "--seed", "42"]
+    volumes:
+      - ../checkout:/work/examples/checkout:ro
+      - ./.litetraffic/runs:/work/.litetraffic/runs
