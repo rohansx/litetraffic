@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="LiteTraffic runs stateful synthetic users against a running app on a seeded schedule, checks the business effects they leave behind, and keeps the evidence.">
+  <meta name="theme-color" content="#f3f5f1">
+  <title>LiteTraffic — Users as an API</title>
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem("litetraffic-theme") ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    } catch (_) {
+      document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header wrap">
+    <a class="brand" href="#main" aria-label="LiteTraffic home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h4v11H4zm7-9h4v20h-4zm7 5h4v15h-4zm7-9h4v24h-4z"/></svg><span>LiteTraffic</span></a>
+    <nav aria-label="Main navigation"><a class="nav-link" href="#mechanics">How it works</a><a class="nav-link" href="#isolation">Tenant isolation</a><a class="nav-link" href="#dashboard">Evidence</a><a class="nav-link" href="#commands">Commands</a><a class="nav-start" href="#start">Get started</a><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false"><span aria-hidden="true">◐</span><span class="theme-label">Dark</span></button></nav>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="availability"><span class="availability-mark" aria-hidden="true"></span> Open developer preview, 0.1.0.dev0</p>
+        <h1 id="hero-title">Users<br>as an API.</h1>
+        <p class="hero-summary">Give a running app a population of stateful synthetic users. Replay what they do under bounded traffic. Check whether the right business effects survive.</p>
+        <div class="hero-actions"><a class="button button-dark" href="#start">Run a scenario</a><a class="quiet-link" href="#dashboard">See the evidence</a></div>
+        <p class="hero-footnote">Localhost, CI preview, or an existing E2B sandbox. No hosted account.</p>
+      </div>
+      <div class="scenario-board" role="img" aria-label="Illustrative checkout run: 12 buyers, cart to order to payment to retry, a seeded burst over 90 seconds, and a passing check of one ledger effect per payment">
+        <div class="board-top"><span>checkout / scenario 01</span><span>illustrative run</span></div>
+        <div class="board-row actors-row"><span class="board-key">Population</span><div class="actor-stack" aria-hidden="true"><i>B</i><i>B</i><i>B</i><i>+9</i></div><strong>12 buyers</strong></div>
+        <div class="board-row journey-row"><span class="board-key">Journey</span><div class="journey-path"><span>cart</span><b></b><span>order</span><b></b><span>pay</span><b></b><span>retry</span></div></div>
+        <div class="board-timing"><div class="timing-head"><span>Seed 42, journeys / second</span><span>90 seconds</span></div><div class="timing-bars" aria-hidden="true">
+          <i style="--h:25%"></i><i style="--h:25%"></i><i style="--h:26%"></i><i style="--h:24%"></i><i style="--h:30%"></i><i style="--h:34%"></i><i style="--h:55%"></i><i style="--h:81%"></i><i style="--h:92%"></i><i style="--h:72%"></i><i style="--h:43%"></i><i style="--h:31%"></i><i style="--h:25%"></i><i style="--h:26%"></i><i style="--h:25%"></i><i style="--h:25%"></i>
+        </div><div class="timing-axis"><span>baseline</span><span>burst</span><span>recovery</span></div></div>
+        <div class="board-verdict"><span class="verdict-icon" aria-hidden="true">✓</span><span><small>Business assertion</small><strong>One ledger effect per payment</strong></span><b>PASS</b></div>
+      </div>
+    </section>
+
+    <div class="rule-band"><div class="wrap"><span>Believable users</span><span>Controlled pressure</span><span>Proof of effect</span></div></div>
+
+    <section class="problem wrap" id="mechanics">
+      <div class="problem-intro"><p class="section-label">Why this exists</p><h2>A response is only half the story.</h2><p>Load tests count responses. A real user carries state across requests, retries an action, and expects the system to leave the right result behind. LiteTraffic tests that complete chain.</p></div>
+      <div class="failure-receipt" aria-label="Example of a fast but incorrect checkout response"><div class="receipt-row"><span>What a load test sees</span><strong>HTTP 200 <small>31 ms</small></strong></div><div class="receipt-row"><span>What the customer gets</span><strong>2 charges <small>for 1 payment</small></strong></div><p>A fast response can still be a failed checkout.</p></div>
+    </section>
+
+    <section class="mechanics"><div class="wrap"><div class="section-heading"><p class="section-label">Inside a verification run</p><h2>Make a world. Run it. Check it.</h2></div><div class="mechanic-list">
+      <article><span class="step-no">01</span><div><h3>Own the starting state</h3><p>Create run-owned records over HTTP, or run setup and teardown commands such as a seed and reset script. Teardown runs even after a failure. Give each journey its own item from a fixture pool.</p></div><span class="step-meta">fixtures</span></article>
+      <article><span class="step-no">02</span><div><h3>Drive complete journeys</h3><p>Carry IDs and identities from one request to the next, with an HS256 test JWT minted per actor class or one per identity. Admit journeys on a seeded clock with stock k6, pinned to one version so runs stay comparable. Declare which status codes an operation is meant to return, so an intended 403 is not counted as a failure.</p></div><span class="step-meta">k6 v2.2.0</span></article>
+      <article><span class="step-no">03</span><div><h3>Observe the final effect</h3><p>Read the resulting state once the traffic stops, with one or more final observations. Match values exactly or with <code>gte</code>, <code>lte</code>, <code>len</code> and <code>exists</code>, write expected values as <code>${planned_journeys * 100}</code>, and poll with <code>until</code> when the app settles asynchronously.</p></div><span class="step-meta">verdict</span></article>
+      <article><span class="step-no">04</span><div><h3>Check the pressure was real</h3><p>A client-side overlap check reports peak in-flight requests per operation and holds back a pass when a journey's <code>min_overlap</code> was not reached. It shows requests were in flight together, not that the server ran them concurrently.</p></div><span class="step-meta">overlap</span></article>
+      <article><span class="step-no">05</span><div><h3>Keep the evidence</h3><p>Write owner-only artifacts atomically: a digest over the manifest, script, imports and fixture files, assertion events with expected and actual values, metrics, and a standalone report. Declared secrets and minted tokens are replaced with <code>[redacted]</code>.</p></div><span class="step-meta">artifacts</span></article>
+    </div></div></section>
+
+    <section class="isolation wrap" id="isolation" aria-labelledby="isolation-title">
+      <div class="isolation-intro">
+        <div class="section-heading"><p class="section-label">litetraffic init tenant-isolation</p><h2 id="isolation-title">From two identities to a <span class="nowrap">tenant-isolation</span> check.</h2><p>Describe who owns what in a small JSON config. The generator writes a complete scenario bundle for you to review and run, with no k6 code to write. The same config always produces the same files and the same digest.</p></div>
+        <dl class="check-list">
+          <div><dt><code>own_access</code></dt><dd>Each owner can read its own resources through every read endpoint.</dd></div>
+          <div><dt><code>cross_tenant_read_blocked</code></dt><dd>The other identity gets 401, 403 or 404.</dd></div>
+          <div><dt><code>cross_tenant_write_blocked</code></dt><dd>Its writes to that resource are rejected the same way.</dd></div>
+          <div><dt><code>victim_unchanged</code></dt><dd>The owner reads the resource before and after each cross-tenant write, and both reads must match. This catches a server that answers 403 but applies the write anyway.</dd></div>
+        </dl>
+      </div>
+      <div class="isolation-flow">
+        <figure class="kit-config">
+          <figcaption><span>kit.json</span><span>trimmed</span></figcaption>
+          <pre tabindex="0"><code>{
+  "name": "tenant-isolation-kit",
+  "identities": [
+    {"name": "tenant-a", "resources": ["a"],
+     "headers": {"X-Actor-Tenant": "a"}},
+    {"name": "tenant-b", "resources": ["b"],
+     "headers": {"X-Actor-Tenant": "b"}}
+  ],
+  "endpoints": [
+    {"method": "GET", "kind": "read",
+     "path": "/tenants/{id}/records/1"},
+    {"method": "PUT", "kind": "write",
+     "path": "/tenants/{id}/records/1",
+     "body": {"value": "mallory"}}
+  ]
+}</code></pre>
+          <p class="kit-note">Identities can also sign in with a minted test JWT (<code>auth</code>) or a ready token from an environment variable (<code>token_env</code>). The full example adds a run-owned fixture and one final observation, <code>tenant_fixture_intact</code>.</p>
+        </figure>
+        <div class="kit-run">
+          <div class="kit-run-head">
+            <div class="kit-toggle" role="group" aria-label="Example server"><button type="button" aria-pressed="true" data-kit="pass">Correct server</button><button type="button" aria-pressed="false" data-kit="fail">Silent write</button></div>
+          </div>
+          <pre class="kit-output" tabindex="0"><code><span class="t-cmd">$ litetraffic init tenant-isolation \
+    --config kit.json --out isolation</span>
+<span class="t-cmd">$ litetraffic verify isolation \
+    --target http://127.0.0.1:8769</span>
+<span data-kit-output="pass"><span class="t-pass">verdict: PASS  lifecycle: finished  journeys: 10/10</span>
+own_access  pass  10
+cross_tenant_read_blocked  pass  10
+cross_tenant_write_blocked  pass  10
+victim_unchanged  pass  10
+tenant_fixture_intact  pass  1
+unexpected HTTP failure rate: 0.0% (0/100)</span><span data-kit-output="fail" hidden><span class="t-fail">verdict: FAIL  lifecycle: finished  journeys: 10/10</span>
+own_access  pass  10
+cross_tenant_read_blocked  pass  10
+cross_tenant_write_blocked  pass  10
+<span class="t-fail">victim_unchanged  fail  10</span>
+tenant_fixture_intact  pass  1
+unexpected HTTP failure rate: 0.0% (0/100)</span></code></pre>
+          <p class="kit-caption" aria-live="polite">The included tenant example server, run as shipped. The rejected cross-tenant probes are expected statuses, so none count as unexpected failures.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="evidence wrap" id="dashboard" aria-labelledby="dashboard-title">
+      <div class="evidence-intro">
+        <div class="section-heading"><p class="section-label">Local dashboard</p><h2 id="dashboard-title">Read the failure, not a log.</h2><p>When a check fails, the run keeps the first failing samples with what the scenario expected and what the app actually did. <code>litetraffic dashboard</code> lists every run on your machine, filters them by scenario, verdict and seed, compares any two you tick, and charts p95 latency per scenario.</p></div>
+        <ul class="evidence-facts">
+          <li>Binds to 127.0.0.1 only, with no host option. Requests with any other <code>Host</code> header are refused.</li>
+          <li>Read-only. It serves run artifacts and never contacts a target.</li>
+          <li>Follows your light or dark setting, and fits a phone screen.</li>
+          <li>Python standard library. Nothing else to install.</li>
+        </ul>
+      </div>
+
+      <figure class="dash" aria-labelledby="dash-caption">
+        <div class="dash-chrome"><span class="dash-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="dash-url">127.0.0.1:8780</span><span class="dash-mock">Illustrative mock</span></div>
+        <div class="dash-tabs" role="tablist" aria-label="Dashboard views">
+          <button type="button" role="tab" id="tab-runs" aria-controls="panel-runs" aria-selected="false" tabindex="-1">Runs</button>
+          <button type="button" role="tab" id="tab-detail" aria-controls="panel-detail" aria-selected="true">Run</button>
+          <button type="button" role="tab" id="tab-trend" aria-controls="panel-trend" aria-selected="false" tabindex="-1">Trend</button>
+          <button type="button" role="tab" id="tab-diff" aria-controls="panel-diff" aria-selected="false" tabindex="-1">Compare</button>
+        </div>
+
+        <div class="dash-panel" role="tabpanel" id="panel-runs" aria-labelledby="tab-runs" tabindex="0" hidden>
+          <p class="dash-path">/?scenario=checkout</p>
+          <div class="dash-filters" aria-hidden="true">
+            <span><small>Scenario</small><b>checkout</b></span><span><small>Verdict</small><b>any</b></span><span><small>Seed</small><b>any</b></span><span class="dash-compare">Compare 2 runs</span>
+          </div>
+          <div class="table-scroll">
+            <table class="dash-table">
+              <caption class="visually-hidden">Checkout runs, newest first, two ticked for comparison</caption>
+              <thead><tr><th scope="col"><span class="visually-hidden">Selected</span></th><th scope="col">Run</th><th scope="col" class="col-opt">Scenario</th><th scope="col" class="col-opt">Seed</th><th scope="col" class="col-opt">Lifecycle</th><th scope="col">Verdict</th></tr></thead>
+              <tbody>
+                <tr><td><span class="tick is-on" role="img" aria-label="ticked"></span></td><td class="run-id">run_20260921T101204Z_4c1e09aa</td><td class="col-opt">checkout</td><td class="col-opt">42</td><td class="col-opt">finished</td><td><span class="verdict verdict-fail">FAIL</span></td></tr>
+                <tr><td><span class="tick is-on" role="img" aria-label="ticked"></span></td><td class="run-id">run_20260921T100912Z_91b7d2f0</td><td class="col-opt">checkout</td><td class="col-opt">42</td><td class="col-opt">finished</td><td><span class="verdict verdict-pass">PASS</span></td></tr>
+                <tr><td><span class="tick" role="img" aria-label="not ticked"></span></td><td class="run-id">run_20260921T094455Z_e02a7c13</td><td class="col-opt">checkout</td><td class="col-opt">42</td><td class="col-opt">finished</td><td><span class="verdict verdict-pass">PASS</span></td></tr>
+                <tr><td><span class="tick" role="img" aria-label="not ticked"></span></td><td class="run-id">run_20260921T093310Z_5d88b6e1</td><td class="col-opt">checkout</td><td class="col-opt">42</td><td class="col-opt">finished</td><td><span class="verdict verdict-error">ERROR</span></td></tr>
+                <tr><td><span class="tick" role="img" aria-label="not ticked"></span></td><td class="run-id">run_20260920T171522Z_0b3f5a21</td><td class="col-opt">checkout</td><td class="col-opt">42</td><td class="col-opt">finished</td><td><span class="verdict verdict-pass">PASS</span></td></tr>
+                <tr><td><span class="tick" role="img" aria-label="not ticked"></span></td><td class="run-id">run_20260920T164008Z_7ac19e42</td><td class="col-opt">checkout</td><td class="col-opt">42</td><td class="col-opt">finished</td><td><span class="verdict verdict-pass">PASS</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="dash-note">Tick exactly two runs to compare them; the older one becomes the baseline. The <strong>error</strong> run's target was unreachable, so no request got an HTTP response.</p>
+        </div>
+
+        <div class="dash-panel" role="tabpanel" id="panel-detail" aria-labelledby="tab-detail" tabindex="0">
+          <p class="dash-path">/runs/run_20260921T101204Z_4c1e09aa</p>
+          <div class="detail-head">
+            <div><h3>checkout</h3><p>seed 42, lifecycle finished, journeys 12/12</p></div>
+            <span class="verdict verdict-fail verdict-lg">FAIL</span>
+          </div>
+          <div class="callout" aria-label="First failing assertion">
+            <p class="callout-id">one_effect_per_payment</p>
+            <div class="callout-values">
+              <div><span>Expected</span><strong>1</strong></div>
+              <div class="callout-actual"><span>Actual</span><strong>2</strong></div>
+            </div>
+            <p class="callout-detail">One ledger effect per payment. The retried request created a second effect.</p>
+          </div>
+          <div class="table-scroll">
+            <table class="dash-table">
+              <caption>Failing samples, first 3</caption>
+              <thead><tr><th scope="col">Sample</th><th scope="col">Logical key</th><th scope="col">Expected</th><th scope="col">Actual</th></tr></thead>
+              <tbody>
+                <tr><td>4</td><td class="run-id">…4c1e09aa-1-0</td><td>1</td><td class="cell-bad">2</td></tr>
+                <tr><td>13</td><td class="run-id">…4c1e09aa-2-3</td><td>1</td><td class="cell-bad">2</td></tr>
+                <tr><td>22</td><td class="run-id">…4c1e09aa-4-6</td><td>1</td><td class="cell-bad">2</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-scroll">
+            <table class="dash-table">
+              <caption>Assertions</caption>
+              <thead><tr><th scope="col">Assertion</th><th scope="col">Status</th><th scope="col">Samples</th></tr></thead>
+              <tbody>
+                <tr><td>one_effect_per_payment</td><td><span class="verdict verdict-fail">fail</span></td><td>12</td></tr>
+                <tr><td>accepted_orders_persist</td><td><span class="verdict verdict-pass">pass</span></td><td>12</td></tr>
+                <tr><td>order_totals_match</td><td><span class="verdict verdict-pass">pass</span></td><td>12</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="dash-panel" role="tabpanel" id="panel-trend" aria-labelledby="tab-trend" tabindex="0" hidden>
+          <p class="dash-path">/scenarios/checkout</p>
+          <svg class="trend" viewBox="0 0 560 210" role="img" aria-label="p95 latency per checkout run, oldest first: 3.6, 3.5, 3.7 and 3.8 milliseconds passing, then 4.1 milliseconds failing">
+            <text class="trend-label" x="0" y="18">p95 ms</text>
+            <g class="trend-grid" aria-hidden="true"><path d="M44 40H550M44 115H550M44 190H550"/></g>
+            <g class="trend-axis" aria-hidden="true"><text x="0" y="46">4.5</text><text x="0" y="121">4.0</text><text x="0" y="196">3.5</text></g>
+            <path class="trend-line" d="M70 175L185 190L300 160L415 145L530 100"/>
+            <g class="trend-points"><circle class="pt-pass" cx="70" cy="175" r="8"/><circle class="pt-pass" cx="185" cy="190" r="8"/><circle class="pt-pass" cx="300" cy="160" r="8"/><circle class="pt-pass" cx="415" cy="145" r="8"/><circle class="pt-fail" cx="530" cy="100" r="8"/></g>
+          </svg>
+          <div class="table-scroll">
+            <table class="dash-table">
+              <caption class="visually-hidden">Checkout runs, oldest first</caption>
+              <thead><tr><th scope="col">Run</th><th scope="col" class="col-opt">Seed</th><th scope="col">Verdict</th><th scope="col">p95</th></tr></thead>
+              <tbody>
+                <tr><td class="run-id">…7ac19e42</td><td class="col-opt">42</td><td><span class="verdict verdict-pass">PASS</span></td><td>3.6ms</td></tr>
+                <tr><td class="run-id">…0b3f5a21</td><td class="col-opt">42</td><td><span class="verdict verdict-pass">PASS</span></td><td>3.5ms</td></tr>
+                <tr><td class="run-id">…5d88b6e1</td><td class="col-opt">42</td><td><span class="verdict verdict-error">ERROR</span></td><td>n/a</td></tr>
+                <tr><td class="run-id">…e02a7c13</td><td class="col-opt">42</td><td><span class="verdict verdict-pass">PASS</span></td><td>3.7ms</td></tr>
+                <tr><td class="run-id">…91b7d2f0</td><td class="col-opt">42</td><td><span class="verdict verdict-pass">PASS</span></td><td>3.8ms</td></tr>
+                <tr><td class="run-id">…4c1e09aa</td><td class="col-opt">42</td><td><span class="verdict verdict-fail">FAIL</span></td><td>4.1ms</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="dash-note">Runs are spaced evenly, not on a time scale. A run without a p95, like the error run, is left off the chart.</p>
+        </div>
+
+        <div class="dash-panel" role="tabpanel" id="panel-diff" aria-labelledby="tab-diff" tabindex="0" hidden>
+          <p class="dash-path">/diff?run=…4c1e09aa&amp;run=…91b7d2f0</p>
+          <pre class="dash-pre"><code><span class="t-fail">verdict: FAIL</span>
+- candidate verdict is fail
+compatibility: comparable
+regression: one_effect_per_payment
+p95: 3.8ms -&gt; 4.1ms (+7.9%)  status: reported</code></pre>
+          <p class="dash-note">Runs compare only when bundle digest, seed, k6 version and resolved schedule match. Otherwise the result is <strong>inconclusive</strong>, never a pass.</p>
+        </div>
+        <figcaption id="dash-caption">Illustrative mock of <code>litetraffic dashboard</code>, drawn in HTML. Run IDs and timings are examples. Expected and actual values appear when the scenario records them on its assertion events.</figcaption>
+      </figure>
+    </section>
+
+    <section class="shape wrap" id="profiles"><div class="shape-copy"><p class="section-label">Timing is part of behavior</p><h2>Pressure has a shape.</h2><p>A quiet baseline and a short rush reveal different failures. LiteTraffic resolves the profile before the run and records the exact schedule with its seed.</p><div class="profile-tabs" role="group" aria-label="Traffic profile"><button type="button" aria-pressed="true" data-profile="spiky">Spiky</button><button type="button" aria-pressed="false" data-profile="random">Random bursts</button><button type="button" aria-pressed="false" data-profile="sustained">Sustained</button></div><p class="profile-description" aria-live="polite">A steady baseline interrupted by brief, high-volume spikes.</p></div>
+      <div class="profile-plot"><div class="plot-head"><span>journeys / second</span><strong>seed 42</strong></div><svg id="profile-chart" viewBox="0 0 720 300" role="img" aria-label="Spiky traffic profile chart"><g class="grid-lines" aria-hidden="true"><path d="M0 60H720M0 120H720M0 180H720M0 240H720"/></g><path id="profile-area" class="profile-area" d=""/><path id="profile-line" class="profile-line" d=""/><g id="profile-points" class="profile-points"></g></svg><div class="plot-axis"><span>0s</span><span>30s</span><span>60s</span><span>90s</span></div></div>
+    </section>
+
+    <section class="scenarios" id="scenarios"><div class="wrap"><div class="section-heading"><p class="section-label">Five conformance scenarios</p><h2>Designed to catch a wrong answer.</h2><p>Each example has a known-good app and a deliberate fault. The same scenario must pass one and fail the other.</p></div><div class="scenario-list" role="list">
+      <div role="listitem"><span>Checkout</span><strong>Retry a payment</strong><p>One ledger effect per payment ID</p><b>01</b></div>
+      <div role="listitem"><span>Inventory</span><strong>Compete for limited stock</strong><p>Accepted reservations stay within capacity</p><b>02</b></div>
+      <div role="listitem"><span>Reporting</span><strong>Query a large organisation</strong><p>Totals and regional rows stay complete</p><b>03</b></div>
+      <div role="listitem"><span>Cached search</span><strong>Update a hot result</strong><p>Reads become fresh after the update</p><b>04</b></div>
+      <div role="listitem"><span>Tenant API</span><strong>Read as two identities</strong><p>Own records open; other tenants' do not. Ships with a <code>kit.json</code> for <code>init</code></p><b>05</b></div>
+    </div></div></section>
+
+    <section class="commands" id="commands" aria-labelledby="commands-title"><div class="wrap">
+      <div class="section-heading"><p class="section-label">The CLI</p><h2 id="commands-title">Nine commands.</h2><p>Most print a short summary for people, or one JSON object with <code>--json</code> for scripts and agents.</p></div>
+      <dl class="command-list">
+        <div><dt><code>doctor</code></dt><dd>Checks k6 is exactly v2.2.0, Python is 3.11 or newer, the output directory is writable with 100 MiB free, and, with <code>--target</code>, that the app answers.</dd></div>
+        <div><dt><code>init</code></dt><dd>Generates a tenant-isolation scenario bundle from a small JSON config, then validates it the way <code>inspect</code> does.</dd></div>
+        <div><dt><code>inspect</code></dt><dd>Validates a scenario and explains it: actors, budgets, fixtures, secret variable names, observations with resolved expected values, and the schedule. Runs nothing.</dd></div>
+        <div><dt><code>approve</code></dt><dd>Records a local approval that binds the scenario's digest to a target origin. <code>verify --require-approval</code> then refuses to run a scenario that changed after review.</dd></div>
+        <div><dt><code>verify</code></dt><dd>Runs the scenario against a target and prints the verdict, each assertion, any limitations and the path to <code>report.html</code>. Repeat it across seeds with <code>--repeat</code>.</dd></div>
+        <div><dt><code>diff</code></dt><dd>Compares a baseline and a candidate by run directory or run ID, with an optional p95 regression gate.</dd></div>
+        <div><dt><code>dashboard</code></dt><dd>Serves your runs on 127.0.0.1 so you can filter them, read failing samples, chart a scenario over time and compare two runs.</dd></div>
+        <div><dt><code>up</code></dt><dd>Repeats bounded runs as slices until Ctrl+C or a slice limit. It records each slice and gives no overall verdict.</dd></div>
+        <div><dt><code>prune</code></dt><dd>Deletes old run directories by count or age, with a dry run to list them first.</dd></div>
+      </dl>
+      <div class="exit-codes">
+        <h3>Exit codes for <code>verify</code></h3>
+        <ul>
+          <li><strong>0</strong><span>pass</span></li>
+          <li><strong>1</strong><span>fail</span></li>
+          <li><strong>2</strong><span>inconclusive</span></li>
+          <li><strong>3</strong><span>error</span></li>
+          <li><strong>130</strong><span>cancelled</span></li>
+        </ul>
+        <p>A target that never returns an HTTP response is an error, not a pass. A missing or mismatched approval also exits 3 before anything runs. Cancelling with Ctrl+C still saves the evidence collected so far. <code>diff</code> uses 0, 1 and 2 the same way for its comparison. Every command exits 2 on a usage error and 3 on an error. <a href="https://github.com/rohansx/litetraffic/blob/main/docs/cli.md#exit-codes">Exit codes for every command</a></p>
+      </div>
+    </div></section>
+
+    <section class="scope wrap" id="targets"><div><p class="section-label">Works with a running HTTP app</p><h2>Bring the target.<br>Keep the contract.</h2></div><div><p>Run the same reviewed scenario against localhost, a CI preview, or an existing E2B sandbox. Target addresses and secrets stay outside the portable scenario.</p><ul><li><span>--target</span> Local development</li><li><span>--target</span> CI and preview URLs</li><li><span>--e2b-sandbox-id</span> Existing E2B sandbox</li></ul><p class="scope-safety">Cloud metadata and link-local addresses are refused, in any spelling, before a request is sent. URLs with embedded credentials are refused, and k6 does not follow redirects.</p></div></section>
+
+    <section class="start" id="start"><div class="wrap start-grid">
+      <div>
+        <p class="section-label">Developer preview</p>
+        <h2>Start with a scenario you can read.</h2>
+        <p>Scenarios are handwritten k6 journeys, or generated by <code>init tenant-isolation</code>, and you review them before running. Install k6 v2.2.0 separately, then install LiteTraffic from source.</p>
+        <div class="preview-lists">
+          <div><h3>Works today</h3><ul><li>Nine commands, local runs and repeats</li><li>Tenant-isolation scenarios from a JSON config</li><li>Seeded traffic profiles and budgets</li><li>Fixtures, test JWTs and final observations</li><li>Reports, approvals and run comparison</li></ul></div>
+          <div><h3>Not shipped yet</h3><ul><li>AI or automatic scenario authoring</li><li>Persistent users across runs</li><li>Managed sandboxes</li><li>A PyPI release</li></ul></div>
+        </div>
+        <a class="button button-dark" href="https://github.com/rohansx/litetraffic/blob/main/docs/quickstart.md">Read the quickstart</a>
+      </div>
+      <div class="terminal"><div class="terminal-head"><span>install from source</span><button id="copy-command" type="button" aria-label="Copy install commands">Copy install commands</button></div><pre><code><span>$</span> git clone https://github.com/rohansx/litetraffic.git
+<span>$</span> cd litetraffic
+<span>$</span> python3 -m venv .venv &amp;&amp; . .venv/bin/activate
+<span>$</span> python -m pip install -e .
+<span>$</span> litetraffic doctor
+<span>$</span> litetraffic verify examples/checkout \
+    --target http://127.0.0.1:8765 --seed 42
+<span>$</span> litetraffic dashboard</code></pre></div>
+    </div></section>
+
+    <section class="closing"><div class="wrap"><p>For developers, agents, and the systems they change.</p><h2>Give the app a world.<br>Then ask what survived.</h2><a href="https://github.com/rohansx/litetraffic/tree/main/docs">Read the documentation <span aria-hidden="true">↗</span></a></div></section>
+  </main>
+  <footer class="wrap"><a class="brand" href="#main"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h4v11H4zm7-9h4v20h-4zm7 5h4v15h-4zm7-9h4v24h-4z"/></svg><span>LiteTraffic</span></a><p>Users as an API. Evidence as the result. MIT licensed.</p><div><a href="https://github.com/rohansx/litetraffic">GitHub</a><a href="https://github.com/rohansx/litetraffic/tree/main/docs">Documentation</a><a href="https://github.com/rohansx/litetraffic/blob/main/docs/cli.md">CLI reference</a></div></footer>
+</body>
+</html>
