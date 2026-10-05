@@ -11,6 +11,7 @@ LiteTraffic is a local CLI for running reviewed, stateful HTTP traffic and evalu
 3. [Read the output](results.md): verdicts, lifecycle, reports, repeat summaries, and baseline comparisons.
 4. [Adapt a scenario to your app](scenarios.md): traffic profiles, request sequences, fixtures, identity, and evidence.
 5. [Run it in CI](ci.md): a GitHub Actions recipe, exit codes, job summary, and keeping run evidence.
+6. [Self-host with Docker](self-hosting.md): the container image, Docker Compose, CI with the image, and viewing results.
 
 ## Reference
 
