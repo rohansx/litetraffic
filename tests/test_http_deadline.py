@@ -225,6 +225,19 @@ def test_deadline_bounds_a_hanging_tcp_connect_and_joins_its_worker(monkeypatch)
     assert set(threading.enumerate()) <= baseline  # no worker left behind
 
 
+def test_a_connect_that_times_out_is_the_deadline_however_the_race_falls(monkeypatch):
+    # The connect budget is whatever is left of the deadline, so a connect timeout always means the deadline was
+    # hit, even when the worker reports it a moment before the controller's own wait expires.
+    monkeypatch.setattr(observation, "REQUEST_DEADLINE_SECONDS", 0.3)
+
+    def blackhole(address, timeout=None, source_address=None):
+        raise TimeoutError("timed out")  # the worker finishes first
+
+    monkeypatch.setattr(socket, "create_connection", blackhole)
+    with pytest.raises(observation.DeadlineExceeded):
+        observation.bounded_request("GET", "http://10.255.255.1/x", {})
+
+
 def test_connect_completing_after_the_deadline_sends_nothing(monkeypatch):
     monkeypatch.setattr(observation, "REQUEST_DEADLINE_SECONDS", 0.1)
     server = socket.socket()
