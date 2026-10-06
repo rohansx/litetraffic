@@ -69,6 +69,8 @@ def bounded_request(
                     if len(content) > MAX_BODY_BYTES:
                         raise BodyTooLarge("response body over 1 MiB")
                 outcome.append((response.status_code, bytes(content)))
+        except httpx.ConnectTimeout:
+            outcome.append(DeadlineExceeded())  # the connect budget is the time left before the deadline
         except Exception as exc:
             outcome.append(exc)
 
