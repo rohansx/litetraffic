@@ -11,9 +11,6 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    # macOS is advisory: Linux is the verified platform, and the shared macOS runners are slow enough that
-    # test_http_deadline's sub-second cancellation bounds flake there.
-    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     strategy:
       fail-fast: false
       matrix:
