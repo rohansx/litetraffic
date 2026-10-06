@@ -131,6 +131,24 @@ def test_deadline_closes_a_silent_connection_and_joins_its_worker(silent_target,
     assert set(threading.enumerate()) <= baseline  # no worker left behind
 
 
+def test_cancel_closes_the_client_only_once_the_worker_has_left_its_socket(silent_target, monkeypatch):
+    # Closing the socket under a thread still in recv loses the shutdown wake-up on macOS: the worker then sits
+    # out its read timeout. The controller must join the woken worker before it closes the client.
+    monkeypatch.setattr(observation, "REQUEST_DEADLINE_SECONDS", 0.3)
+    workers_alive_at_close = []
+    real_close = httpx.Client.close
+
+    def close(self):
+        if threading.current_thread() is threading.main_thread():
+            workers_alive_at_close.append([t.name for t in threading.enumerate() if t.name.endswith("(work)")])
+        real_close(self)
+
+    monkeypatch.setattr(httpx.Client, "close", close)
+    with pytest.raises(observation.DeadlineExceeded):
+        observation.bounded_request("GET", silent_target + "/state", {})
+    assert workers_alive_at_close == [[]]  # closed once from the controller, after the worker was gone
+
+
 @pytest.fixture
 def silent_tls_target(tmp_path, monkeypatch):
     """An https server that completes the TLS handshake and never answers; clients trust its self-signed cert."""
