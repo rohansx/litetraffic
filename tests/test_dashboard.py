@@ -190,7 +190,7 @@ def test_other_ports_or_hosts_are_rejected(server, host):
 # --- security headers ---
 
 CSP = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
+    "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
     "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
 
@@ -217,6 +217,26 @@ def test_misdirected_response_has_security_headers(server):
     _, headers, _ = raw(server, "/", host="attacker.example")
 
     assert headers["Content-Security-Policy"] == CSP and headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_the_policy_allows_every_source_the_committed_bundle_loads_fonts_from():
+    # Vite inlines small font subsets as data: URLs; a policy without font-src falls back to default-src and
+    # the browser blocks them with a console error on every page.
+    if not (dashboard.UI_DIR / "index.html").exists():
+        pytest.skip("dashboard bundle not built")
+    stylesheets = "\n".join(path.read_text() for path in (dashboard.UI_DIR / "assets").glob("*.css"))
+    font_sources = {"data:" if url.startswith("data:") else "'self'" for url in _font_urls(stylesheets)}
+    directives = dict(part.strip().split(" ", 1) for part in dashboard.CSP.split(";") if " " in part.strip())
+
+    assert font_sources <= set(directives["font-src"].split())
+
+
+def _font_urls(css: str) -> list[str]:
+    urls = []
+    for face in css.split("@font-face")[1:]:
+        block = face[: face.index("}")]
+        urls += [part.split(")")[0].strip("'\"") for part in block.split("url(")[1:]]
+    return urls
 
 
 @pytest.mark.parametrize("name", ["report.html", "result.json", "events/000001.jsonl"])
