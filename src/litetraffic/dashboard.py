@@ -29,7 +29,7 @@ FILTERS = ("scenario", "verdict", "seed")
 _ARTIFACT_TYPES = {".html": "text/html", ".json": "application/json"}  # anything else is shown as plain text
 _UI_TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2"}
 CSP = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
+    "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
     "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
 # Raw artifacts (report.html above all) are untrusted: no scripts, no requests, own origin.
