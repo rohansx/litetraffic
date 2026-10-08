@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "name": "gitea-issues",
+  "script": "journeys.js",
+  "actors": [{"class": "reporter", "count": 1, "auth_recipe": "gitea-access-token"}],
+  "secret_env": ["GITEA_TOKEN_ALICE"],
+  "fixtures": {
+    "recipe": "owned-repo",
+    "command": {
+      "setup": ["sh", "setup.sh"],
+      "teardown": ["sh", "teardown.sh"],
+      "timeout_seconds": 15
+    }
+  },
+  "journeys": [
+    {"name": "file_issue", "max_requests": 2, "max_writes": 1, "stages": ["created", "read_back"]}
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {"name": "warmup", "seconds": 1, "rate": 1},
+      {"name": "measure", "seconds": 6, "rate": 1},
+      {"name": "recovery", "seconds": 1, "rate": 1}
+    ]
+  },
+  "assertions": ["issue_persists", "title_round_trips", "every_issue_counted"],
+  "observer": "repo-open-issue-count",
+  "observation": {
+    "path": "/api/v1/repos/alice/lt-issues",
+    "bearer_token_env": "GITEA_TOKEN_ALICE",
+    "assertion": "every_issue_counted",
+    "expected": {"/open_issues_count": "${planned_journeys}", "/private": true},
+    "until": {"deadline_seconds": 10, "interval_seconds": 1}
+  },
+  "budgets": {
+    "max_seconds": 70,
+    "max_requests": 40,
+    "max_write_attempts": 12,
+    "max_in_flight": 4,
+    "max_artifact_bytes": 67108864
+  }
+}
