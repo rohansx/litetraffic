@@ -143,6 +143,9 @@ class KitConfig(StrictModel):
     allowed_origins: list[str] = Field(default_factory=list)  # copied into the manifest for observation origins
     allowed_origins_env: str | None = None
     max_in_flight: int = Field(default=6, gt=0)
+    # Time after the schedule for journeys still in flight: the schedule only says when they start, and a
+    # journey of many requests against a slow or cold target cannot finish in ENGINE_SLACK_SECONDS.
+    drain_seconds: int = Field(default=0, ge=0, le=60)
     unauthenticated_probe: bool = False  # also read every resource with no credentials; must be rejected
 
     @model_validator(mode="after")
@@ -276,7 +279,8 @@ def build_manifest(config: KitConfig, raw: dict) -> dict:
         "assertions": _journey_assertions(config) + [observation.assertion for observation in config.observations],
         "observer": "tenant-isolation-kit",
         "budgets": {
-            "max_seconds": seconds + ENGINE_SLACK_SECONDS + reserved.reserved_seconds + sum(o.reserved_seconds for o in config.observations),
+            "max_seconds": seconds + ENGINE_SLACK_SECONDS + config.drain_seconds + reserved.reserved_seconds
+            + sum(o.reserved_seconds for o in config.observations),
             "max_requests": planned * journey["max_requests"] + sum(o.max_requests for o in config.observations) + lifecycle,
             "max_write_attempts": planned * journey["max_writes"] + lifecycle,
             "max_in_flight": config.max_in_flight,
