@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 import sys
 
@@ -43,6 +44,29 @@ def test_a_surviving_group_is_reported(monkeypatch):
 
     assert survived
     assert process_module.GROUP_SURVIVED in stderr
+
+
+@posix_only
+def test_a_group_of_unreaped_zombies_does_not_crash_the_stop(monkeypatch):
+    # macOS reports EPERM for a group that holds only zombies; it becomes ESRCH once they are reaped.
+    process = subprocess.Popen(["sleep", "30"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    real_killpg = os.killpg
+    probes = []
+
+    def killpg(pgid, value):
+        if value == signal.SIGTERM:
+            return real_killpg(pgid, value)
+        if value == 0:
+            probes.append(value)
+        raise PermissionError(1, "Operation not permitted") if len(probes) < 3 else ProcessLookupError()
+
+    monkeypatch.setattr(process_module.os, "killpg", killpg)
+
+    _, stderr, survived = process_module._stop_process(process)
+
+    assert not survived
+    assert process_module.GROUP_SURVIVED not in stderr
+    assert len(probes) == 3  # polled through the EPERM answers until the group was gone
 
 
 @posix_only

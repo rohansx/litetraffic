@@ -31,6 +31,10 @@ def _signal_process(process: subprocess.Popen[str], value: signal.Signals) -> No
             process.kill()
     except ProcessLookupError:
         pass
+    except PermissionError:
+        # macOS answers EPERM, not ESRCH, for a group whose only members are zombies awaiting reaping.
+        # _group_gone decides afterwards whether anything is really left.
+        pass
 
 
 def _group_gone(process: subprocess.Popen[str]) -> bool:
@@ -42,6 +46,8 @@ def _group_gone(process: subprocess.Popen[str]) -> bool:
             os.killpg(process.pid, 0)
         except ProcessLookupError:
             return True
+        except PermissionError:
+            pass  # still there: unreaped zombies on macOS, or members we may not signal
         if time.monotonic() >= deadline:
             return False
         time.sleep(0.02)

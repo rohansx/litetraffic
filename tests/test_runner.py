@@ -1332,7 +1332,8 @@ def test_verify_runs_a_staged_copy_that_contains_the_bundled_runtime(tmp_path, m
 
     seen = json.loads((tmp_path / "cwd.json").read_text())
     assert seen["runtime"] == RUNTIME.read_text()
-    assert Path(seen["script"]) == Path(seen["cwd"]) / "journeys.js"
+    # k6 is given the staged path as spelled; its cwd is the real path (macOS: /var is a symlink to /private/var)
+    assert Path(seen["script"]).resolve() == Path(seen["cwd"]) / "journeys.js"
     assert not Path(seen["cwd"]).is_relative_to(scenario.resolve())
     assert not Path(seen["cwd"]).exists()  # the staged copy is removed after the run
     assert not (scenario / "litetraffic").exists()
