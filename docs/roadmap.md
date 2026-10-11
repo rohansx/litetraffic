@@ -23,6 +23,7 @@ The long-term goal is **users as an API**: give an application a believable, sta
 - Repeated seeds (consecutive or `--same-seed`) with dispersion stats, and baseline/candidate comparison with an optional p95 gate and per-operation p95
 - Local, reachable HTTP(S), and existing E2B sandbox targets
 - Five conformance examples, each with a correct and a faulty server, built on a bundled k6 runtime helper
+- A real-application example: both kinds of scenario against a stock Gitea container ([outside-app check](OUTSIDE_APP.md))
 - `up`: a foreground background activity of repeated bounded `verify` slices, reported with `mode=background` and no verdict
 
 ## Next

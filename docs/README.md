@@ -19,6 +19,7 @@ LiteTraffic is a local CLI for running reviewed, stateful HTTP traffic and evalu
 - [Architecture](architecture.md): controller, k6 process, fixture/observer calls, and artifacts.
 - [Safety and limitations](safety.md): trust boundaries, budget enforcement, secrets, and cleanup.
 - [Troubleshooting](troubleshooting.md): engine version, reachability, incomplete evidence, and comparison failures.
+- [Outside-app check](OUTSIDE_APP.md): the preview run against a stock Gitea, what worked and what it changed.
 - [Roadmap](roadmap.md): implemented scope versus future authoring and population work.
 - [Contributing](../CONTRIBUTING.md) and [security reporting](../SECURITY.md).
 

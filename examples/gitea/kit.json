@@ -1,0 +1,77 @@
+{
+  "name": "gitea-tenant-isolation",
+  "identities": [
+    {
+      "name": "alice",
+      "token_env": "GITEA_TOKEN_ALICE",
+      "resources": [
+        {
+          "owner": "alice",
+          "repo": "alice-private"
+        }
+      ],
+      "markers": [
+        "alice-secret-marker-7f3a"
+      ]
+    },
+    {
+      "name": "bob",
+      "token_env": "GITEA_TOKEN_BOB",
+      "resources": [
+        {
+          "owner": "bob",
+          "repo": "bob-private"
+        }
+      ],
+      "markers": [
+        "bob-secret-marker-c91e"
+      ]
+    }
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/repos/{owner}/{repo}",
+      "kind": "read",
+      "name": "get_repo"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/repos/{owner}/{repo}/issues",
+      "kind": "read",
+      "name": "list_issues"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/repos/{owner}/{repo}",
+      "kind": "write",
+      "name": "edit_repo",
+      "body": {
+        "description": "mallory-{journey}"
+      },
+      "read_back": 0
+    }
+  ],
+  "unauthenticated_probe": true,
+  "observations": [
+    {
+      "path": "/api/v1/repos/alice/alice-private",
+      "bearer_token_env": "GITEA_TOKEN_ALICE",
+      "assertion": "alice_description_intact",
+      "expected": {
+        "/description": "alice-secret-marker-7f3a",
+        "/private": true
+      }
+    },
+    {
+      "path": "/api/v1/repos/bob/bob-private",
+      "bearer_token_env": "GITEA_TOKEN_BOB",
+      "assertion": "bob_description_intact",
+      "expected": {
+        "/description": "bob-secret-marker-c91e",
+        "/private": true
+      }
+    }
+  ],
+  "drain_seconds": 10
+}

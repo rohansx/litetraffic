@@ -19,6 +19,7 @@ Each row is a bundled example with a deliberate fault flag; the conformance test
 | Oversell under concurrent reservations | 201 for every accepted reservation | Accepted reservations never exceed capacity | [`inventory`](examples/inventory) (`--wrong-oversell`) |
 | Stale cache after an update | 200 with a body | A read after the update returns the new value | [`cached_search`](examples/cached_search) (`--wrong-stale`) |
 | Partial report | 200 with rows | Every row and the totals are present and match the final ledger | [`reporting`](examples/reporting) (`--wrong-partial`, `--wrong-ledger`) |
+| The same checks against a real application | — | Tenant isolation and a counted write effect on a stock Gitea container | [`gitea`](examples/gitea) (grant a collaborator to see it fail) |
 
 ## 60-second quickstart
 

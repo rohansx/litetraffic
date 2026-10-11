@@ -134,6 +134,24 @@ def test_polled_observations_reserve_their_deadline_and_attempts(tmp_path, capsy
     assert manifest.budgets.max_requests >= manifest.maximum_journey_requests + polled.max_requests
 
 
+def test_drain_seconds_give_the_last_journeys_time_to_finish(tmp_path, capsys):
+    # The schedule only says when journeys start. Against a slow or cold target (Gitea answered its
+    # 18-request journey in ~10 s when cold) the last admitted journeys need time to finish, or k6 is
+    # stopped at its share of max_seconds and the run is inconclusive.
+    code, _ = _init(tmp_path, _config(), capsys)
+    assert code == 0
+    base = load_scenario(tmp_path / "out").manifest.budgets.max_seconds
+    code, _ = _init(tmp_path, _config(drain_seconds=10), capsys)
+    assert code == 0
+    assert load_scenario(tmp_path / "out").manifest.budgets.max_seconds == base + 10
+
+
+@pytest.mark.parametrize("value", [-1, 61, 1.5])
+def test_drain_seconds_is_a_bounded_whole_number(tmp_path, capsys, value):
+    code, result = _init(tmp_path, _config(drain_seconds=value), capsys)
+    assert code == 3 and "drain_seconds" in result["error"]
+
+
 def _kit(tmp_path) -> dict:
     script = (tmp_path / "out" / "journeys.js").read_text()
     return json.loads(script.split("const KIT = ", 1)[1].split(";\nconst MAX_SAMPLES", 1)[0])
