@@ -6,9 +6,10 @@ import os
 import signal
 import subprocess
 import time
+from pathlib import Path
 
 STOP_GRACE_SECONDS = 4  # _stop_process waits 2 s after SIGTERM, 1 s after SIGKILL, then up to 1 s for the group
-GROUP_EXIT_SECONDS = 1.0  # killed descendants are reaped by init, not by us; give that a moment
+GROUP_EXIT_SECONDS = 1.0  # killed descendants are reaped by init (or by us when we are init); give that a moment
 GROUP_SURVIVED = "process group did not exit"
 
 
@@ -37,11 +38,40 @@ def _signal_process(process: subprocess.Popen[str], value: signal.Signals) -> No
         pass
 
 
+def _adopted_zombies(pgid: int, our_pid: int | None = None, proc: Path = Path("/proc")) -> list[int]:
+    """Dead members of group `pgid` that were reparented to us: the orphans of a leader we already reaped.
+
+    Only Linux procfs is read; elsewhere (or when there is no procfs) the list is empty. When litetraffic is
+    pid 1 (a container without an init) nobody else waits for them, and they hold the group open for ever.
+    """
+    our_pid = os.getpid() if our_pid is None else our_pid
+    zombies = []
+    try:
+        entries = [entry for entry in os.listdir(proc) if entry.isdigit()]
+    except OSError:
+        return []
+    for entry in entries:
+        try:
+            stat = (proc / entry / "stat").read_text()
+        except OSError:
+            continue  # gone between listing and reading
+        # "pid (comm) state ppid pgrp ...": comm may hold spaces and parentheses, so split after the last ')'.
+        fields = stat.rpartition(")")[2].split()
+        if len(fields) >= 3 and fields[0] == "Z" and fields[1] == str(our_pid) and fields[2] == str(pgid):
+            zombies.append(int(entry))
+    return sorted(zombies)
+
+
 def _group_gone(process: subprocess.Popen[str]) -> bool:
     if os.name != "posix":
         return True  # ponytail: no process groups off POSIX; the leader was waited for above
     deadline = time.monotonic() + GROUP_EXIT_SECONDS
     while True:
+        for pid in _adopted_zombies(process.pid):
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                pass  # reaped meanwhile
         try:
             os.killpg(process.pid, 0)
         except ProcessLookupError:

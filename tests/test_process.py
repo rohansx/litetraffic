@@ -69,6 +69,62 @@ def test_a_group_of_unreaped_zombies_does_not_crash_the_stop(monkeypatch):
     assert len(probes) == 3  # polled through the EPERM answers until the group was gone
 
 
+def write_proc_stat(proc, pid, comm, state, ppid, pgrp):
+    (proc / str(pid)).mkdir()
+    (proc / str(pid) / "stat").write_text(f"{pid} ({comm}) {state} {ppid} {pgrp} {pgrp} 0 -1 4194560 0 0 0 0 0 0 0 1 0 0\n")
+
+
+def test_adopted_zombies_lists_only_our_dead_children_in_the_group(tmp_path):
+    # A procfs as seen by litetraffic running as pid 1: the group's orphans were reparented to it when
+    # their leader exited, and nothing else reaps them.
+    write_proc_stat(tmp_path, 7, "sleep", "Z", 1, 5)  # ours, in the group, dead: reap it
+    write_proc_stat(tmp_path, 8, "sleep (1)", "Z", 1, 5)  # comm with a space and parentheses
+    write_proc_stat(tmp_path, 9, "sleep", "S", 1, 5)  # still running: not ours to wait for yet
+    write_proc_stat(tmp_path, 10, "k6", "Z", 1, 6)  # another group's zombie
+    write_proc_stat(tmp_path, 11, "sleep", "Z", 3, 5)  # the group's zombie, but someone else's child
+    (tmp_path / "self").mkdir()  # non-numeric entries are skipped
+    (tmp_path / "12").mkdir()  # a process that vanished between listing and reading
+
+    assert process_module._adopted_zombies(5, our_pid=1, proc=tmp_path) == [7, 8]
+
+
+def test_adopted_zombies_is_empty_without_procfs(tmp_path):
+    assert process_module._adopted_zombies(5, our_pid=1, proc=tmp_path / "missing") == []
+
+
+@posix_only
+def test_group_gone_reaps_zombies_that_were_reparented_to_us(monkeypatch):
+    # Linux: killpg(pgid, 0) keeps succeeding while unreaped zombies hold the group, so a litetraffic
+    # that is pid 1 (docker run without --init) must reap the orphans itself or report a false survivor.
+    process = subprocess.Popen(["sleep", "30"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    zombies = [4242, 4243]
+    reaped = []
+    monkeypatch.setattr(process_module, "_adopted_zombies", lambda pgid, **_: list(zombies) if pgid == process.pid else [])
+    monkeypatch.setattr(process_module.os, "waitpid", lambda pid, flags: (reaped.append((pid, flags)), zombies.remove(pid), (pid, 0))[2])
+    monkeypatch.setattr(process_module.os, "killpg", lambda pgid, sig: None if zombies else (_ for _ in ()).throw(ProcessLookupError()))
+
+    assert process_module._group_gone(process)
+    assert reaped == [(4242, os.WNOHANG), (4243, os.WNOHANG)]
+    monkeypatch.undo()  # the real waitpid for the real child
+    process.kill()
+    process.wait()
+
+
+@posix_only
+def test_group_gone_tolerates_a_zombie_reaped_by_someone_else(monkeypatch):
+    process = subprocess.Popen(["sleep", "30"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    calls = []
+    monkeypatch.setattr(process_module, "_adopted_zombies", lambda pgid, **_: [4242] if not calls else [])
+    monkeypatch.setattr(process_module.os, "waitpid", lambda pid, flags: (calls.append(pid), (_ for _ in ()).throw(ChildProcessError()))[1])
+    monkeypatch.setattr(process_module.os, "killpg", lambda pgid, sig: None if not calls else (_ for _ in ()).throw(ProcessLookupError()))
+
+    assert process_module._group_gone(process)
+    assert calls == [4242]
+    monkeypatch.undo()
+    process.kill()
+    process.wait()
+
+
 @posix_only
 def test_a_fixture_whose_group_survives_records_it_in_the_reason(tmp_path, monkeypatch):
     monkeypatch.setattr(process_module, "_group_gone", lambda process: False)

@@ -69,6 +69,8 @@ def bounded_request(
                     if len(content) > MAX_BODY_BYTES:
                         raise BodyTooLarge("response body over 1 MiB")
                 outcome.append((response.status_code, bytes(content)))
+        except httpx.ConnectTimeout:
+            outcome.append(DeadlineExceeded())  # the connect budget is the time left before the deadline
         except Exception as exc:
             outcome.append(exc)
 
@@ -80,10 +82,16 @@ def bounded_request(
         for sock in list(sockets):
             with contextlib.suppress(OSError):
                 sock.shutdown(socket.SHUT_RDWR)  # wakes a blocked recv; close() alone does not
-        client.close()
+        # With no socket yet (resolving, connecting, or a transport double) closing the client is the cancellation.
+        # A socket we just shut down must not be closed under its reader: on macOS that loses the wake-up and the
+        # worker sits out its read timeout, so there the client is closed once the worker has left (or is given up).
+        if not sockets:
+            client.close()
         # ponytail: a worker still in DNS resolution cannot be interrupted (the connect timeout does not cover it);
         # after the grace it is abandoned, and the trace hook stops it before it sends anything.
         worker.join(CANCEL_GRACE_SECONDS)
+        if sockets:
+            client.close()
     if not outcome or (cancelled.is_set() and isinstance(outcome[0], Exception)):
         raise DeadlineExceeded
     if isinstance(outcome[0], Exception):
