@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from litetraffic import __version__
 from litetraffic.activity import up
 from litetraffic.approval import approve, require_approval
+from litetraffic.breakscale import build_design, write_design
 from litetraffic.capture import parse_spec
 from litetraffic.auth import secret_env_names
 from litetraffic.compare import ComparisonError, compare_runs
@@ -19,7 +20,7 @@ from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
 from litetraffic.kits import tenant_isolation
 from litetraffic.models import resolve_expected
-from litetraffic.human import format_diff, format_inspect, format_verify
+from litetraffic.human import format_diff, format_export, format_inspect, format_verify
 from litetraffic.runner import RunnerError, verify
 from litetraffic.series import repeat_verify
 from litetraffic.runs import PruneError, prune, resolve
@@ -102,6 +103,14 @@ def _parser() -> argparse.ArgumentParser:
     diff_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
     diff_command.add_argument("--max-p95-regression-percent", type=float)
     diff_command.add_argument("--json", action="store_true")
+
+    export = commands.add_parser("export", help="write a run as a design file for another tool")
+    export.add_argument("format", choices=["breakscale"])
+    export.add_argument("run", help="run directory or run ID")
+    export.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
+    export.add_argument("--out", type=Path, metavar="FILE", help="default: RUN_ID.breakscale in the working directory")
+    export.add_argument("--name", help="design name shown in Breakscale (at most 80 characters)")
+    export.add_argument("--json", action="store_true")
 
     dashboard = commands.add_parser("dashboard", help="browse run artifacts on a local web page")
     dashboard.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
@@ -217,6 +226,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             if payload["lifecycle"] == "cancelled":
                 return 130
             return {"pass": 0, "fail": 1, "inconclusive": 2}.get(payload["verdict"], 3)
+
+        if args.command == "export":
+            run_dir = resolve(args.run, args.runs_dir)
+            exported = build_design(run_dir, args.name)
+            out = args.out or Path(f"{run_dir.name}.breakscale")
+            write_design(exported["design"], out)
+            payload = {"ok": True, "out": str(out), "measured": exported["measured"], "assumed": exported["assumed"]}
+            _emit(payload, args.json, format_export)
+            return 0
 
         if args.command == "diff":
             baseline, candidate = (resolve(ref, args.runs_dir) for ref in (args.baseline, args.candidate))
