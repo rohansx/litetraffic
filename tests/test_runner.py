@@ -1302,9 +1302,9 @@ def test_read_metrics_breaks_down_latency_and_failures_by_operation(tmp_path):
     metrics, _ = _read_metrics(path)
 
     assert metrics["by_operation"] == {
-        "create_payment": {"samples": 3, "p95": 29.0, "failed_rate": 0.5},
-        "observe_payment": {"samples": 1, "p95": 5.0, "failed_rate": None},
-        "_untagged": {"samples": 1, "p95": 7.0, "failed_rate": 0.5},
+        "create_payment": {"samples": 3, "p50": 20.0, "p95": 29.0, "failed_rate": 0.5},
+        "observe_payment": {"samples": 1, "p50": 5.0, "p95": 5.0, "failed_rate": None},
+        "_untagged": {"samples": 1, "p50": 7.0, "p95": 7.0, "failed_rate": 0.5},
     }
 
 
