@@ -1,0 +1,100 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "files": {
+    "journeys.js": "19d90ac2d7b16360ab7b16e3e366acc36384b54df2d9ec9ca02fc59a2c909ec1",
+    "litetraffic/runtime.js": "979b15b7f0de93e99787947bedeb54a512781d61dbc76948689915d9c6b567b3",
+    "setup.sh": "16f50f47fd44f65b1edf03368d8dd4f641ecd22e341a59a84e16c1e6f7010185",
+    "teardown.sh": "3c786500fbc804ffa5d640608f3495592aaad5ff802f8bc4d3828c0cdb835f5c"
+  },
+  "manifest": {
+    "actors": [
+      {
+        "auth_recipe": "public-checkout-session",
+        "class": "buyer",
+        "count": 10
+      }
+    ],
+    "assertions": [
+      "reservation_accepted",
+      "order_total_matches_promo",
+      "promo_usage_within_limit"
+    ],
+    "budgets": {
+      "max_artifact_bytes": 67108864,
+      "max_in_flight": 10,
+      "max_requests": 100,
+      "max_seconds": 90,
+      "max_write_attempts": 50
+    },
+    "fixtures": {
+      "command": {
+        "setup": [
+          "sh",
+          "setup.sh"
+        ],
+        "setup_timeout_seconds": 20,
+        "teardown": [
+          "sh",
+          "teardown.sh"
+        ],
+        "teardown_timeout_seconds": 10
+      },
+      "recipe": "fresh-single-use-promo"
+    },
+    "journeys": [
+      {
+        "expected_statuses": {
+          "complete_order": [
+            200,
+            402,
+            409,
+            422
+          ],
+          "reserve_order": [
+            200,
+            201
+          ]
+        },
+        "max_requests": 2,
+        "max_writes": 2,
+        "name": "buy",
+        "stages": [
+          "reserved",
+          "completed"
+        ]
+      }
+    ],
+    "name": "hievents-promo-oversell",
+    "observation": {
+      "assertion": "promo_usage_within_limit",
+      "bearer_token_env": "LT_HIEVENTS_ORG_TOKEN",
+      "expected": {
+        "/data/0/max_allowed_usages": 1,
+        "/data/0/order_usage_count": {
+          "lte": 1
+        }
+      },
+      "path": "/api/events/1/promo-codes",
+      "until": {
+        "deadline_seconds": 12,
+        "interval_seconds": 2
+      }
+    },
+    "observer": "promo-usage-count",
+    "schedule": {
+      "phases": [
+        {
+          "name": "burst",
+          "rate": 10,
+          "seconds": 1
+        }
+      ],
+      "unit": "journeys_per_second"
+    },
+    "schema_version": 1,
+    "script": "journeys.js",
+    "secret_env": [
+      "LT_HIEVENTS_ORG_TOKEN"
+    ]
+  }
+}

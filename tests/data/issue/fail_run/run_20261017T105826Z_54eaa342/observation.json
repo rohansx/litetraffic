@@ -1,0 +1,32 @@
+{
+  "actual": {
+    "/data/0/max_allowed_usages": 1,
+    "/data/0/order_usage_count": 10
+  },
+  "assertion": "promo_usage_within_limit",
+  "attempts": 7,
+  "checks": {
+    "/data/0/max_allowed_usages": {
+      "actual": 1,
+      "matcher": {
+        "eq": 1
+      },
+      "pass": true
+    },
+    "/data/0/order_usage_count": {
+      "actual": 10,
+      "matcher": {
+        "lte": 1
+      },
+      "pass": false
+    }
+  },
+  "elapsed_seconds": 12.038,
+  "expected": {
+    "/data/0/max_allowed_usages": 1,
+    "/data/0/order_usage_count": {
+      "lte": 1
+    }
+  },
+  "status": "fail"
+}

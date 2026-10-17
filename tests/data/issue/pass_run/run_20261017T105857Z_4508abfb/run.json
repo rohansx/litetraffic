@@ -1,0 +1,23 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "engine_exit_code": 0,
+  "engine_finished_at": "2026-10-17T10:59:01.669173+00:00",
+  "engine_started_at": "2026-10-17T10:58:58.221745+00:00",
+  "finished_at": "2026-10-17T10:59:02.485226+00:00",
+  "lifecycle": "finished",
+  "mode": "verify",
+  "resolved_schedule": [
+    {
+      "name": "burst",
+      "rate": 10,
+      "seconds": 1
+    }
+  ],
+  "run_id": "run_20261017T105857Z_4508abfb",
+  "scenario": "hievents-promo-oversell",
+  "scenario_sha256": "5ee64a14f5063505e67beb4a1c811f1773a6a5debf005806a5b5e8f706a25af0",
+  "schema_version": 1,
+  "seed": 42,
+  "started_at": "2026-10-17T10:58:57.672499+00:00",
+  "target": "http://127.0.0.1:8082"
+}

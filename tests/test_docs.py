@@ -11,7 +11,12 @@ FLAG = re.compile(r"(?<![\w-])--[a-z][a-z0-9-]*")
 
 
 def _commands() -> dict:
-    return _parser()._subparsers._group_actions[0].choices
+    """Every leaf command by its documented name; a command with subcommands (`report`) is listed as `report issue`."""
+    commands = {}
+    for name, command in _parser()._subparsers._group_actions[0].choices.items():
+        nested = command._subparsers._group_actions[0].choices if command._subparsers else {}
+        commands.update({f"{name} {sub}": child for sub, child in nested.items()} if nested else {name: command})
+    return commands
 
 
 def _flags(command) -> set[str]:
@@ -19,7 +24,7 @@ def _flags(command) -> set[str]:
 
 
 def _sections() -> dict[str, str]:
-    parts = re.split(r"^## `([a-z]+)`$", CLI_DOC, flags=re.M)
+    parts = re.split(r"^## `([a-z]+(?: [a-z]+)?)`$", CLI_DOC, flags=re.M)
     return dict(zip(parts[1::2], parts[2::2]))
 
 
@@ -49,6 +54,18 @@ def test_readme_and_roadmap_name_every_subcommand():
         assert f"`{name}`" in available, name
 
 
+def test_docs_cover_report_issue():
+    assert "## `report issue`" in CLI_DOC
+    ci = (ROOT / "docs" / "ci.md").read_text()
+    section = ci.split("## File an issue draft when a run fails", 1)[1].split("\n## ", 1)[0]
+    assert "litetraffic report issue" in section and "upload-artifact" in section
+    for line in section.splitlines():
+        if "--submit" in line:
+            assert line.lstrip().startswith("#") or "`--submit" in line, line
+    assert "report issue" in (ROOT / "docs" / "results.md").read_text()
+    assert "report issue" in (ROOT / "docs" / "safety.md").read_text()
+
+
 def test_readme_does_not_claim_concurrency_is_checked_before_running():
     readme = (ROOT / "README.md").read_text()
     assert "concurrency budgets before running" not in readme
@@ -58,7 +75,7 @@ def test_every_help_flag_appears_in_its_cli_doc_section(capsys):
     sections = _sections()
     for name in _commands():
         with pytest.raises(SystemExit):
-            main([name, "--help"])
+            main([*name.split(), "--help"])
         help_flags = set(FLAG.findall(capsys.readouterr().out)) - {"--help"}
         missing = help_flags - set(FLAG.findall(sections[name]))
         assert not missing, (name, missing)
