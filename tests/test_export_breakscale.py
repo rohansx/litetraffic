@@ -14,6 +14,17 @@ NUMERIC = ("capacity", "serviceMs", "serviceCv", "queueLimit", "hitRate", "error
 # EXTRA_DEFAULTS (src/sim/presets.ts): the TypeScript type requires these even though isTopology does not check them.
 EXTRA = ("instances", "replicaCount", "replicationLagMs", "readFraction", "shardCount", "shardCapacity", "hotKeyFraction")
 NOW = datetime(2026, 10, 17, 12, 0, 0, tzinfo=UTC)
+Z95 = 1.6448536269514722
+
+
+def lognormal_mean(p50: float, p95: float) -> float:
+    # Breakscale's serviceMs is the mean of its service-time draw; a lognormal's mean is its median x exp(sigma^2 / 2).
+    sigma = math.log(p95 / p50) / Z95
+    return p50 * math.exp(sigma * sigma / 2)
+
+
+# The fixture's operations: reserve 30 x (p50 40, p95 120), complete 10 x (p50 80, p95 160).
+FIXTURE_MEAN = (30 * lognormal_mean(40, 120) + 10 * lognormal_mean(80, 160)) / 40
 
 
 def _finite(value) -> bool:
@@ -175,8 +186,9 @@ def test_service_time_and_spread_come_from_per_operation_latencies(tmp_path):
     nodes = _nodes(build_design(write_run(tmp_path / "run_a"), now=NOW)["design"])
 
     app = nodes["app"]["config"]
-    # Sample-weighted p50: (30 * 40 + 10 * 80) / 40.
-    assert app["serviceMs"] == 50.0
+    # Each operation's lognormal mean, weighted by samples; not the p50 of 50, which reads about 16% low.
+    assert app["serviceMs"] == pytest.approx(FIXTURE_MEAN, abs=0.001)
+    assert app["serviceMs"] > 59
     # Lognormal fit per operation from p95/p50 (3 and 2), weighted by samples.
     assert app["serviceCv"] == pytest.approx(0.673, abs=0.001)
     assert app["capacity"] == 10  # the largest peak overlap seen
@@ -188,8 +200,32 @@ def test_without_per_operation_p50_the_run_wide_latency_is_used_and_said(tmp_pat
     old = {"reserve": {"samples": 40, "p95": 120.0, "failed_rate": 0.0}}
     export = build_design(write_run(tmp_path / "run_a", by_operation=old), now=NOW)
 
-    assert _nodes(export["design"])["app"]["config"]["serviceMs"] == 50.0
+    assert _nodes(export["design"])["app"]["config"]["serviceMs"] == pytest.approx(lognormal_mean(50, 130), abs=0.001)
     assert any("run-wide" in line for line in export["assumed"])
+
+
+def test_an_operation_without_a_usable_p95_counts_its_p50_as_the_mean_and_says_so(tmp_path):
+    operations = {
+        "reserve": {"samples": 30, "p50": 40.0, "p95": 120.0, "failed_rate": 0.0},
+        "complete": {"samples": 10, "p50": 80.0, "p95": None, "failed_rate": 0.0},
+    }
+    export = build_design(write_run(tmp_path / "run_a", by_operation=operations), now=NOW)
+
+    expected = (30 * lognormal_mean(40, 120) + 10 * 80) / 40
+    assert _nodes(export["design"])["app"]["config"]["serviceMs"] == pytest.approx(expected, abs=0.001)
+    assert any("complete" in line and "p50" in line and "mean" in line for line in export["assumed"])
+
+
+def test_every_printed_app_service_time_is_the_one_in_the_file(tmp_path):
+    for containers in (None, {"hievents-postgres": _container(25.0)}):
+        run = write_run(tmp_path / f"run_{len(containers or {})}", containers=containers)
+
+        export = build_design(run, now=NOW)
+        service_ms = _nodes(export["design"])["app"]["config"]["serviceMs"]
+
+        lines = [line for line in export["measured"] + export["assumed"] if line.startswith("app serviceMs")]
+        assert lines and all(line.startswith(f"app serviceMs {service_ms:g} ") for line in lines), lines
+        assert any(line.startswith("app end-to-end p50 50 ") for line in export["measured"])
 
 
 def test_without_overlap_capacity_is_breakscales_default_and_said(tmp_path):
@@ -221,7 +257,7 @@ def test_db_node_from_a_captured_database_container(tmp_path):
     # Peak DB CPU per app request: 25% of a core * 1000 ms / 12.5 rps.
     assert db["config"]["serviceMs"] == 20.0
     # The app's measured time already includes the DB call, so the DB share comes out of it.
-    assert nodes["app"]["config"]["serviceMs"] == 30.0
+    assert nodes["app"]["config"]["serviceMs"] == pytest.approx(FIXTURE_MEAN - 20.0, abs=0.001)
     # 20 writes from k6 (22 counted, 2 of them fixture requests) out of 40 requests.
     assert db["config"]["readFraction"] == 0.5
     assert [(edge["from"], edge["to"]) for edge in export["design"]["topology"]["edges"]] == [("users", "app"), ("app", "db")]
@@ -234,8 +270,8 @@ def test_db_share_never_exceeds_half_the_measured_time(tmp_path):
     export = build_design(run, now=NOW)
     nodes = _nodes(export["design"])
 
-    assert nodes["db"]["config"]["serviceMs"] == 25.0
-    assert nodes["app"]["config"]["serviceMs"] == 25.0
+    assert nodes["db"]["config"]["serviceMs"] == pytest.approx(FIXTURE_MEAN / 2, abs=0.001)
+    assert nodes["app"]["config"]["serviceMs"] == pytest.approx(FIXTURE_MEAN / 2, abs=0.001)
     assert any("capped" in line for line in export["assumed"])
 
 
@@ -250,7 +286,7 @@ def test_every_assumption_is_returned_and_written_into_the_design(tmp_path):
         assert any(word in line for line in export["assumed"]), word
     for line in export["assumed"] + export["measured"]:
         assert line in text
-    assert any("upper bound" in line for line in export["measured"])
+    assert any("end-to-end" in line for line in export["measured"])
     assert all(len(note["text"]) <= 2000 and 80 <= note["width"] <= 900 for note in notes)
     assert len({a["id"] for a in export["design"]["topology"]["annotations"]}) == len(notes)
 

@@ -98,42 +98,57 @@ def _lognormal_cv(p50: float, p95: float) -> float | None:
     return math.sqrt(math.exp(sigma * sigma) - 1)
 
 
-def _operations(metrics: dict) -> list[dict]:
+def _operations(metrics: dict) -> list[tuple[str, dict]]:
     operations = metrics.get("by_operation") if isinstance(metrics.get("by_operation"), dict) else {}
     return [
-        item
-        for item in operations.values()
+        (name, item)
+        for name, item in operations.items()
         if isinstance(item, dict) and _finite(item.get("samples")) and item["samples"] > 0 and _finite(item.get("p50"))
     ]
 
 
 def _latency(metrics: dict, rps: float, measured: list[str], assumed: list[str]) -> tuple[float, float]:
-    """(serviceMs, serviceCv) from per-operation p50/p95, else the run-wide figures; ValueError without either."""
+    """(end-to-end mean ms, serviceCv) from per-operation p50/p95, else the run-wide figures; ValueError without either.
+
+    Breakscale's serviceMs is the mean of a gamma draw, so each operation's p50 becomes the mean of the lognormal
+    fitted to its p50 and p95, p50 x sqrt(1 + cv^2); a p50 alone reads low for right-skewed latency.
+    """
     operations = _operations(metrics)
     if operations:
-        weights = [item["samples"] for item in operations]
-        pairs = [(item["p50"], item.get("p95")) for item in operations]
+        names = [name for name, _ in operations]
+        weights = [item["samples"] for _, item in operations]
+        pairs = [(item["p50"], item.get("p95")) for _, item in operations]
         source, fit = f"sample-weighted p50 of {len(operations)} operation(s)", "each operation's p95/p50, weighted by samples"
     else:
         overall = metrics.get("http_req_duration_ms") if isinstance(metrics.get("http_req_duration_ms"), dict) else {}
         if not _finite(overall.get("p50")):
             raise ValueError("the run has no request latencies to model")
-        weights, pairs, source, fit = [1], [(overall["p50"], overall.get("p95"))], "run-wide p50", "the run-wide p95/p50"
+        names, weights, pairs = ["the run as a whole"], [1], [(overall["p50"], overall.get("p95"))]
+        source, fit = "run-wide p50", "the run-wide p95/p50"
         assumed.append("app latency is the run-wide p50/p95: this run did not record a per-operation p50")
-    service_ms = sum(weight * p50 for weight, (p50, _) in zip(weights, pairs)) / sum(weights)
+    p50_ms = sum(weight * p50 for weight, (p50, _) in zip(weights, pairs)) / sum(weights)
     measured.append(
-        f"app serviceMs {_n(round(service_ms, 3))} = {source} at {_n(rps)} rps; an upper bound, because it includes"
+        f"app end-to-end p50 {_n(round(p50_ms, 3))} = {source} at {_n(rps)} rps; seen from the client, so it includes"
         " queueing, the network and any database call"
     )
-    fits = [(weight, cv) for weight, (p50, p95) in zip(weights, pairs) if (cv := _lognormal_cv(p50, p95)) is not None]
+    cvs = [_lognormal_cv(p50, p95) for p50, p95 in pairs]
+    means = [p50 if cv is None else p50 * math.sqrt(1 + cv * cv) for (p50, _), cv in zip(pairs, cvs)]
+    mean_ms = round(sum(weight * mean for weight, mean in zip(weights, means)) / sum(weights), 3)
+    assumed.append(
+        f"app end-to-end mean {_n(mean_ms)} = p50 x sqrt(1 + cv^2), the mean of a lognormal fit to {fit}; Breakscale's"
+        " serviceMs is a mean"
+    )
+    if unfitted := [name for name, cv in zip(names, cvs) if cv is None]:
+        assumed.append(f"p50 taken as the mean for {', '.join(unfitted)}: no usable p95 to fit a spread to")
+    fits = [(weight, cv) for weight, cv in zip(weights, cvs) if cv is not None]
     if not fits:
         assumed.append(f"app serviceCv {_n(SERVICE['serviceCv'])}: Breakscale default; no usable p95/p50 pair")
-        return service_ms, SERVICE["serviceCv"]
+        return mean_ms, SERVICE["serviceCv"]
     cv = round(sum(weight * cv for weight, cv in fits) / sum(weight for weight, _ in fits), 3)
     assumed.append(
         f"app serviceCv {_n(cv)}: a lognormal fit to {fit}; the spread between operations is not included"
     )
-    return service_ms, cv
+    return mean_ms, cv
 
 
 def _capacity(metrics: dict, measured: list[str], assumed: list[str]) -> int:
@@ -174,7 +189,7 @@ def _database(server: dict, assumed: list[str]) -> tuple[str, dict] | None:
 
 
 def _db_ms(container: dict, rps: float, service_ms: float, assumed: list[str]) -> float:
-    """The database's share of the app's measured time: its peak CPU per app request, at most half of that time."""
+    """The database's share of the app's end-to-end mean: its CPU per app request, at most half of that mean."""
     cpu = container.get("peak_cpu_percent")
     if _finite(cpu) and cpu > 0:
         db_ms = cpu * 1000 / 100 / rps
@@ -182,7 +197,7 @@ def _db_ms(container: dict, rps: float, service_ms: float, assumed: list[str]) -
     else:
         db_ms, why = DB["serviceMs"], "Breakscale default; server capture has no CPU sample for it"
     if db_ms > service_ms / 2:
-        db_ms, why = service_ms / 2, f"{why}; capped at half the app's measured time"
+        db_ms, why = service_ms / 2, f"{why}; capped at half the app's end-to-end mean"
     db_ms = round(db_ms, 3)
     assumed.append(f"db serviceMs {_n(db_ms)}: {why}; app serviceMs is reduced by the same amount")
     return db_ms
@@ -245,10 +260,16 @@ def build_design(run_dir: Path, name: str | None = None, now: datetime | None = 
     nodes = [_node("users", "client", "LiteTraffic load", 40, CLIENT, rps=rps, timeoutMs=K6_DEFAULT_TIMEOUT_MS, traffic="steady")]
     edges = [{"id": "users->app", "from": "users", "to": "app", "weight": 1}]
     database = _database(server, assumed)
-    if database is not None:
+    if database is None:
+        assumed.append(
+            f"app serviceMs {_n(service_ms)} = the end-to-end mean; an upper bound on the app's own time, because it"
+            " includes queueing, the network and the database call"
+        )
+    else:
         db_name, container = database
         db_ms = _db_ms(container, rps, service_ms, assumed)
-        service_ms -= db_ms
+        end_to_end, service_ms = service_ms, round(service_ms - db_ms, 3)
+        assumed.append(f"app serviceMs {_n(service_ms)} = end-to-end mean {_n(end_to_end)} - db serviceMs {_n(db_ms)}")
         read_fraction = _read_fraction(metrics, measured, assumed)
         assumed += [
             f"db capacity {DB['capacity']}: Breakscale default; max_connections and the app's pool size are unknown",
@@ -256,7 +277,7 @@ def build_design(run_dir: Path, name: str | None = None, now: datetime | None = 
         ]
         nodes.append(_node("db", "db", db_name, 568, DB, serviceMs=db_ms, readFraction=read_fraction))
         edges.append({"id": "app->db", "from": "app", "to": "db", "weight": 1})
-    service = {"capacity": capacity, "serviceMs": round(service_ms, 3), "serviceCv": service_cv, "errorRate": error_rate}
+    service = {"capacity": capacity, "serviceMs": service_ms, "serviceCv": service_cv, "errorRate": error_rate}
     nodes.insert(1, _node("app", "service", run.get("scenario") or "App", 304, SERVICE, **service))
     assumed.append(
         "replicaCount, replicationLagMs, shardCount, shardCapacity and hotKeyFraction (and the client's unused service"
