@@ -202,12 +202,18 @@ def _database(server: dict, assumed: list[str]) -> tuple[str, dict] | None:
 
 def _db_ms(container: dict, rps: float, service_ms: float, assumed: list[str]) -> float:
     """The database's share of the app's end-to-end mean: its CPU per app request, at most half of that mean."""
-    cpu = container.get("peak_cpu_percent")
-    if _finite(cpu) and cpu > 0:
-        db_ms = cpu * 1000 / 100 / rps
-        why = f"peak CPU {_n(cpu)}% of one core x 1000 / {_n(rps)} rps: CPU only, no I/O wait, one query per request"
-    else:
+    peak, baseline = container.get("peak_cpu_percent"), container.get("baseline_cpu_percent")
+    if not _finite(peak):
         db_ms, why = DB["serviceMs"], "Breakscale default; server capture has no CPU sample for it"
+    elif (cpu := max(peak - baseline, 0) if _finite(baseline) else peak) <= 0:
+        db_ms, why = DB["serviceMs"], f"Breakscale default; its peak CPU {_n(peak)}% never rose above its baseline"
+    else:
+        db_ms = cpu * 1000 / 100 / rps
+        used = f"peak CPU {_n(peak)}% - baseline {_n(baseline)}%" if _finite(baseline) else f"peak CPU {_n(peak)}% (no baseline)"
+        why = (
+            f"{used} of one core x 1000 / {_n(rps)} rps: a peak sample paired with the run's average rate, CPU only,"
+            " no I/O wait, one query per request"
+        )
     if db_ms > service_ms / 2:
         db_ms, why = service_ms / 2, f"{why}; capped at half the app's end-to-end mean"
     db_ms = round(db_ms, 3)

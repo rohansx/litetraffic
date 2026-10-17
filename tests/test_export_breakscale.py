@@ -93,8 +93,8 @@ def write_run(
     return path
 
 
-def _container(peak_cpu: float | None) -> dict:
-    return {"baseline_cpu_percent": 1.0, "peak_cpu_percent": peak_cpu, "baseline_mem_mb": 100.0, "peak_mem_mb": 120.0}
+def _container(peak_cpu: float | None, baseline_cpu: float | None = 1.0) -> dict:
+    return {"baseline_cpu_percent": baseline_cpu, "peak_cpu_percent": peak_cpu, "baseline_mem_mb": 100.0, "peak_mem_mb": 120.0}
 
 
 def _nodes(design: dict) -> dict:
@@ -278,14 +278,35 @@ def test_db_node_from_a_captured_database_container(tmp_path):
     db = nodes["db"]
     assert db["kind"] == "db"
     assert db["label"] == "hievents-postgres"
-    # Peak DB CPU per app request: 25% of a core * 1000 ms / 12.5 rps.
-    assert db["config"]["serviceMs"] == 20.0
+    # DB CPU above its baseline per app request: (25 - 1)% of a core * 1000 ms / 12.5 rps.
+    assert db["config"]["serviceMs"] == 19.2
     # The app's measured time already includes the DB call, so the DB share comes out of it.
-    assert nodes["app"]["config"]["serviceMs"] == pytest.approx(FIXTURE_MEAN - 20.0, abs=0.001)
+    assert nodes["app"]["config"]["serviceMs"] == pytest.approx(FIXTURE_MEAN - 19.2, abs=0.001)
     # 20 writes from k6 (22 counted, 2 of them fixture requests) out of 40 requests.
     assert db["config"]["readFraction"] == 0.5
     assert [(edge["from"], edge["to"]) for edge in export["design"]["topology"]["edges"]] == [("users", "app"), ("app", "db")]
     assert any(line.startswith("db capacity 6") for line in export["assumed"])
+
+
+def test_db_time_is_cpu_above_baseline_over_the_delivered_rate(tmp_path):
+    # 40 requests over a 4 s schedule is 10 rps (http_reqs_per_second says 12.5); the DB idles at 20% of a core.
+    run = write_run(
+        tmp_path / "run_a",
+        containers={"hievents-postgres": _container(25.0, baseline_cpu=20.0)},
+        schedule=[{"name": "steady", "rate": 5, "seconds": 4}],
+    )
+
+    export = build_design(run, now=NOW)
+
+    # (25 - 20)% of a core * 1000 ms / 10 rps.
+    assert _nodes(export["design"])["db"]["config"]["serviceMs"] == 5.0
+    assert any(line.startswith("db serviceMs 5: ") and "baseline" in line and "average" in line for line in export["assumed"])
+
+
+def test_db_time_without_a_baseline_uses_the_peak(tmp_path):
+    run = write_run(tmp_path / "run_a", containers={"hievents-postgres": _container(25.0, baseline_cpu=None)})
+
+    assert _nodes(build_design(run, now=NOW)["design"])["db"]["config"]["serviceMs"] == 20.0
 
 
 def test_db_share_never_exceeds_half_the_measured_time(tmp_path):
