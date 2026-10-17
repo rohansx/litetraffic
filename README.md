@@ -20,6 +20,7 @@ Each row is a bundled example with a deliberate fault flag; the conformance test
 | Stale cache after an update | 200 with a body | A read after the update returns the new value | [`cached_search`](examples/cached_search) (`--wrong-stale`) |
 | Partial report | 200 with rows | Every row and the totals are present and match the final ledger | [`reporting`](examples/reporting) (`--wrong-partial`, `--wrong-ledger`) |
 | The same checks against a real application | — | Tenant isolation and a counted write effect on a stock Gitea container | [`gitea`](examples/gitea) (grant a collaborator to see it fail) |
+| A single-use promo code redeemed many times (a published, already-fixed bug: CVE-2026-57959) | 200/201 on every reservation and completion | A single-use code's recorded usage never exceeds its limit, read back over HTTP | [`hievents`](examples/hievents) (FAIL on the stock vulnerable image, PASS on the fixed one) |
 
 ## 60-second quickstart
 
