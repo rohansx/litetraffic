@@ -105,6 +105,24 @@ litetraffic diff BASELINE CANDIDATE [--runs-dir DIR]
 
 `BASELINE` and `CANDIDATE` are each a run directory or a bare run ID such as `run_20260101T000000Z_ab12cd34`. An argument naming an existing directory is used as-is; otherwise it is looked up as a subdirectory of `--runs-dir` (default `.litetraffic/runs`). An unknown run ID, or one naming a symlink under `--runs-dir`, exits 3. Reads `run.json` and `result.json` from both directories and exits 3 if either is a symlink. Does not contact a target. Compatibility requires equal manifest digest, seed, full engine version string, and resolved schedule. A supplied p95 gate must be finite and non-negative and needs at least 200 duration samples in each run. Without the gate, timing differences are descriptive. See [results](results.md) for correctness and comparison limitations.
 
+## `export`
+
+```text
+litetraffic export breakscale RUN [--runs-dir DIR] [--out FILE] [--name NAME] [--json]
+```
+
+Writes a finished run as a [Breakscale](https://breakscale.tech) design file, a small queueing model you can open in Breakscale (Settings, then "Open a file") to sweep the load upward and see where the app is predicted to saturate. `RUN` is a run directory or a bare run ID, looked up in `--runs-dir` (default `.litetraffic/runs`) the same way as `diff`. The file goes to `--out` (default `RUN_ID.breakscale` in the working directory, overwritten if present). `--name` sets the design name Breakscale shows (cut to 80 characters); the default is `LiteTraffic SCENARIO`. Reads `result.json`, and `run.json` and `server.json` when present; does not contact a target and does not change the run directory.
+
+The file is the Breakscale envelope `{app: "breakscale", version: 1, savedAt, name, topology}`. The topology has:
+
+| Node | Kind | Taken from the run |
+|---|---|---|
+| `users` | `client` | `rps` = `metrics.http_reqs_per_second` (requests delivered over the k6 window); `traffic` is `steady` |
+| `app` | `service` | `serviceMs` = sample-weighted `p50` of `metrics.by_operation` (the run-wide `p50` for runs that lack it); `serviceCv` = a lognormal fit to each operation's `p95`/`p50`, weighted by samples; `capacity` = the largest `metrics.overlap`; `errorRate` = the unexpected HTTP failure rate (else the HTTP failure rate) |
+| `db` | `db` | Only when `server.json` lists a captured container whose name looks like a database (`postgres`, `mysql`, `mariadb`, `mongo`, `cockroach`, `database`, or a `db`/`pg` name part). `serviceMs` = its peak CPU percent x 10 / `rps`, at most half the app's time, and subtracted from the app's `serviceMs`; `readFraction` = 1 - k6 write requests / requests |
+
+The measured `serviceMs` is an upper bound: latency measured from the client includes queueing, the network and the database call. `capacity` is a lower bound: the app held at least that many requests of one operation at once, but its real worker count is not visible from outside. Every field the run does not measure (instances, queue limits, timeouts, the database's capacity, lock time and spread, and the replica and shard fields the TypeScript type requires) keeps Breakscale's default. Each number is listed with its source or its reason in two canvas notes, "Measured in the run" and "Assumed", and printed: the text output is `wrote: FILE`, then one `measured: ...` line and one `assumed: ...` line per entry; `--json` prints `{"ok": true, "out", "measured": [...], "assumed": [...]}`. An unknown run, a run directory without a readable `result.json`, or a run with no delivered requests or no latencies exits `3` and writes nothing. A format other than `breakscale` is a usage error (exit `2`).
+
 ## `dashboard`
 
 ```text
@@ -171,6 +189,7 @@ The current commands have different exit mappings. Integrations should inspect t
 | `up` | Activity completed or stopped with Ctrl+C | — | CLI usage error | Configuration/engine preflight error, invalid `--max-slices`, or a slice raised | — |
 | `approve` | Approval recorded | — | CLI usage error | Invalid scenario, target or approvals file | — |
 | `diff` | Comparison `pass` | Comparison `fail` | Inconclusive comparison or CLI usage error | Invalid arguments/artifacts | — |
+| `export` | File written | — | CLI usage error | Unknown run, unreadable `result.json`, or nothing to model | — |
 | `dashboard` | — | — | CLI usage error | Port cannot be bound | Stopped with Ctrl+C |
 | `prune` | Pruned (or listed with `--dry-run`) | — | CLI usage error | Invalid retention options or deletion failed (runs deleted before the failure stay deleted) | — |
 

@@ -180,6 +180,7 @@ def _read_metrics(path: Path, journeys=()) -> tuple[dict[str, object], int]:
         totals["by_operation"] = {
             name: {
                 "samples": len(values["durations"]),
+                "p50": round(_percentile(values["durations"], 0.5), 3) if values["durations"] else None,
                 "p95": round(_percentile(values["durations"], 0.95), 3) if values["durations"] else None,
                 "failed_rate": round(sum(values["failed"]) / len(values["failed"]), 6) if values["failed"] else None,
             }
