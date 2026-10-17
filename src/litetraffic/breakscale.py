@@ -56,6 +56,40 @@ def _inputs(run_dir: Path) -> tuple[dict, dict, dict]:
     return read_json(run_dir / "run.json") or {}, result, read_json(run_dir / "server.json") or {}
 
 
+def _rate(run: dict, metrics: dict, measured: list[str], assumed: list[str]) -> float:
+    """Requests per second over the window load was delivered in; ValueError when the run delivered none.
+
+    The scheduled seconds and the request window (first start to last end) both bound that window from below, so the
+    longer one is used. k6's http_reqs_per_second divides by the whole process, start-up and graceful stop included.
+    """
+    requests = metrics.get("http_reqs")
+    phases = [phase for phase in run.get("resolved_schedule") or [] if isinstance(phase, dict)]
+    scheduled = sum(phase["seconds"] for phase in phases if _finite(phase.get("seconds")) and phase["seconds"] > 0)
+    window = metrics.get("request_window_seconds")
+    windows = [
+        (seconds, label)
+        for seconds, label in (
+            (scheduled, "the scheduled seconds (run.json resolved_schedule)"),
+            (window, "the request window, from the first request's start to the last one's end"),
+        )
+        if _finite(seconds) and seconds > 0
+    ]
+    if _finite(requests) and requests > 0 and windows:
+        seconds, label = max(windows)
+        rps = round(requests / seconds, 3)
+        measured.append(f"users rps {_n(rps)} = {_n(requests)} requests / {_n(seconds)} s, {label}")
+        return rps
+    rps = metrics.get("http_reqs_per_second")
+    if not (_finite(rps) and rps > 0):
+        raise ValueError("the run delivered no requests, so there is no load to model")
+    measured.append(f"users rps {_n(rps)} = http_reqs_per_second")
+    assumed.append(
+        "users rps is over the whole k6 process, start-up and graceful stop included: the run recorded no schedule or"
+        " request window, so the delivered rate is likely higher"
+    )
+    return rps
+
+
 def _lognormal_cv(p50: float, p95: float) -> float | None:
     """Coefficient of variation of the lognormal whose median and 95th percentile are p50 and p95."""
     if not (_finite(p50) and _finite(p95)) or p50 <= 0 or p95 < p50:
@@ -191,12 +225,11 @@ def build_design(run_dir: Path, name: str | None = None, now: datetime | None = 
     """{design, measured, assumed} for the run in `run_dir`; ValueError when the run cannot be modelled."""
     run, result, server = _inputs(Path(run_dir))
     metrics = result["metrics"]
-    rps = metrics.get("http_reqs_per_second")
-    if not (_finite(rps) and rps > 0):
-        raise ValueError("the run delivered no requests, so there is no load to model")
-    measured = [f"users rps {_n(rps)} = requests delivered per second over the k6 window (http_reqs_per_second)"]
+    measured: list[str] = []
+    assumed: list[str] = []
+    rps = _rate(run, metrics, measured, assumed)
     phases = [phase.get("name") for phase in run.get("resolved_schedule") or [] if isinstance(phase, dict)]
-    assumed = [
+    assumed += [
         "users traffic steady: the run's phases" + (f" ({', '.join(map(str, phases))})" if phases else "") + " are flattened to their average rate",
         f"users timeoutMs {K6_DEFAULT_TIMEOUT_MS}: k6's default request timeout; a journey can set its own",
         "users retries 0: LiteTraffic adds none; a journey script could",

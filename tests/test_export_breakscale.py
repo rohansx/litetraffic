@@ -50,9 +50,13 @@ def write_run(
     by_operation: dict | None = None,
     overlap: dict | None = None,
     containers: dict | None = None,
+    schedule: list | None = None,
+    **extra_metrics: object,
 ) -> Path:
     path.mkdir(parents=True)
     run = {"run_id": path.name, "scenario": "hievents-promo-oversell", "target": "http://127.0.0.1:8123"}
+    if schedule is not None:
+        run["resolved_schedule"] = schedule
     metrics = {
         "http_reqs": 40.0,
         "http_reqs_per_second": 12.5,
@@ -68,6 +72,7 @@ def write_run(
             "complete": {"samples": 10, "p50": 80.0, "p95": 160.0, "failed_rate": 0.1},
         },
         "overlap": overlap if overlap is not None else {"reserve": 10, "complete": 4},
+        **extra_metrics,
     }
     result = {"run_id": path.name, "verdict": "fail", "metrics": metrics}
     (path / "run.json").write_text(json.dumps(run))
@@ -135,6 +140,35 @@ def test_client_rate_is_the_runs_delivered_request_rate(tmp_path):
     assert client["kind"] == "client"
     assert client["config"]["rps"] == 12.5
     assert client["config"]["traffic"] == "steady"
+
+
+def test_client_rate_is_requests_over_the_scheduled_seconds_not_the_k6_process_time(tmp_path):
+    # A 10 s schedule inside a 12.4 s k6 process: 255 requests are 25.5 rps, not the 20.598 http_reqs_per_second.
+    schedule = [{"name": "warm", "rate": 10, "seconds": 4}, {"name": "steady", "rate": 30, "seconds": 6}]
+    run = write_run(tmp_path / "run_a", schedule=schedule, http_reqs=255.0, http_reqs_per_second=20.598)
+
+    export = build_design(run, now=NOW)
+
+    assert _nodes(export["design"])["users"]["config"]["rps"] == 25.5
+    assert any(line.startswith("users rps 25.5 = 255 requests / 10 s") and "resolved_schedule" in line for line in export["measured"])
+
+
+def test_client_rate_uses_the_request_window_when_requests_outlast_the_schedule(tmp_path):
+    # A 1 s burst of journeys whose requests run for 4 s: they were delivered over 4 s, not 1.
+    run = write_run(tmp_path / "run_a", schedule=[{"name": "burst", "rate": 10, "seconds": 1}], http_reqs=20.0, request_window_seconds=4.0)
+
+    export = build_design(run, now=NOW)
+
+    assert _nodes(export["design"])["users"]["config"]["rps"] == 5.0
+    assert any(line.startswith("users rps 5 = 20 requests / 4 s") and "first request" in line for line in export["measured"])
+
+
+def test_client_rate_falls_back_to_the_k6_process_rate_and_says_so(tmp_path):
+    export = build_design(write_run(tmp_path / "run_a"), now=NOW)
+
+    assert _nodes(export["design"])["users"]["config"]["rps"] == 12.5
+    assert any(line.startswith("users rps 12.5") and "http_reqs_per_second" in line for line in export["measured"])
+    assert any("whole k6 process" in line for line in export["assumed"])
 
 
 def test_service_time_and_spread_come_from_per_operation_latencies(tmp_path):

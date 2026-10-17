@@ -117,7 +117,7 @@ The file is the Breakscale envelope `{app: "breakscale", version: 1, savedAt, na
 
 | Node | Kind | Taken from the run |
 |---|---|---|
-| `users` | `client` | `rps` = `metrics.http_reqs_per_second` (requests delivered over the k6 window); `traffic` is `steady` |
+| `users` | `client` | `rps` = `metrics.http_reqs` over the longer of the scheduled seconds (`run.json` `resolved_schedule`) and `metrics.request_window_seconds`, the window load was delivered in; `metrics.http_reqs_per_second` (the whole k6 process, so low) only when the run has neither; `traffic` is `steady` |
 | `app` | `service` | `serviceMs` = sample-weighted `p50` of `metrics.by_operation` (the run-wide `p50` for runs that lack it); `serviceCv` = a lognormal fit to each operation's `p95`/`p50`, weighted by samples; `capacity` = the largest `metrics.overlap`; `errorRate` = the unexpected HTTP failure rate (else the HTTP failure rate) |
 | `db` | `db` | Only when `server.json` lists a captured container whose name looks like a database (`postgres`, `mysql`, `mariadb`, `mongo`, `cockroach`, `database`, or a `db`/`pg` name part). `serviceMs` = its peak CPU percent x 10 / `rps`, at most half the app's time, and subtracted from the app's `serviceMs`; `readFraction` = 1 - k6 write requests / requests |
 

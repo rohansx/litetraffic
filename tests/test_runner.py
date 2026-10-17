@@ -1473,6 +1473,17 @@ def test_read_metrics_records_peak_in_flight_overlap_per_operation(tmp_path):
     assert metrics["overlap"] == {"create": 3, "read": 1}
 
 
+def test_read_metrics_records_the_window_requests_were_delivered_in(tmp_path):
+    path = tmp_path / "metrics.jsonl"
+    # Earliest start 00.000 (01.000 - 1000 ms), latest end 03.500, whichever operation it belongs to.
+    lines = [timed("create", "01.000", 1000), timed("read", "02.000", 200), timed("read", "03.500", 100)]
+    path.write_text("\n".join(lines) + "\n")
+
+    metrics, _ = _read_metrics(path)
+
+    assert metrics["request_window_seconds"] == 3.5
+
+
 def test_read_metrics_omits_overlap_without_timestamps(tmp_path):
     path = tmp_path / "metrics.jsonl"
     path.write_text(point("http_req_duration", 5, operation="create") + "\n")
@@ -1480,6 +1491,7 @@ def test_read_metrics_omits_overlap_without_timestamps(tmp_path):
     metrics, _ = _read_metrics(path)
 
     assert "overlap" not in metrics
+    assert "request_window_seconds" not in metrics
 
 
 def _overlap_bundle(tmp_path, minimum: dict) -> Path:
