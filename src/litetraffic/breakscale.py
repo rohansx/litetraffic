@@ -76,14 +76,29 @@ def _backfill(run_dir: Path, metrics: dict, assumed: list[str]) -> dict:
 
 
 def _rate(run: dict, metrics: dict, measured: list[str], assumed: list[str]) -> float:
-    """Requests per second over the window load was delivered in; ValueError when the run delivered none.
+    """Requests per second the app was offered; ValueError when the run delivered none.
 
-    The scheduled seconds and the request window (first start to last end) both bound that window from below, so the
-    longer one is used. k6's http_reqs_per_second divides by the whole process, start-up and graceful stop included.
+    Preferred: the scheduled journey rate times the requests each journey made, which think time cannot dilute.
+    Otherwise requests over the longer of the scheduled seconds and the request window (first start to last end),
+    both of which bound the delivery window from below. k6's http_reqs_per_second divides by the whole process,
+    start-up and graceful stop included, so it is the last resort.
     """
     requests = metrics.get("http_reqs")
+    iterations = metrics.get("iterations")
     phases = [phase for phase in run.get("resolved_schedule") or [] if isinstance(phase, dict)]
-    scheduled = sum(phase["seconds"] for phase in phases if _finite(phase.get("seconds")) and phase["seconds"] > 0)
+    timed = [phase for phase in phases if _finite(phase.get("seconds")) and phase["seconds"] > 0]
+    scheduled = sum(phase["seconds"] for phase in timed)
+    if _finite(requests) and requests > 0 and _finite(iterations) and iterations > 0 and timed:
+        if all(_finite(phase.get("rate")) for phase in timed):
+            journeys = sum(phase["rate"] * phase["seconds"] for phase in timed) / scheduled
+            per_journey = requests / iterations
+            if journeys > 0:
+                rps = round(journeys * per_journey, 3)
+                measured.append(
+                    f"users rps {_n(rps)} = {_n(round(journeys, 3))} journeys/s scheduled x {_n(round(per_journey, 3))}"
+                    " requests per journey (run.json resolved_schedule, http_reqs / iterations)"
+                )
+                return rps
     window = metrics.get("request_window_seconds")
     windows = [
         (seconds, label)

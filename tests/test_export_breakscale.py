@@ -164,8 +164,20 @@ def test_client_rate_is_requests_over_the_scheduled_seconds_not_the_k6_process_t
     assert any(line.startswith("users rps 25.5 = 255 requests / 10 s") and "resolved_schedule" in line for line in export["measured"])
 
 
+def test_client_rate_is_the_scheduled_journey_rate_times_requests_per_journey(tmp_path):
+    # 15 journeys/s for 10 s, 2 requests each, with think time between them: the requests spill 2 s past the
+    # schedule (a 12 s window), but the app sustained 30 rps, not 300 / 12 = 25.
+    schedule = [{"name": "sustained", "rate": 15, "seconds": 10}]
+    run = write_run(tmp_path / "run_a", schedule=schedule, http_reqs=300.0, iterations=150.0, request_window_seconds=11.995)
+
+    export = build_design(run, now=NOW)
+
+    assert _nodes(export["design"])["users"]["config"]["rps"] == 30.0
+    assert any(line.startswith("users rps 30 = 15 journeys/s scheduled x 2 requests per journey") for line in export["measured"])
+
+
 def test_client_rate_uses_the_request_window_when_requests_outlast_the_schedule(tmp_path):
-    # A 1 s burst of journeys whose requests run for 4 s: they were delivered over 4 s, not 1.
+    # A 1 s burst of journeys whose requests run for 4 s, and no iteration count: they were delivered over 4 s, not 1.
     run = write_run(tmp_path / "run_a", schedule=[{"name": "burst", "rate": 10, "seconds": 1}], http_reqs=20.0, request_window_seconds=4.0)
 
     export = build_design(run, now=NOW)
