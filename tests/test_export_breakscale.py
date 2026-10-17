@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from litetraffic.breakscale import build_design
+from litetraffic.breakscale import _notes, build_design
 from litetraffic.cli import main
 
 # What Breakscale's importer (src/clipboard.ts isTopology, src/designFile.ts parseDesignFile) accepts.
@@ -334,6 +334,40 @@ def test_every_assumption_is_returned_and_written_into_the_design(tmp_path):
     assert any("end-to-end" in line for line in export["measured"])
     assert all(len(note["text"]) <= 2000 and 80 <= note["width"] <= 900 for note in notes)
     assert len({a["id"] for a in export["design"]["topology"]["annotations"]}) == len(notes)
+
+
+def test_long_notes_are_split_so_none_is_cut_on_import():
+    lines = [f"line {index}: " + "x" * 190 for index in range(30)]  # about 6000 characters in all
+
+    notes = _notes("Assumed", lines, "assumed", 520)
+
+    assert len(notes) > 1
+    assert all(len(note["text"]) <= 2000 and note["text"].startswith("Assumed\n") for note in notes)
+    assert len({note["id"] for note in notes}) == len(notes)
+    assert len({note["y"] for note in notes}) == len(notes)  # stacked, not drawn over each other
+    written = [line for note in notes for line in note["text"].splitlines()[1:]]
+    assert written == [f"- {line}" for line in lines]
+
+
+def test_a_note_line_longer_than_a_note_is_cut_to_fit():
+    notes = _notes("Measured in the run", ["y" * 3000], "measured", 40)
+
+    assert len(notes) == 1
+    assert len(notes[0]["text"]) == 2000
+
+
+def test_cli_exits_3_for_a_run_with_no_delivered_requests(tmp_path, capsys):
+    runs = tmp_path / "runs"
+    write_run(runs / "run_a", http_reqs=0.0, http_reqs_per_second=0.0)
+    out = tmp_path / "x.breakscale"
+
+    code = main(["export", "breakscale", "run_a", "--runs-dir", str(runs), "--out", str(out), "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 3
+    assert payload["ok"] is False
+    assert "no requests" in payload["error"]
+    assert not out.exists()
 
 
 def test_a_run_without_latencies_cannot_be_modelled(tmp_path):
