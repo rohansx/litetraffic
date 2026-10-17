@@ -243,6 +243,15 @@ def test_every_printed_app_service_time_is_the_one_in_the_file(tmp_path):
         assert any(line.startswith("app end-to-end p50 50 ") for line in export["measured"])
 
 
+def test_a_small_client_overlap_is_only_a_lower_bound_on_capacity(tmp_path):
+    # 2 requests in flight is how many the run's VUs sent at once, not how many workers the app has.
+    export = build_design(write_run(tmp_path / "run_a", overlap={"reserve": 2, "complete": 1}), now=NOW)
+
+    assert _nodes(export["design"])["app"]["config"]["capacity"] == 8
+    assert any(line.startswith("app overlap 2 ") and "lower bound" in line for line in export["measured"])
+    assert any(line.startswith("app capacity 8: ") and "overlap 2" in line for line in export["assumed"])
+
+
 def test_without_overlap_capacity_is_breakscales_default_and_said(tmp_path):
     export = build_design(write_run(tmp_path / "run_a", overlap={}), now=NOW)
 

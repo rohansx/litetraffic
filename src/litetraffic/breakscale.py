@@ -162,12 +162,19 @@ def _capacity(metrics: dict, measured: list[str], assumed: list[str]) -> int:
     if not peaks:
         assumed.append(f"app capacity {SERVICE['capacity']}: Breakscale default; the run recorded no request overlap")
         return SERVICE["capacity"]
-    capacity = int(max(peaks))
+    overlap_peak = int(max(peaks))
     measured.append(
-        f"app capacity {capacity} = most requests of one operation in flight at once (metrics.overlap); a lower bound"
-        " on the app's real concurrency, which is not visible from outside"
+        f"app overlap {overlap_peak} = most requests of one operation in flight at once (metrics.overlap); a lower bound"
+        " on the app's real concurrency, set by the run's own VUs and arrival pattern"
     )
-    return capacity
+    if overlap_peak > SERVICE["capacity"]:
+        measured.append(f"app capacity {overlap_peak} = the overlap above, which is more than Breakscale's default")
+        return overlap_peak
+    assumed.append(
+        f"app capacity {SERVICE['capacity']}: Breakscale default, kept because the observed overlap {overlap_peak} is"
+        " only a lower bound; the real worker count is not visible from outside"
+    )
+    return SERVICE["capacity"]
 
 
 def _error_rate(metrics: dict, measured: list[str], assumed: list[str]) -> float:
