@@ -219,6 +219,29 @@ def test_without_per_operation_p50_the_run_wide_latency_is_used_and_said(tmp_pat
     assert any("run-wide" in line for line in export["assumed"])
 
 
+def _duration_point(operation: str, end: str, duration_ms: float) -> str:
+    data = {"time": f"2026-10-17T10:58:{end}Z", "value": duration_ms, "tags": {"operation": operation}}
+    return json.dumps({"type": "Point", "metric": "http_req_duration", "data": data})
+
+
+def test_a_run_written_before_p50_and_the_request_window_is_reread_from_its_k6_metrics(tmp_path):
+    # result.json from before by_operation had p50 and before request_window_seconds; metrics.jsonl has both.
+    old = {"reserve": {"samples": 3, "p95": 59.0, "failed_rate": 0.0}}
+    run = write_run(tmp_path / "run_a", by_operation=old, schedule=[{"name": "burst", "rate": 3, "seconds": 1}], http_reqs=3.0)
+    points = [_duration_point("reserve", "01.000", 20), _duration_point("reserve", "02.000", 30), _duration_point("reserve", "04.000", 60)]
+    (run / "metrics.jsonl").write_text("\n".join(points) + "\n")
+
+    export = build_design(run, now=NOW)
+    nodes = _nodes(export["design"])
+
+    # The requests ran from 00.980 to 04.000, so 3 requests over 3.02 s, not the 1 s schedule.
+    assert nodes["users"]["config"]["rps"] == pytest.approx(3 / 3.02, abs=0.001)
+    # The per-operation p50 (30) and p95 (57) come from metrics.jsonl, not the run-wide fallback.
+    assert nodes["app"]["config"]["serviceMs"] == pytest.approx(lognormal_mean(30, 57), abs=0.001)
+    assert not any("run-wide" in line for line in export["assumed"])
+    assert any("metrics.jsonl" in line for line in export["assumed"])
+
+
 def test_an_operation_without_a_usable_p95_counts_its_p50_as_the_mean_and_says_so(tmp_path):
     operations = {
         "reserve": {"samples": 30, "p50": 40.0, "p95": 120.0, "failed_rate": 0.0},

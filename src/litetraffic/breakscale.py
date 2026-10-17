@@ -13,6 +13,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
+from litetraffic.evidence import _read_metrics
 from litetraffic.runs import read_json
 
 DESIGN_APP = "breakscale"
@@ -57,6 +58,21 @@ def _inputs(run_dir: Path) -> tuple[dict, dict, dict]:
     if result is None or not isinstance(result.get("metrics"), dict):
         raise ValueError(f"{run_dir / 'result.json'} is missing or unreadable; export needs a finished run")
     return read_json(run_dir / "run.json") or {}, result, read_json(run_dir / "server.json") or {}
+
+
+def _backfill(run_dir: Path, metrics: dict, assumed: list[str]) -> dict:
+    """`metrics` with the per-operation p50 and request window re-read from metrics.jsonl when result.json predates them."""
+    operations = metrics.get("by_operation") if isinstance(metrics.get("by_operation"), dict) else {}
+    missing = [key for key in ("request_window_seconds",) if key not in metrics]
+    if any(isinstance(item, dict) and "p50" not in item for item in operations.values()):
+        missing.insert(0, "by_operation")
+    if not missing or not (run_dir / "metrics.jsonl").is_file():
+        return metrics
+    raw, _ = _read_metrics(run_dir / "metrics.jsonl")
+    if not (filled := {key: raw[key] for key in missing if key in raw}):
+        return metrics
+    assumed.append(f"{' and '.join(filled)} re-read from the run's metrics.jsonl: its result.json was written before they were recorded")
+    return {**metrics, **filled}
 
 
 def _rate(run: dict, metrics: dict, measured: list[str], assumed: list[str]) -> float:
@@ -260,6 +276,7 @@ def build_design(run_dir: Path, name: str | None = None, now: datetime | None = 
     metrics = result["metrics"]
     measured: list[str] = []
     assumed: list[str] = []
+    metrics = _backfill(Path(run_dir), metrics, assumed)
     rps = _rate(run, metrics, measured, assumed)
     phases = [phase.get("name") for phase in run.get("resolved_schedule") or [] if isinstance(phase, dict)]
     assumed += [
