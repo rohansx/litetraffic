@@ -22,6 +22,9 @@ NOTE_MAX_CHARS = 2000  # NOTE_MAX_CHARS in src/sim/annotations.ts; longer text i
 NOTE_WIDTH = 440
 Z95 = 1.6448536269514722  # standard normal quantile at 0.95
 K6_DEFAULT_TIMEOUT_MS = 60_000
+# The service spread written to the design. Below 0.2 Breakscale runs a near-fixed service time; above 1 a fit is
+# dominated by queueing in the tail, and Breakscale's Inspector only goes to 2.
+CV_MIN, CV_MAX = 0.2, 1.0
 DATABASE = re.compile(r"(?i)postgres|mysql|mariadb|mongo|cockroach|database|(?:^|[-_.])(?:db|pg)(?:$|[-_.\d])")
 
 # Breakscale's defaults (src/sim/presets.ts, repo commit d2c876e0). The TypeScript type requires every field.
@@ -144,9 +147,11 @@ def _latency(metrics: dict, rps: float, measured: list[str], assumed: list[str])
     if not fits:
         assumed.append(f"app serviceCv {_n(SERVICE['serviceCv'])}: Breakscale default; no usable p95/p50 pair")
         return mean_ms, SERVICE["serviceCv"]
-    cv = round(sum(weight * cv for weight, cv in fits) / sum(weight for weight, _ in fits), 3)
+    raw = round(sum(weight * cv for weight, cv in fits) / sum(weight for weight, _ in fits), 3)
+    cv = min(max(raw, CV_MIN), CV_MAX)
+    clamp = f" (raw fit {_n(raw)}, clamped to {_n(CV_MIN)}..{_n(CV_MAX)})" if cv != raw else ""
     assumed.append(
-        f"app serviceCv {_n(cv)}: a lognormal fit to {fit}; the spread between operations is not included"
+        f"app serviceCv {_n(cv)}{clamp}: a lognormal fit to {fit}; the spread between operations is not included"
     )
     return mean_ms, cv
 

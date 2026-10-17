@@ -196,6 +196,21 @@ def test_service_time_and_spread_come_from_per_operation_latencies(tmp_path):
     assert app["instances"] == 1
 
 
+@pytest.mark.parametrize(
+    ("p95", "clamped", "raw"),
+    [
+        (40.0, 0.2, "0"),  # p95 == p50: a zero spread, which Breakscale would run as a fixed service time
+        (1200.0, 1.0, "8.422"),  # p95/p50 = 30: a queueing tail, outside what Breakscale's Inspector can show
+    ],
+)
+def test_service_spread_is_kept_within_0_2_to_1_and_the_raw_fit_is_said(tmp_path, p95, clamped, raw):
+    operations = {"reserve": {"samples": 10, "p50": 40.0, "p95": p95, "failed_rate": 0.0}}
+    export = build_design(write_run(tmp_path / "run_a", by_operation=operations), now=NOW)
+
+    assert _nodes(export["design"])["app"]["config"]["serviceCv"] == clamped
+    assert any(line.startswith(f"app serviceCv {clamped:g} ") and f"raw fit {raw}" in line for line in export["assumed"])
+
+
 def test_without_per_operation_p50_the_run_wide_latency_is_used_and_said(tmp_path):
     old = {"reserve": {"samples": 40, "p95": 120.0, "failed_rate": 0.0}}
     export = build_design(write_run(tmp_path / "run_a", by_operation=old), now=NOW)
