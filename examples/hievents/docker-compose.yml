@@ -1,0 +1,137 @@
+# Two Hi.Events all-in-one instances side by side on one shared Postgres + Redis:
+# the vulnerable release (v1.9.0-beta) and the fixed release (v.1.11.0-beta; the
+# leading "v." is literal). Each app has its own database, APP_KEY and JWT_SECRET, read from the
+# environment (the README generates them) so no key is ever committed.
+# The same LiteTraffic scenario runs against :8081 (FAIL) and :8082 (PASS).
+#
+#   docker compose -p lt-hievents up -d
+#
+# Both images are multi-arch (amd64 + arm64), so they run natively on an Apple
+# Silicon Mac and on a linux/amd64 VPS without emulation.
+name: lt-hievents
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: lt-hievents-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb.sql:/docker-entrypoint-initdb.d/initdb.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: lt-hievents-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - redisdata:/data
+
+  app_vuln:
+    image: daveearley/hi.events-all-in-one:v1.9.0-beta
+    container_name: lt-hievents-vuln
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      APP_KEY: ${LT_HIEVENTS_VULN_APP_KEY:?generate it, see README}
+      JWT_SECRET: ${LT_HIEVENTS_VULN_JWT_SECRET:?generate it, see README}
+      DATABASE_URL: postgresql://postgres:secret@postgres:5432/hievents_vuln
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      # sync so the demo cannot be dismissed as "just a missing queue worker":
+      # the stale usage counter is read wrong regardless of async processing.
+      QUEUE_CONNECTION: sync
+      LOG_CHANNEL: stderr
+      MAIL_MAILER: log
+      MAIL_DRIVER: log
+      APP_SAAS_MODE_ENABLED: "false"
+      APP_DISABLE_REGISTRATION: "false"
+      APP_FRONTEND_URL: http://localhost:8081
+      APP_CDN_URL: http://localhost:8081/storage
+      VITE_FRONTEND_URL: http://localhost:8081
+      VITE_API_URL_CLIENT: http://localhost:8081/api
+      VITE_API_URL_SERVER: http://localhost:80/api
+      VITE_APP_NAME: Hi.Events
+      # Referenced by the image's supervisord frontend program; a placeholder is
+      # enough since this demo never touches Stripe (promo is 100% off).
+      VITE_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+      STRIPE_PUBLIC_KEY: pk_test_placeholder
+      STRIPE_SECRET_KEY: sk_test_placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_test_placeholder
+      FILESYSTEM_PUBLIC_DISK: public
+      FILESYSTEM_PRIVATE_DISK: local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  app_fixed:
+    image: daveearley/hi.events-all-in-one:v.1.11.0-beta
+    container_name: lt-hievents-fixed
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    environment:
+      APP_KEY: ${LT_HIEVENTS_FIXED_APP_KEY:?generate it, see README}
+      JWT_SECRET: ${LT_HIEVENTS_FIXED_JWT_SECRET:?generate it, see README}
+      DATABASE_URL: postgresql://postgres:secret@postgres:5432/hievents_fixed
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      QUEUE_CONNECTION: sync
+      LOG_CHANNEL: stderr
+      MAIL_MAILER: log
+      MAIL_DRIVER: log
+      APP_SAAS_MODE_ENABLED: "false"
+      APP_DISABLE_REGISTRATION: "false"
+      APP_FRONTEND_URL: http://localhost:8082
+      APP_CDN_URL: http://localhost:8082/storage
+      VITE_FRONTEND_URL: http://localhost:8082
+      VITE_API_URL_CLIENT: http://localhost:8082/api
+      VITE_API_URL_SERVER: http://localhost:80/api
+      VITE_APP_NAME: Hi.Events
+      # Referenced by the image's supervisord frontend program; a placeholder is
+      # enough since this demo never touches Stripe (promo is 100% off).
+      VITE_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+      STRIPE_PUBLIC_KEY: pk_test_placeholder
+      STRIPE_SECRET_KEY: sk_test_placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_test_placeholder
+      FILESYSTEM_PUBLIC_DISK: public
+      FILESYSTEM_PRIVATE_DISK: local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  pgdata:
+  redisdata:
