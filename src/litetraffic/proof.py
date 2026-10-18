@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 MISSING = "Video proof needs: pip install 'litetraffic[video]' (pillow, imageio-ffmpeg) or a system ffmpeg plus pillow."
@@ -186,23 +187,36 @@ def _frames(drawn: list[tuple[str, tuple]]):
 
 
 def _ffmpeg(args: list[str], frames=None) -> None:
-    proc = subprocess.Popen([args[0], "-hide_banner", "-nostdin", "-loglevel", "error", "-y", *args[1:]],
-                            stdin=subprocess.PIPE if frames is not None else subprocess.DEVNULL,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    try:
-        if frames is not None:
-            try:
-                for frame in frames:
-                    proc.stdin.write(frame)
-            finally:
-                proc.stdin.close()
-        _, err = proc.communicate(timeout=FFMPEG_TIMEOUT_SECONDS)
-    except BaseException:
-        proc.kill()
-        proc.wait()
-        raise
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg exited {proc.returncode}: {err.decode('utf-8', 'replace').strip()[-300:]}")
+    """Run ffmpeg, streaming `frames` to its stdin; stderr goes to a temp file so neither pipe can fill and block.
+
+    stdin is closed after the last frame and the process is then waited on: calling communicate() after closing
+    stdin raises 'flush of closed file' on Python 3.12, which used to fail every render.
+    """
+    with tempfile.TemporaryFile() as err:
+        proc = subprocess.Popen([args[0], "-hide_banner", "-nostdin", "-loglevel", "error", "-y", *args[1:]],
+                                stdin=subprocess.PIPE if frames is not None else subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=err)
+        try:
+            if frames is not None:
+                try:
+                    for frame in frames:
+                        proc.stdin.write(frame)
+                except BrokenPipeError:
+                    pass  # ffmpeg exited early; its exit status and stderr say why
+                finally:
+                    try:
+                        proc.stdin.close()
+                    except BrokenPipeError:
+                        pass
+            proc.wait(timeout=FFMPEG_TIMEOUT_SECONDS)
+        except BaseException:
+            proc.kill()
+            proc.wait()
+            raise
+        if proc.returncode != 0:
+            err.seek(0)
+            detail = err.read().decode("utf-8", "replace").strip()[-300:]
+            raise RuntimeError(f"ffmpeg exited {proc.returncode}: {detail}")
 
 
 BITEXACT = ["-threads", "1", "-fflags", "+bitexact", "-flags", "+bitexact", "-map_metadata", "-1"]

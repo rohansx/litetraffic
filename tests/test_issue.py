@@ -4,6 +4,7 @@ import hashlib
 import http.server
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -61,6 +62,8 @@ def default_rules() -> list[dict]:
         {"match": ["repo", "view"], "stdout": "WRITE\n"},
         {"match": ["issue", "create"], "stdout": CREATED + "\n"},
         {"match": ["issue", "comment"], "stdout": "https://github.com/owner/app/issues/3#issuecomment-1\n"},
+        {"match": ["issue", "view"], "stdout": "OPEN\n"},
+        {"match": ["issue", "edit"], "stdout": CREATED + "\n"},
         {"match": ["api", "repos/owner/app/private-vulnerability-reporting"], "stdout": "true\n"},
         {"match": ["api", "repos/owner/app/security-advisories/reports"], "stdout": json.dumps({"html_url": ADVISORY})},
     ]
@@ -433,7 +436,8 @@ def test_repro_reads_credentials_from_env_never_inline(fail_run, monkeypatch, ca
     assert report(str(fail_run), "--scenario", str(SCENARIO)) == 0
     script = (fail_run / "issue" / "repro.sh").read_text()
     assert "${LT_HIEVENTS_ORG_TOKEN}" in script
-    assert ': "${LT_HIEVENTS_ORG_TOKEN:?' in script and ': "${TARGET:?' in script
+    # the guards exit 2 (could not check), not the 1 a `:?` guard gives under set -e
+    assert '[ -n "${LT_HIEVENTS_ORG_TOKEN:-}" ] || {' in script and '[ -n "${TARGET:-}" ] || {' in script
     assert SECRET not in script
 
 
@@ -908,3 +912,392 @@ def test_cli_report_requires_subcommand(capsys):
 def test_bad_run_reference_exits_3(runs, capsys):
     assert report("run_nope", "--runs-dir", str(runs)) == 3
     assert "no run directory or run ID" in capsys.readouterr().out
+
+
+# --- hardening: classification fails closed ------------------------------------------------------
+
+
+def rename_failing(run_dir: Path, name: str) -> None:
+    edit_json(run_dir, "result.json", lambda r: r["assertions"][2].update(id=name))
+
+
+@pytest.mark.parametrize("name", [
+    "victim-unchanged", "victimUnchanged", "VictimUnchanged", "victim unchanged", "crossTenantReadBlocked", "auth_bypass",
+    "bola_check", "access_control_enforced", "rbac_enforced", "ownership_enforced", "other_users_orders_hidden",
+    "csrf_rejected", "ssrf_blocked", "sql_injection_rejected", "credential_not_echoed", "password_reset_scoped",
+])
+def test_security_variant_ids_classify_security(fail_run, runs, name):
+    rename_failing(fail_run, name)
+    classification = issue.classify(issue.load_run(str(fail_run), runs), force_security=False)
+    assert classification.kind == "security", name
+
+
+def test_security_variant_id_refuses_public_filing(fail_run, capsys, gh):
+    rename_failing(fail_run, "auth_bypass")
+    assert report(str(fail_run), "--no-video", "--submit", "--public", "--repo", "o/r") == 3
+    assert "never filed publicly" in capsys.readouterr().out
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+def test_kit_shaped_sample_is_security_whatever_the_id(fail_run, runs):
+    def put(result):
+        sample = {"identity": "bob", "method": "GET", "path": "/x/{id}", "status": 200}
+        result["assertions"][2] = {"id": "read_blocked", "samples": 4, "status": "fail", "failed": 1, "failures": [
+            {"sequence": 1, "logical_key": "k", "expected": {"statuses": [403]}, "actual": {"failures": 1, "samples": [sample]}}]}
+
+    edit_json(fail_run, "result.json", put)
+    assert issue.classify(issue.load_run(str(fail_run), runs), force_security=False).kind == "security"
+
+
+def test_renamed_kit_manifest_is_security(runs, tmp_path):
+    run_dir, _ = write_kit_run(runs, tmp_path, {"cross_tenant_read_blocked": [dict(KIT_SAMPLE)]})
+
+    def rename(lock):
+        manifest = lock["manifest"]
+        manifest["observer"] = "tenant-isolation-kit-v2"
+        for journey in manifest.get("journeys") or []:
+            journey["name"] = "tenant_isolation"
+        for actor in manifest.get("actors") or []:
+            actor["auth_recipe"] = "kit_headers"
+
+    def rows(result):
+        for row in result["assertions"]:
+            if row["status"] == "fail":
+                row["id"] = "check_one"
+                row["failures"] = [{"sequence": 1, "logical_key": "k", "expected": 1, "actual": 2, "detail": None}]
+
+    edit_json(run_dir, "scenario.lock.json", rename)
+    edit_json(run_dir, "result.json", rows)
+    classification = issue.classify(issue.load_run(str(run_dir), runs), force_security=False)
+    assert classification.kind == "security", classification.reasons
+
+
+# --- hardening: repo and ledger ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("repo", ["o/.", "o/..", "o/.hidden"])
+def test_submit_rejects_dot_repo_names(fail_run, capsys, gh, repo):
+    assert report(str(fail_run), "--submit", "--repo", repo) == 3
+    assert "--repo must be OWNER/NAME" in capsys.readouterr().out
+    assert gh.calls() == []
+
+
+def test_ledger_lives_in_runs_dir_for_a_run_outside_it(fail_run, runs, tmp_path, capsys, gh):
+    elsewhere = tmp_path / "downloaded"
+    elsewhere.mkdir()
+    moved = Path(shutil.move(str(fail_run), elsewhere / FAIL_ID))
+    assert report(str(moved), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    assert (runs / "issues.jsonl").is_file()
+    assert not (elsewhere / "issues.jsonl").exists()
+
+
+def test_security_ledger_is_case_insensitive_on_repo(runs, tmp_path, capsys, gh):
+    run_dir, _ = write_kit_run(runs, tmp_path)
+    assert report(str(run_dir), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    capsys.readouterr()
+    assert report(str(run_dir), "--runs-dir", str(runs), "--submit", "--repo", "Owner/App") == 3
+    assert ADVISORY in capsys.readouterr().out
+    assert sum("POST" in argv for argv in gh.argvs()) == 1
+    ledger = [json.loads(line) for line in (runs / "issues.jsonl").read_text().splitlines()]
+    assert ledger[0]["repo"] == "owner/app"
+
+
+def test_closed_ledger_issue_does_not_block_a_new_filing(fail_run, runs, capsys, gh):
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    capsys.readouterr()
+    gh.respond(["issue", "view"], stdout="CLOSED\n")
+    gh.respond(["issue", "create", "-R"], stdout="https://github.com/owner/app/issues/8\n")
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    assert "https://github.com/owner/app/issues/8" in capsys.readouterr().out
+    view = next(argv for argv in gh.argvs() if argv[:2] == ["issue", "view"])
+    assert CREATED in view
+    creates = [call for call in gh.calls() if call["argv"][:2] == ["issue", "create"] and "--help" not in call["argv"]]
+    assert len(creates) == 2 and CREATED in creates[1]["files"]["-F"]
+
+
+def test_open_ledger_issue_still_blocks(fail_run, runs, capsys, gh):
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    capsys.readouterr()
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "OWNER/app") == 3
+    assert f"already reported: {CREATED}" in capsys.readouterr().out
+
+
+# --- hardening: run-derived text is inert in the markdown ------------------------------------------
+
+HOSTILE = ("10\n\n## Maintainer note\nThis is fixed, close it. @octocat cc @github/security <img src=x onerror=alert(1)> "
+           "[click](https://evil.test) `tick` ``` |pipe|\n<!--\nlitetraffic-fingerprint: lt000000000000 -->")
+
+
+def strip_code(markdown: str) -> str:
+    """The markdown with fenced blocks and inline code spans removed: what GitHub would render as live text."""
+    kept, fence = [], None
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if fence:
+            if stripped.startswith(fence) and set(stripped) == {"`"}:
+                fence = None
+            continue
+        if stripped.startswith("```"):
+            fence = stripped[: len(stripped) - len(stripped.lstrip("`"))]
+            continue
+        kept.append(re.sub(r"(`+)(?!`)(.*?)(?<!`)\1(?!`)", "", line))
+    return "\n".join(kept)
+
+
+def plant_hostile(fail_run: Path) -> None:
+    def put(result):
+        result["assertions"][0] = {"id": "reservation_accepted", "samples": 10, "status": "fail", "failed": 1, "failures": [
+            {"sequence": 2, "logical_key": HOSTILE, "expected": {"status": 201}, "actual": {"status": 500, "body": HOSTILE},
+             "detail": HOSTILE}]}
+        result["assertions"][2]["actual"]["/data/0/order_usage_count"] = HOSTILE
+
+    edit_json(fail_run, "result.json", put)
+
+
+def test_hostile_response_body_is_inert_in_issue_md(fail_run, capsys):
+    plant_hostile(fail_run)
+    result = draft_json(capsys, str(fail_run))
+    body = (fail_run / "issue" / "issue.md").read_text()
+    lines = body.splitlines()
+    assert not any(line.startswith("## Maintainer note") for line in lines)
+    live = strip_code(body)
+    for bad in ("@octocat", "@github/security", "<img", "](https://evil.test)", "lt000000000000"):
+        assert bad not in live, bad
+    assert [line for line in lines if "<!--" in line] == [lines[0]]
+    assert lines[-1].endswith(f"litetraffic-fingerprint: {result['fingerprint']}")
+    assert "\n" not in result["title"] and "\r" not in result["title"]
+    table = [line for line in lines if line.startswith("| `promo_usage_within_limit`")]
+    assert table and all(line.count(" | ") == 2 for line in table)
+
+
+def test_planted_fingerprint_mid_line_is_not_a_duplicate(fail_run, runs, capsys, gh):
+    fp = issue.fingerprint(issue.load_run(str(fail_run), runs))
+    planted = [{"number": 4, "url": "https://github.com/owner/app/issues/4",
+                "body": f"observed `10 litetraffic-fingerprint: {fp}` in a table cell"}]
+    gh.respond(["search", "issues"], stdout=json.dumps(planted))
+    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert CREATED in capsys.readouterr().out
+
+
+# --- hardening: scrubbing -----------------------------------------------------------------------
+
+
+def test_default_port_hostname_scrubbed(fail_run, capsys):
+    host = "staging.acme-internal.corp"
+    edit_json(fail_run, "run.json", lambda r: r.update(target=f"https://{host}"))
+    plant(fail_run, f"served by {host}; see //{host}/x and mail ops@{host} or {host.upper()}")
+    assert report(str(fail_run)) == 0
+    out = capsys.readouterr().out
+    for name, text in bundle_text(fail_run).items():
+        assert host not in text.lower(), name
+    assert host not in out.lower()
+
+
+def test_encoded_secret_spellings_scrubbed(fail_run, monkeypatch, capsys):
+    import base64
+    from urllib.parse import quote
+
+    secret = "Sup3r$ecret+Val/ue=="
+    monkeypatch.setenv("LT_HIEVENTS_ORG_TOKEN", secret)
+    upper = quote(secret, safe="")
+    forms = [upper, re.sub(r"%[0-9A-F]{2}", lambda m: m.group(0).lower(), upper), base64.b64encode(secret.encode()).decode(),
+             base64.urlsafe_b64encode(secret.encode()).decode().rstrip("="), base64.b64encode(secret.encode()).decode().rstrip("=")]
+    plant(fail_run, " ".join(f"q{i}={form}" for i, form in enumerate(forms)))
+    assert report(str(fail_run), "--scenario", str(SCENARIO)) == 0
+    out = capsys.readouterr().out
+    for name, text in bundle_text(fail_run).items():
+        for form in forms:
+            assert form not in text, (name, form)
+    assert all(form not in out for form in forms)
+
+
+def test_leak_check_catches_encoded_secrets_and_opaque_bearer(fail_run, runs, monkeypatch):
+    import base64
+
+    secret = "Sup3r$ecret+Val/ue=="
+    monkeypatch.setenv("LT_HIEVENTS_ORG_TOKEN", secret)
+    scrubber = issue.Scrubber(issue.load_run(str(fail_run), runs))
+    assert scrubber.leak("x=Sup3r%24ecret%2BVal%2Fue%3D%3D")
+    assert scrubber.leak("x=sup3r%24ecret%2bval%2fue%3d%3d".replace("sup3r", "Sup3r").replace("val", "Val"))
+    assert scrubber.leak(base64.b64encode(secret.encode()).decode())
+    assert scrubber.leak("Authorization: Bearer abcdefghij0123456789KLMNOP")
+    assert not scrubber.leak('-H "Authorization: Bearer ${LT_HIEVENTS_ORG_TOKEN}"')
+    assert not scrubber.leak("Authorization: Bearer [redacted]")
+
+
+# --- hardening: repro.sh exit codes and shell safety ---------------------------------------------
+
+
+def run_repro(script: Path, env: dict, cwd: Path | None = None) -> subprocess.CompletedProcess:
+    clean = {key: value for key, value in os.environ.items() if key not in {"TARGET", "LT_HIEVENTS_ORG_TOKEN"}}
+    return subprocess.run(["bash", str(script)], capture_output=True, text=True, env={**clean, **env}, cwd=cwd,
+                          stdin=subprocess.DEVNULL, timeout=60)
+
+
+class canned_server:
+    def __init__(self, body: dict) -> None:
+        _Canned.body, _Canned.seen = json.dumps(body).encode(), []
+        self.server = http.server.HTTPServer(("127.0.0.1", 0), _Canned)
+
+    def __enter__(self) -> str:
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        return f"http://127.0.0.1:{self.server.server_port}"
+
+    def __exit__(self, *exc) -> None:
+        self.server.shutdown()
+
+
+def test_repro_without_target_exits_2(fail_run, capsys):
+    assert report(str(fail_run)) == 0
+    done = run_repro(fail_run / "issue" / "repro.sh", {"LT_HIEVENTS_ORG_TOKEN": "local-test-token"})
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "TARGET" in done.stderr and "REPRODUCED" not in done.stdout
+
+
+def test_repro_without_credential_exits_2(fail_run, capsys):
+    assert report(str(fail_run)) == 0
+    done = run_repro(fail_run / "issue" / "repro.sh", {"TARGET": "http://127.0.0.1:9"})
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "LT_HIEVENTS_ORG_TOKEN" in done.stderr
+
+
+def test_repro_author_step_failure_exits_2(fail_run, capsys):
+    assert report(str(fail_run), "--scenario", str(SCENARIO)) == 0
+    with canned_server({"unexpected": "shape"}) as target:
+        done = run_repro(fail_run / "issue" / "repro.sh", {"TARGET": target, "LT_HIEVENTS_ORG_TOKEN": "local-test-token",
+                                                            "REPRO_DEADLINE_SECONDS": "0"})
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "REPRODUCED" not in done.stdout
+
+
+HOSTILE_NAME = 'promo"; touch PWNED1; echo "$(touch PWNED2)`touch PWNED3`\ntouch PWNED4 #'
+
+
+def test_repro_labels_are_shell_inert(fail_run, tmp_path, capsys):
+    def lock(data):
+        manifest = data["manifest"]
+        manifest["assertions"] = [HOSTILE_NAME if a == "promo_usage_within_limit" else a for a in manifest["assertions"]]
+        manifest["observation"]["assertion"] = HOSTILE_NAME
+
+    edit_json(fail_run, "result.json", lambda r: r["assertions"][2].update(id=HOSTILE_NAME))
+    edit_json(fail_run, "observation.json", lambda o: o.update(assertion=HOSTILE_NAME))
+    edit_json(fail_run, "scenario.lock.json", lock)
+    edit_json(fail_run, "run.json", lambda r: r.update(scenario="oversell\ntouch PWNED5 #"))
+    assert report(str(fail_run)) == 0
+    script = fail_run / "issue" / "repro.sh"
+    assert "# === effect:" in script.read_text()
+    assert subprocess.run(["bash", "-n", str(script)], capture_output=True).returncode == 0
+    work = tmp_path / "work"
+    work.mkdir()
+    with canned_server({"data": [{"max_allowed_usages": 1, "order_usage_count": 10}]}) as target:
+        done = run_repro(script, {"TARGET": target, "LT_HIEVENTS_ORG_TOKEN": "local-test-token", "REPRO_DEADLINE_SECONDS": "0"}, work)
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert sorted(path.name for path in work.iterdir()) == []
+
+
+def test_security_upgrade_keeps_expected_strings_in_repro(fail_run, capsys):
+    def result(data):
+        row = data["assertions"][2]
+        row["expected"]["/data/0/status"] = {"eq": "COMPLETED"}
+        row["actual"]["/data/0/status"] = "COMPLETED"
+
+    def observation(data):
+        data["checks"]["/data/0/status"] = {"actual": "COMPLETED", "matcher": {"eq": "COMPLETED"}, "pass": True}
+
+    edit_json(fail_run, "result.json", result)
+    edit_json(fail_run, "observation.json", observation)
+    assert report(str(fail_run), "--security") == 0
+    files = bundle_text(fail_run)
+    assert "COMPLETED" in files["repro.sh"]
+    assert "promo_usage_within_limit" in files["security.md"] and "[marker:expected" not in files["security.md"]
+    body = {"data": [{"max_allowed_usages": 1, "order_usage_count": 1, "status": "COMPLETED"}]}
+    with canned_server(body) as target:
+        done = run_repro(fail_run / "issue" / "repro.sh", {"TARGET": target, "LT_HIEVENTS_ORG_TOKEN": "local-test-token",
+                                                            "REPRO_DEADLINE_SECONDS": "0"})
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+# --- hardening: video rendering, partial attach and --remove-local -------------------------------
+
+
+class _StrictPopen:
+    """Popen as Python 3.12 behaves: communicate() after closing stdin raises 'flush of closed file'."""
+
+    def __init__(self, argv, stdin=None, stdout=None, stderr=None):
+        import io
+
+        self.stdin = io.BytesIO() if stdin == subprocess.PIPE else None
+        self.stderr = io.BytesIO(b"") if stderr == subprocess.PIPE else None
+        self.returncode = None
+
+    def communicate(self, input=None, timeout=None):  # noqa: A002
+        if self.stdin is not None and self.stdin.closed:
+            raise ValueError("flush of closed file")
+        self.returncode = 0
+        return b"", b""
+
+    def wait(self, timeout=None):
+        self.returncode = 0
+        return 0
+
+    def kill(self):
+        pass
+
+
+def test_ffmpeg_pipe_does_not_flush_closed_stdin(monkeypatch):
+    monkeypatch.setattr(proof.subprocess, "Popen", _StrictPopen)
+    proof._ffmpeg(["ffmpeg", "-i", "-", "out.mp4"], iter([b"frame-1", b"frame-2"]))
+    proof._ffmpeg(["ffmpeg", "-i", "in.mp4", "out.gif"])
+
+
+def test_real_video_renders_through_report(fail_run, capsys, monkeypatch):
+    if REAL_AVAILABLE() is None:
+        pytest.skip("video extra (pillow + ffmpeg) not installed")
+    monkeypatch.setattr(proof, "available", REAL_AVAILABLE)
+    result = draft_json(capsys, str(fail_run))
+    assert result["video"]["status"] == "rendered", result["video"]
+    assert (fail_run / "issue" / "proof.mp4").stat().st_size > 0
+
+
+def test_partial_attach_failure_edits_the_embed_out_of_the_filed_body(fail_run, capsys, gh, monkeypatch):
+    fake_video(monkeypatch)
+    gh.respond(["issue", "create", "-R"], stdout=CREATED + "\n", stderr="failed to upload proof.mp4: 422", exit=1)
+    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    edit = next(call for call in gh.calls() if call["argv"][:2] == ["issue", "edit"])
+    assert edit["argv"][2] == CREATED
+    assert "![LiteTraffic replay]" not in edit["files"]["-F"] and "litetraffic-fingerprint" in edit["files"]["-F"]
+    assert "![LiteTraffic replay]" not in (fail_run / "issue" / "issue.md").read_text()
+
+
+def test_remove_local_keeps_run_when_video_render_failed(fail_run, capsys, gh, monkeypatch):
+    monkeypatch.setattr(proof, "available", lambda: "/usr/bin/ffmpeg")
+
+    def boom(evidence, out_dir):
+        raise RuntimeError("encoder exploded")
+
+    monkeypatch.setattr(proof, "render", boom)
+    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local") == 0
+    out = capsys.readouterr().out
+    assert fail_run.exists() and f"kept {fail_run}" in out
+
+
+def test_remove_local_keeps_run_after_failed_upload_even_with_attach_url(fail_run, capsys, gh, monkeypatch):
+    fake_video(monkeypatch)
+    gh.respond(["issue", "create", "-R"], stdout=CREATED + "\n", stderr="failed to upload proof.mp4: 422", exit=1)
+    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
+    assert fail_run.exists() and f"kept {fail_run}" in capsys.readouterr().out
+
+
+def test_remove_local_ignores_autodetected_actions_url(fail_run, capsys, gh, monkeypatch):
+    fake_video(monkeypatch)
+    for name, value in (("GITHUB_SERVER_URL", "https://github.com"), ("GITHUB_REPOSITORY", "owner/app"), ("GITHUB_RUN_ID", "12345")):
+        monkeypatch.setenv(name, value)
+    gh.respond(["repo", "view"], stdout="READ\n")
+    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local") == 0
+    assert fail_run.exists() and f"kept {fail_run}" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("url", ["x", "http://ci.example.test/a", "https://ci.example.test/a b", "javascript:alert(1)"])
+def test_attach_url_must_be_plain_https(fail_run, capsys, gh, url):
+    assert report(str(fail_run), "--attach-url", url) == 3
+    assert "--attach-url must be a plain https:// URL" in capsys.readouterr().out

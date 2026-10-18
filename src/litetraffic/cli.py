@@ -118,7 +118,7 @@ def _parser() -> argparse.ArgumentParser:
     report_commands = report.add_subparsers(dest="report_command", required=True)
     issue_command = report_commands.add_parser("issue", help="draft (or, with --submit, file) a maintainer-facing issue from a failing run")
     issue_command.add_argument("run", help="run directory or run ID")
-    issue_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
+    issue_command.add_argument("--runs-dir", type=Path, default=None, help="runs directory, which also holds the filing ledger (default .litetraffic/runs)")
     issue_command.add_argument("--scenario", type=Path, metavar="DIR", help="scenario bundle to include, checked against scenario.lock.json")
     issue_command.add_argument("--repo", metavar="OWNER/NAME", help="repository to file in (required with --submit)")
     issue_command.add_argument("--submit", action="store_true", help="actually file it; without this nothing leaves the machine")

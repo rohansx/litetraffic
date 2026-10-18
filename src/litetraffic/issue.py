@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -29,7 +30,13 @@ CHANGED = "run artifacts changed after the run; refusing to report"
 SECURITY_ASSERTIONS = frozenset(
     {"cross_tenant_read_blocked", "cross_tenant_write_blocked", "victim_unchanged", "unauthenticated_rejected", "no_foreign_data_in_own_responses"}
 )
-SECURITY_ID_RE = re.compile(r"(tenant|isolation|authz|authori[sz]|permission|privilege|idor|cross_|foreign|leak|secret|marker|unauth|token|session_fixation)")
+# Matched against the normalised id (camelCase split, lower-cased, '-', '_' and spaces removed), so variants fail closed.
+SECURITY_ID_RE = re.compile(
+    r"(tenant|isolat|authz|authori[sz]|authn|authenticat|permission|privilege|idor|bola|bfla|cross|foreign|leak|secret|marker|unauth"
+    r"|token|session|victim|bypass|access|acl|rbac|abac|owner|csrf|xsrf|ssrf|xss|inject|credential|password|otheruser|otheraccount"
+    r"|otherorg|hidden|forbid|denied|blocked|escalat|impersonat|scope)"
+)
+NOT_SECURITY_IDS = frozenset({"ownaccess"})  # the kit's own-resource control check: failing alone, it is a correctness bug
 KIT_OBSERVER = "tenant-isolation-kit"
 OVERLOADED = (429, 503)
 DEFAULT_PORTS = {"http": 80, "https": 443}
@@ -50,6 +57,7 @@ class RunEvidence:
     manifest: ScenarioManifest | None
     source_sha256: dict[str, str]
     requests: list[dict] = field(default_factory=list)  # tags of each http_reqs point in metrics.jsonl
+    runs_dir_given: bool = True  # --runs-dir was passed (so the ledger lives there even for a run outside it)
 
     @property
     def run_id(self) -> str:
@@ -171,27 +179,47 @@ def submit_blockers(evidence: RunEvidence) -> list[str]:
     return blockers
 
 
+def normalise_id(name: object) -> str:
+    """`victimUnchanged`, `victim-unchanged` and `Victim Unchanged` all become `victimunchanged`."""
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(name))
+    return re.sub(r"[-_\s]+", "", text.lower())
+
+
+SECURITY_IDS = frozenset(normalise_id(name) for name in SECURITY_ASSERTIONS)
+
+
 def _kit_run(manifest: dict) -> list[str]:
     reasons = []
-    if manifest.get("observer") == KIT_OBSERVER:
-        reasons.append(f"the scenario's observer is {KIT_OBSERVER}")
-    if any(isinstance(j, dict) and j.get("name") == "tenant-isolation" for j in manifest.get("journeys") or []):
+    observer = normalise_id(manifest.get("observer") or "")
+    if "isolation" in observer or "kit" in observer:
+        reasons.append(f"the scenario's observer is {manifest.get('observer')}")
+    if any(isinstance(j, dict) and "isolation" in normalise_id(j.get("name") or "") for j in manifest.get("journeys") or []):
         reasons.append("the scenario has a tenant-isolation journey")
-    if any(isinstance(a, dict) and str(a.get("auth_recipe", "")).startswith("kit-") for a in manifest.get("actors") or []):
-        reasons.append("the scenario's actors use kit- auth recipes")
+    if any(isinstance(a, dict) and "kit" in normalise_id(a.get("auth_recipe") or "") for a in manifest.get("actors") or []):
+        reasons.append("the scenario's actors use kit auth recipes")
     return reasons
+
+
+def _kit_shaped(sample: dict) -> bool:
+    """A per-request sample as the isolation kit records it: who sent it and what status came back."""
+    return "identity" in sample and "status" in sample
 
 
 def classify(evidence: RunEvidence, force_security: bool) -> Classification:
     """Fail closed: any security signal makes the failure security-class, and nothing downgrades it."""
     rows, reasons = failing(evidence), []
     for row in rows:
-        if row["id"] in SECURITY_ASSERTIONS:
-            reasons.append(f"failing assertion {row['id']} is an isolation check")
-        elif SECURITY_ID_RE.search(row["id"].lower()):
-            reasons.append(f"failing assertion {row['id']} is named like a security check")
-    ids = {row["id"] for row in rows}
-    if ids and ids != {"own_access"}:
+        name = normalise_id(row["id"])
+        if name in NOT_SECURITY_IDS:
+            continue
+        if name in SECURITY_IDS:
+            reasons.append(f"failing assertion {_short(row['id'], 100)} is an isolation check")
+        elif SECURITY_ID_RE.search(name):
+            reasons.append(f"failing assertion {_short(row['id'], 100)} is named like a security check")
+        if any(_kit_shaped(sample) for sample in _samples(row)):
+            reasons.append(f"failing assertion {_short(row['id'], 100)} recorded per-identity request samples")
+    ids = {normalise_id(row["id"]) for row in rows}
+    if ids and not ids <= NOT_SECURITY_IDS:
         reasons.extend(_kit_run(evidence.manifest_data))
     if any("markers" in sample for row in rows for sample in _samples(row)):
         reasons.append("a failing sample carries another identity's markers")
@@ -224,7 +252,16 @@ def fingerprint(evidence: RunEvidence) -> str:
 
 JWT_RE = re.compile(r"eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]*")
 GH_TOKEN_RE = re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,}")
-TOKEN_LIKE = re.compile(r"\S{8,}")
+TOKEN_LIKE = re.compile(r"\S{12,}")
+IDENTIFIER_LIKE = re.compile(r"^[A-Za-z_]+$|^[A-Za-z]+(?:[-_][A-Za-z]+)*$")
+
+
+def _marker_like(text: str) -> bool:
+    """A string that looks like a planted marker value: long, unbroken, with a digit, and not an identifier."""
+    return bool(TOKEN_LIKE.fullmatch(text)) and any(char.isdigit() for char in text) and not IDENTIFIER_LIKE.match(text)
+# An opaque credential after an auth scheme; a ${ENV} reference or an already-redacted value is not one.
+BEARER_RE = re.compile(r"\b(Bearer|Basic)(\s+)(?![$\[])([A-Za-z0-9._~+/=-]{16,})", re.IGNORECASE)
+MIN_HOST_LENGTH = 4
 
 
 def parse_kit(script: str) -> dict | None:
@@ -255,29 +292,43 @@ def _spellings(text: str) -> set[str]:
     return {text, json.dumps(text)[1:-1], encoded, re.sub(r"%[0-9A-F]{2}", lambda m: m.group(0).lower(), encoded)}
 
 
+def _secret_spellings(secret: str) -> list[str]:
+    """A secret as `_spellings` gives it, plus base64 and base64url (padded or not); longest first."""
+    data = secret.encode()
+    forms = _spellings(secret)
+    for encoded in (base64.b64encode(data).decode(), base64.urlsafe_b64encode(data).decode()):
+        forms |= {encoded, encoded.rstrip("=")}
+    return sorted(forms, key=len, reverse=True)
+
+
 class Scrubber:
     """Every byte the bundle (and the CLI output) carries goes through `text`; `verify` re-reads what was written."""
 
     def __init__(self, evidence: RunEvidence, kit: dict | None = None, security: bool = False) -> None:
         self.secrets = secret_values(evidence.manifest, os.environ, {}) if evidence.manifest else []
+        self.secret_forms = sorted({form for secret in self.secrets if len(secret) >= MIN_SECRET_LENGTH
+                                    for form in _secret_spellings(secret)}, key=len, reverse=True)
         self.security = security
         markers: dict[str, str] = {}
         for identity in (kit or {}).get("identities") or []:
             for index, marker in enumerate(identity.get("markers") or []):
                 if isinstance(marker, str) and marker:
                     markers[marker] = f"[marker:{identity.get('name')}#{index}]"
-        if security:
-            # Token-like strings a hand-written security check expected to find (or not find) may be marker values.
-            expected = [text for row in failing(evidence) for text in _strings(row.get("expected"))]
-            for index, text in enumerate(dict.fromkeys(t for t in expected if TOKEN_LIKE.fullmatch(t))):
+        if security and not markers:
+            # Without the kit's declared markers, a failing assertion whose samples carry a `markers` key (a marker leak
+            # was seen) may name the marker values in `expected`; only its high-entropy strings are treated as markers,
+            # never plain words, ids or status values such as COMPLETED (scrubbing those would break the repro's check).
+            marked = [row for row in failing(evidence) if any("markers" in sample for sample in _samples(row))]
+            expected = [text for row in marked for text in _strings(row.get("expected"))]
+            for index, text in enumerate(dict.fromkeys(t for t in expected if _marker_like(t))):
                 markers.setdefault(text, f"[marker:expected#{index}]")
         self.markers = dict(sorted(markers.items(), key=lambda item: len(item[0]), reverse=True))
         target = str(evidence.run.get("target") or "")
         origins = {target.rstrip("/"), normalize_origin(target)} if target else set()
         self.origins = sorted({form for origin in origins if "://" in origin for form in _spellings(origin)}, key=len, reverse=True)
         parts = urlsplit(target)
-        hosts = {parts.netloc, normalize_origin(target).split("://", 1)[-1]} if parts.port not in (None, *DEFAULT_PORTS.values()) else set()
-        self.hosts = sorted({form for host in hosts if host for form in _spellings(host)}, key=len, reverse=True)
+        hosts = {parts.netloc, parts.hostname or "", normalize_origin(target).split("://", 1)[-1]} if target else set()
+        self.hosts = sorted({form for host in hosts if len(host) >= MIN_HOST_LENGTH for form in _spellings(host)}, key=len, reverse=True)
         home = os.environ.get("HOME")
         paths = [(evidence.run_dir, "<run>"), (evidence.runs_dir, "<runs>")] + ([(Path(home), "~")] if home else [])
         forms = {}
@@ -289,7 +340,10 @@ class Scrubber:
 
     def text(self, value: str) -> str:
         value = redact(value, self.secrets)
+        for form in self.secret_forms:
+            value = value.replace(form, REDACTED)
         value = GH_TOKEN_RE.sub(REDACTED, JWT_RE.sub(REDACTED, value))
+        value = BEARER_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}{REDACTED}", value)
         for form in self.origins:
             value = re.sub(re.escape(form), "$TARGET", value, flags=re.IGNORECASE)
         for form in self.hosts:
@@ -312,9 +366,9 @@ class Scrubber:
         return data
 
     def leak(self, text: str) -> bool:
-        if any(len(secret) >= MIN_SECRET_LENGTH and secret in text for secret in self.secrets):
+        if any(form in text for form in self.secret_forms):
             return True
-        if JWT_RE.search(text) or GH_TOKEN_RE.search(text):
+        if JWT_RE.search(text) or GH_TOKEN_RE.search(text) or BEARER_RE.search(text):
             return True
         return self.security and any(marker in text for marker in self.markers)
 
@@ -334,9 +388,44 @@ TITLE_LIMIT = 100
 ACTIONS_NOTE = "requires GitHub sign-in; expires with artifact retention"
 
 
+CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+SAFE_URL = re.compile(r"^https://[A-Za-z0-9.-]+(?::\d+)?(?:/[A-Za-z0-9._~/?#=&%+:-]*)?$")
+
+
 def _short(value: object, limit: int = 80) -> str:
+    """One line of plain text: control characters and newlines collapse to single spaces, then the text is clipped."""
     text = value if isinstance(value, str) else json.dumps(value, sort_keys=True, ensure_ascii=False)
+    text = " ".join(CONTROL.sub(" ", text).split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _code(value: object, limit: int = 80) -> str:
+    """A run-derived value as an inline code span, inert on GitHub: no headings, mentions, links, HTML or comments.
+
+    The delimiter is one backtick longer than the longest run inside, so the value cannot close the span.
+    """
+    text = _short(value, limit)
+    if not text:
+        return "(empty)"
+    fence = "`" * (max((len(run) for run in re.findall(r"`+", text)), default=0) + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
+
+
+def _num(value: object) -> str:
+    """A count or rate as plain digits; anything else is shown as code."""
+    return str(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else _code(value, 40)
+
+
+def _link(url: object) -> str:
+    """A URL as an autolink when it is a plain https URL, else as inert code."""
+    return f"<{url}>" if isinstance(url, str) and SAFE_URL.match(url) else _code(url, 200)
+
+
+def _fence(text: str, lang: str = "") -> list[str]:
+    """`text` in a fenced block whose fence is longer than any backtick run inside, so the text cannot close it."""
+    fence = "`" * max(3, max((len(run) for run in re.findall(r"`+", text)), default=0) + 1)
+    return [fence + lang, text, fence]
 
 
 def describe_matcher(matcher: object) -> str:
@@ -418,21 +507,21 @@ def _journeys_phrase(evidence: RunEvidence) -> str:
     name = journeys[0].get("name") if len(journeys) == 1 and isinstance(journeys[0], dict) else None
     rates = [phase.get("rate") for phase in evidence.run.get("resolved_schedule") or [] if isinstance(phase, dict)]
     count = evidence.result.get("planned_journeys")
-    what = f"`{name}` journeys" if name else "journeys"
-    rate = f" at {'/'.join(str(r) for r in rates)}/s" if rates else ""
-    return f"{count} concurrent {what}{rate}" if count is not None else f"concurrent {what}{rate}"
+    what = f"{_code(name, 40)} journeys" if name else "journeys"
+    rate = f" at {'/'.join(_num(r) for r in rates)}/s" if rates else ""
+    return f"{_num(count)} concurrent {what}{rate}" if count is not None else f"concurrent {what}{rate}"
 
 
 def summary_line(evidence: RunEvidence, row: dict) -> str:
     found = checks(row)
     if found:
         first = found[0]
-        return (f"{_journeys_phrase(evidence)}; `{row['id']}`: {first['pointer']} expected {describe_matcher(first['expected'])}, "
-                f"observed {_short(first['actual'])}.")
+        return (f"{_journeys_phrase(evidence)}; {_code(row['id'])}: {_code(first['pointer'])} expected "
+                f"{_code(describe_matcher(first['expected']))}, observed {_code(first['actual'])}.")
     failures = [f for f in row.get("failures") or [] if isinstance(f, dict)]
-    line = f"{row.get('failed', len(failures))}/{row.get('samples', '?')} `{row['id']}` checks failed"
+    line = f"{_num(row.get('failed', len(failures)))}/{_num(row.get('samples', '?'))} {_code(row['id'])} checks failed"
     if failures:
-        line += f"; expected {_short(failures[0].get('expected'))}, got {_short(failures[0].get('actual'))}"
+        line += f"; expected {_code(failures[0].get('expected'))}, got {_code(failures[0].get('actual'))}"
     return line + "."
 
 
@@ -454,10 +543,13 @@ def make_title(evidence: RunEvidence, override: str | None = None) -> str:
 def attach_url(explicit: str | None) -> tuple[str | None, str | None]:
     """The evidence link and its caveat: the flag, else the GitHub Actions run when all three variables are set."""
     if explicit:
+        if not SAFE_URL.match(explicit):
+            raise IssueError(f"--attach-url must be a plain https:// URL, got {_short(explicit, 80)!r}")
         return explicit, None
     parts = [os.environ.get(name) for name in ("GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID")]
     if all(parts):
-        return f"{parts[0].rstrip('/')}/{parts[1]}/actions/runs/{parts[2]}", ACTIONS_NOTE
+        url = f"{parts[0].rstrip('/')}/{parts[1]}/actions/runs/{parts[2]}"
+        return (url, ACTIONS_NOTE) if SAFE_URL.match(url) else (None, None)
     return None, None
 
 
@@ -498,19 +590,21 @@ def evidence_document(evidence: RunEvidence, classification: Classification, fp:
 
 
 def _cell(value: object) -> str:
-    return _short(value, 120).replace("|", "\\|").replace("\n", " ")
+    """A table cell: inert code, with '|' escaped because GitHub splits table rows on it even inside code spans."""
+    return _code(value, 120).replace("|", "\\|")
 
 
 def _check_rows(doc: dict) -> list[str]:
     rows = ["| Check | Expected | Actual |", "|---|---|---|"]
     for item in doc["failing"]:
         if item["checks"]:
-            rows += [f"| `{item['id']}` {check['pointer']} | {describe_matcher(check['expected'])} | {_cell(check['actual'])} |"
-                     for check in item["checks"]]
+            rows += [f"| {_cell(item['id'])} {_cell(check['pointer'])} | {_cell(describe_matcher(check['expected']))} "
+                     f"| {_cell(check['actual'])} |" for check in item["checks"]]
         else:
             first = (item["failures"] or [{}])[0]
-            rows.append(f"| `{item['id']}` ({item.get('failed', '?')}/{item.get('samples', '?')} failed) | {_cell(first.get('expected'))} "
-                        f"| {_cell(first.get('actual'))} |")
+            first = first if isinstance(first, dict) else {}
+            rows.append(f"| {_cell(item['id'])} ({_num(item.get('failed', '?'))}/{_num(item.get('samples', '?'))} failed) "
+                        f"| {_cell(first.get('expected'))} | {_cell(first.get('actual'))} |")
     return rows
 
 
@@ -520,8 +614,9 @@ def _sample_rows(doc: dict) -> list[str]:
         return ["The failing checks are final-state reads; there are no per-request samples."]
     rows = ["| Check | Sequence | Key | Expected | Actual | Detail |", "|---|---|---|---|---|---|"]
     for name, failure in samples:
-        rows.append(f"| `{name}` | {_cell(failure.get('sequence'))} | {_cell(failure.get('logical_key'))} | {_cell(failure.get('expected'))} "
-                    f"| {_cell(failure.get('actual'))} | {_cell(failure.get('detail') or '')} |")
+        failure = failure if isinstance(failure, dict) else {}
+        rows.append(f"| {_cell(name)} | {_cell(failure.get('sequence'))} | {_cell(failure.get('logical_key'))} | {_cell(failure.get('expected'))} "
+                    f"| {_cell(failure.get('actual'))} | {_cell(failure['detail']) if failure.get('detail') else ''} |")
     return rows
 
 
@@ -533,9 +628,10 @@ def _traffic_rows(doc: dict) -> list[str]:
     for op in traffic_doc["operations"]:
         statuses = ", ".join(f"{status}×{count}" for status, count in op["statuses"].items())
         p95 = (traffic_doc["by_operation"].get(op["operation"]) or {}).get("p95", "")
-        rows.append(f"| `{op['operation']}` | `{op['method']} $TARGET{op['path']}` | {op['requests']} | {statuses} | {p95} |")
+        request, p95 = f"{op['method']} $TARGET{op['path']}", "" if p95 in ("", None) else _num(p95)
+        rows.append(f"| {_cell(op['operation'])} | {_cell(request)} | {_num(op['requests'])} | {_cell(statuses)} | {p95} |")
     if traffic_doc["overlap"]:
-        overlap = ", ".join(f"`{name}` {count}" for name, count in traffic_doc["overlap"].items())
+        overlap = ", ".join(f"{_code(name, 40)} {_num(count)}" for name, count in traffic_doc["overlap"].items())
         rows += ["", f"Peak requests in flight at once, per operation: {overlap}."]
     return rows
 
@@ -567,26 +663,28 @@ def cwe_ids(doc: dict) -> list[str]:
 def _environment(doc: dict) -> list[str]:
     run = doc["run"]
     return [
-        f"- Target version: {doc['target']['version']}",
-        f"- Target origin: `$TARGET` (sha256 of the normalized origin `{doc['target']['origin_sha256']}`)",
-        f"- LiteTraffic: {doc['litetraffic_version']}",
-        f"- Load engine: {run['engine']}",
-        f"- Seed: {run['seed']}",
-        f"- Run: `{run['run_id']}`, started {run['started_at']} (UTC)",
-        f"- Scenario: `{run['scenario']}`, sha256 `{run['scenario_sha256']}`",
+        f"- Target version: {_code(doc['target']['version'], 120)}",
+        f"- Target origin: `$TARGET` (sha256 of the normalized origin {_code(doc['target']['origin_sha256'])})",
+        f"- LiteTraffic: {_code(doc['litetraffic_version'])}",
+        f"- Load engine: {_code(run['engine'], 120)}",
+        f"- Seed: {_num(run['seed'])}",
+        f"- Run: {_code(run['run_id'])}, started {_code(run['started_at'])} (UTC)",
+        f"- Scenario: {_code(run['scenario'])}, sha256 {_code(run['scenario_sha256'])}",
     ]
 
 
 def _steps(doc: dict, repro: str, env_names: list[str]) -> list[str]:
     names = " ".join(f"{name}=…" for name in env_names)
+    exports = " and export " + ", ".join(_code(name) for name in env_names) if env_names else ""
     lines = [
-        f"1. Set `TARGET` to the app's base URL{' and export ' + ', '.join(f'`{n}`' for n in env_names) if env_names else ''}.",
-        f"2. Run `TARGET=… {names + ' ' if names else ''}bash repro.sh`. Exit 1 means the failure reproduced; exit 0 means it did not.",
+        f"1. Set `TARGET` to the app's base URL{exports}.",
+        f"2. Run {_code(f'TARGET=… {names} bash repro.sh', 400)}. Exit 1 means the failure reproduced; exit 0 means it did not; "
+        "exit 2 means the script could not check (a missing variable, or a step that failed before the check).",
         "3. Failures under concurrent load can depend on timing, so one attempt may not reproduce it; rerun a few times. "
-        f"The recorded run planned {doc['run']['planned_journeys']} journeys.",
+        f"The recorded run planned {_num(doc['run']['planned_journeys'])} journeys.",
     ]
     if len(repro.encode()) <= INLINE_REPRO_BYTES:
-        lines += ["", "<details><summary>repro.sh</summary>", "", "```bash", repro.rstrip("\n"), "```", "", "</details>"]
+        lines += ["", "<details><summary>repro.sh</summary>", "", *_fence(repro.rstrip("\n"), "bash"), "", "</details>"]
     else:
         lines += ["", "repro.sh is too long to inline; it is in the reporter's bundle."]
     return lines
@@ -600,16 +698,18 @@ def _proof(doc: dict) -> list[str]:
         lines.append("A replay video of the recorded evidence is in the reporter's bundle (issue/proof.mp4).")
     if doc["attach_url"]:
         note = f" ({doc['attach_note']})" if doc["attach_note"] else ""
-        lines.append(f"- Evidence bundle: {doc['attach_url']}{note}")
+        lines.append(f"- Evidence bundle: {_link(doc['attach_url'])}{note}")
     lines.append("- Source artifacts (sha256):")
-    lines += [f"  - `{name}`: `{digest}`" for name, digest in sorted(doc["source_sha256"].items())]
+    lines += [f"  - {_code(name)}: {_code(digest)}" for name, digest in sorted(doc["source_sha256"].items())]
     return lines
 
 
 def _sections(doc: dict, repro: str, env_names: list[str]) -> list[str]:
-    caveats = ["", "## Caveats", "", *(f"- {item}" for item in doc["caveats"])] if doc["caveats"] else []
+    caveats = ["", "## Caveats", "", *(f"- {_code(item, 300)}" for item in doc["caveats"])] if doc["caveats"] else []
     return [
         "## Summary", "", *doc["summary"], "",
+        *([f"This failure was reported before in {_link(doc['supersedes'])}, which is now closed; it is happening again.", ""]
+          if doc.get("supersedes") else []),
         "## Expected vs actual", "", *_check_rows(doc), "",
         "## Failing samples", "", *_sample_rows(doc), "",
         "## Steps to reproduce", "", *_steps(doc, repro, env_names), "",
@@ -629,11 +729,12 @@ def render_issue_md(doc: dict, repro: str, env_names: list[str]) -> str:
 
 def render_security_md(doc: dict, repro: str, env_names: list[str], repo: str | None) -> str:
     fp, where = doc["fingerprint"], repo or "OWNER/NAME"
-    impact = [f"- `{item['id']}` failed ({item.get('failed') or '?'}/{item.get('samples') or '?'} samples)" for item in doc["failing"]]
+    impact = [f"- {_code(item['id'])} failed ({_num(item.get('failed') or '?')}/{_num(item.get('samples') or '?')} samples)"
+              for item in doc["failing"]]
     lines = [
         f"<!-- litetraffic-fingerprint: {fp} -->", "", "**Private vulnerability report — do not post publicly.**", "",
         "## Observed impact", "", *impact, "", "Why this is treated as security-class:",
-        *(f"- {reason}" for reason in doc["classification"]["reasons"]), "",
+        *(f"- {_code(reason, 200)}" for reason in doc["classification"]["reasons"]), "",
         f"Suggested CWE: {', '.join(cwe_ids(doc))}", "",
         *_sections(doc, repro, env_names),
         "## If this report cannot be sent privately", "",
@@ -774,9 +875,14 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
                   scrubber, script, env_names)
 
 
-def embed_video(bundle: Bundle, name: str) -> None:
-    """Rewrite issue.md so it references the attached video inline (gh rewrites `./name` to the uploaded URL)."""
+def embed_video(bundle: Bundle, name: str | None) -> None:
+    """Rewrite issue.md so it references the attached video inline (gh rewrites `./name` to the uploaded URL); None drops it."""
     bundle.document["embed_video"] = name
+    rerender(bundle)
+
+
+def rerender(bundle: Bundle) -> None:
+    """Rewrite issue.md and evidence.json from the (changed) document, then re-check the bundle."""
     _write(bundle.body, bundle.scrubber.text(render_issue_md(bundle.document, bundle.repro, bundle.env_names)))
     _write(bundle.dir / "evidence.json", json.dumps(bundle.document, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
     bundle.scrubber.verify(bundle.dir)
@@ -845,25 +951,35 @@ def format_draft(result: dict) -> list[str]:
     return lines
 
 
-LEDGER = "issues.jsonl"  # next to the run directories, so it survives --remove-local
+LEDGER = "issues.jsonl"  # in --runs-dir, next to the run directories, so it survives --remove-local
 PRUNE_HINT = "run 'litetraffic prune' after adding the video"
 
 
 def ledger_path(evidence: RunEvidence) -> Path:
+    """<runs_dir>/issues.jsonl; a run given by path outside the default runs dir keeps its ledger beside it."""
+    runs_dir = evidence.runs_dir.resolve()
+    if evidence.runs_dir_given or evidence.run_dir.is_relative_to(runs_dir):
+        return runs_dir / LEDGER
     return evidence.run_dir.parent / LEDGER
+
+
+def ledger_paths(evidence: RunEvidence) -> list[Path]:
+    """Every ledger that may hold an earlier filing of this run: dedupe reads them all."""
+    return list(dict.fromkeys([ledger_path(evidence), evidence.runs_dir.resolve() / LEDGER, evidence.run_dir.parent / LEDGER]))
 
 
 def ledger_match(evidence: RunEvidence, fp: str, repo: str) -> dict | None:
     """The most recent local filing of this fingerprint in this repo, if any."""
-    path, match = ledger_path(evidence), None
-    if not path.is_file() or path.is_symlink():
-        return None
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    match = None
+    lines = [line for path in ledger_paths(evidence) if path.is_file() and not path.is_symlink()
+             for line in path.read_text(encoding="utf-8", errors="replace").splitlines()]
+    for line in lines:
         try:
             entry = json.loads(line)
         except ValueError:
             continue
-        if isinstance(entry, dict) and entry.get("fingerprint") == fp and entry.get("repo") == repo and entry.get("url"):
+        if (isinstance(entry, dict) and entry.get("fingerprint") == fp and str(entry.get("repo") or "").lower() == repo.lower()
+                and entry.get("url")):
             match = entry
     return match
 
@@ -874,8 +990,10 @@ def record_filing(evidence: RunEvidence, bundle: Bundle, entry: dict) -> dict:
              "filed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **entry}
     _write(bundle.dir / "filed.json", json.dumps(filed, indent=2, sort_keys=True) + "\n")
     ledger = ledger_path(evidence)
+    filed = {**filed, "repo": str(filed.get("repo") or "").lower()}  # GitHub repo names are case-insensitive
     if ledger.is_symlink():
         raise IssueError(f"refusing to append to a symlinked ledger: {ledger}")
+    ledger.parent.mkdir(parents=True, exist_ok=True)
     with ledger.open("a", encoding="utf-8") as out:
         out.write(json.dumps(filed, sort_keys=True) + "\n")
     return filed
@@ -884,7 +1002,7 @@ def record_filing(evidence: RunEvidence, bundle: Bundle, entry: dict) -> dict:
 def render_comment_md(evidence: RunEvidence, bundle: Bundle) -> str:
     """A duplicate's follow-up: the new run, its summary and samples, nothing the issue already has."""
     doc = bundle.document
-    lines = [f"Reproduced again by LiteTraffic run `{evidence.run_id}`.", "", *doc["summary"], "",
+    lines = [f"Reproduced again by LiteTraffic run {_code(evidence.run_id)}.", "", *doc["summary"], "",
              "## Expected vs actual", "", *_check_rows(doc), "", "## Failing samples", "", *_sample_rows(doc), "",
              "---", f"Reported with LiteTraffic {doc['litetraffic_version']} · litetraffic-fingerprint: {bundle.fingerprint}"]
     return bundle.scrubber.text("\n".join(lines) + "\n")
@@ -937,6 +1055,10 @@ def submit_security(evidence: RunEvidence, bundle: Bundle, gh, repo: str) -> dic
 def submit_public(evidence: RunEvidence, bundle: Bundle, gh, repo: str, comment: bool, labels: list[str]) -> dict:
     """Dedupe (ledger, search, the user's own open issues), then comment on the duplicate or create the issue."""
     previous = ledger_match(evidence, bundle.fingerprint, repo)
+    if previous and gh.issue_state(previous["url"]) == "CLOSED":
+        bundle.document["supersedes"] = previous["url"]  # a regression of a fixed issue: file anew, linking the old one
+        rerender(bundle)
+        previous = None
     duplicates = [{"url": previous["url"]}] if previous else gh.find_duplicates(repo, bundle.fingerprint)
     video, notes = video_file(bundle), []
     if duplicates:
@@ -949,6 +1071,7 @@ def submit_public(evidence: RunEvidence, bundle: Bundle, gh, repo: str, comment:
         url = gh.comment_issue(duplicate, body)
         notes.append(f"commented on {duplicate}: {url}")
         attached: list[str] = []
+        attach_error = None
         entry = {"url": duplicate, "comment_url": url, "repo": repo, "action": "comment", "attached": attached}
     else:
         duplicate = None
@@ -960,15 +1083,45 @@ def submit_public(evidence: RunEvidence, bundle: Bundle, gh, repo: str, comment:
         notes.append(f"filed {url}")
         if attach_error:
             notes.append(f"the issue exists but the video upload failed: {attach_error}")
+            notes.append(drop_embed(bundle, gh, url))
         elif video and not allowed:
             notes.append(f"not attaching the video: {reason}")
         entry = {"url": url, "repo": repo, "action": "create", "attached": attached}
     if video and not attached:
         notes.append(f"drag {bundle.dir / video} into {url} to add the video")
     filed = record_filing(evidence, bundle, entry)
-    complete = video is None or bool(attached) or bool(bundle.document.get("attach_url"))
+    keep = keep_reason(bundle, video, attached, upload_failed=bool(attach_error))
     return {"url": url, "duplicate": duplicate, "filed": filed, "attached": attached, "notes": notes,
-            "remote_complete": complete, "keep_reason": None if complete else "the video was not uploaded"}
+            "remote_complete": keep is None, "keep_reason": keep}
+
+
+def drop_embed(bundle: Bundle, gh, url: str) -> str:
+    """After a failed upload gh leaves `./proof.mp4` in the filed body as a broken image: re-render without it and edit."""
+    from litetraffic.github import GhError
+
+    embed_video(bundle, None)
+    try:
+        gh.edit_issue(url, bundle.body)
+    except GhError as exc:
+        return f"could not remove the broken video reference from {url} ({exc}); edit the issue to drop it"
+    return f"removed the broken video reference from {url}"
+
+
+def keep_reason(bundle: Bundle, video: str | None, attached: list[str], upload_failed: bool) -> str | None:
+    """Why --remove-local must keep the run, or None when everything the issue points to is reachable remotely.
+
+    A video that failed to render is kept for the record; an explicit --attach-url stands in for a video that was never
+    uploaded, but not for one whose upload failed, and the auto-detected Actions URL never counts.
+    """
+    if bundle.video.get("status") == "failed":
+        return "the video failed to render"
+    if video is None or attached:
+        return None
+    if upload_failed:
+        return "the video upload failed"
+    if bundle.document.get("attach_url") and bundle.document.get("attach_note") is None:
+        return None  # an explicit --attach-url (the Actions URL carries its note)
+    return "the video was not uploaded"
 
 
 def submit(evidence: RunEvidence, bundle: Bundle, args) -> dict:
@@ -988,7 +1141,8 @@ def _run_is_symlink(ref: str, runs_dir: Path) -> bool:
     return Path(ref).is_symlink() or (Path(ref).name == ref and (Path(runs_dir) / ref).is_symlink())
 
 
-REPO_RE = re.compile(r"^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$")
+DEFAULT_RUNS_DIR = Path(".litetraffic/runs")
+REPO_RE = re.compile(r"^(?!-)[A-Za-z0-9-]{1,39}/(?!\.)[A-Za-z0-9._-]{1,100}$")  # no '.', '..' or dot-led names
 
 
 def report(args) -> dict:
@@ -999,11 +1153,13 @@ def report(args) -> dict:
         raise IssueError("--submit needs --repo OWNER/NAME")
     if args.repo is not None and (not REPO_RE.match(args.repo) or args.repo.startswith("-")):
         raise IssueError(f"--repo must be OWNER/NAME, got {args.repo!r}")
-    if args.remove_local and _run_is_symlink(args.run, args.runs_dir):
+    runs_dir = Path(args.runs_dir) if args.runs_dir is not None else DEFAULT_RUNS_DIR
+    if args.remove_local and _run_is_symlink(args.run, runs_dir):
         raise IssueError(f"--remove-local refuses a symlinked run directory: {args.run}")
     options = {"scenario": args.scenario, "repo": args.repo, "security": args.security, "title": args.title,
                "target_version": args.target_version, "attach_url": args.attach_url, "no_video": args.no_video}
-    evidence = load_run(args.run, args.runs_dir)
+    evidence = load_run(args.run, runs_dir)
+    evidence.runs_dir_given = args.runs_dir is not None
     if gate(evidence) == "pass":
         return _passed(evidence)
     bundle = build_bundle(evidence, options)

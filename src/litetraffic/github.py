@@ -71,7 +71,7 @@ class Gh:
                              "-f", "per_page=100", "--paginate", "-q", ".[] | {number, url: .html_url, body, pull_request}")
         for item in [*_json_items(search), *_json_items(listing)]:
             url = item.get("url")
-            if isinstance(url, str) and fingerprint in str(item.get("body") or "") and not item.get("pull_request"):
+            if isinstance(url, str) and carries_fingerprint(str(item.get("body") or ""), fingerprint) and not item.get("pull_request"):
                 found.setdefault(url, {"number": item.get("number"), "url": url})
         return list(found.values())
 
@@ -107,6 +107,15 @@ class Gh:
             raise GhError(f"gh issue comment failed: {error}")
         return filed
 
+    def issue_state(self, url: str) -> str:
+        """OPEN or CLOSED; anything else (a failed lookup included) reads as UNKNOWN, which callers treat as open."""
+        done = self.run("issue", "view", url, "--json", "state", "-q", ".state")
+        state = done.stdout.strip().upper() if done.returncode == 0 else ""
+        return state if state in ("OPEN", "CLOSED") else "UNKNOWN"
+
+    def edit_issue(self, url: str, body: Path) -> None:
+        self.check("issue", "edit", url, "-F", str(body), cwd=body.parent)
+
     def pvr_enabled(self, repo: str) -> bool:
         return self.check("api", f"repos/{repo}/private-vulnerability-reporting", "-q", ".enabled").strip() == "true"
 
@@ -119,6 +128,16 @@ class Gh:
         if not isinstance(url, str):
             raise GhError("gh api returned no advisory URL")
         return url
+
+
+def carries_fingerprint(body: str, fingerprint: str) -> bool:
+    """The fingerprint on a line of its own, as the tool writes it (the leading HTML comment or the footer), never mid-text.
+
+    Values from the target are rendered inline and cannot start a line, so a response body cannot plant one.
+    """
+    marker = re.compile(rf"^(?:<!-- |Reported with LiteTraffic \S+ · )?litetraffic-fingerprint: {re.escape(fingerprint)}(?: -->)?\s*$",
+                        re.MULTILINE)
+    return marker.search(body) is not None
 
 
 def _json_items(text: str) -> list[dict]:
