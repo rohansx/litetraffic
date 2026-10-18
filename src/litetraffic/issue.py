@@ -677,15 +677,21 @@ def scenario_kit(files: dict[str, Path], evidence: RunEvidence) -> dict | None:
     return parse_kit(script.read_text(encoding="utf-8", errors="replace")) if script else None
 
 
-def render_video(doc: dict, out_dir: Path, skip: bool) -> dict:
-    """Render the replay from the scrubbed evidence document; any failure leaves the bundle complete without it."""
+def render_video(doc: dict, out_dir: Path, skip: bool, scrubber: Scrubber | None = None) -> dict:
+    """Render the replay from the scrubbed evidence document; any failure leaves the bundle complete without it.
+
+    Pixels cannot be re-read like the text files, so every line the video would draw is checked first instead.
+    """
     from litetraffic import proof
 
     if skip:
         return {"status": "skipped"}
     if proof.available() is None:
-        return {"status": "unavailable", "enable": VIDEO_ENABLE}
+        return {"status": "unavailable", "enable": VIDEO_ENABLE, "missing": proof.missing()}
     try:
+        drawn = [text for text, _ in proof.lines(doc)]
+        if scrubber and any(scrubber.leak(text) or scrubber.text(text) != text for text in drawn):
+            return {"status": "failed", "reason": "redaction check failed: a line the video would draw is not scrubbed"}
         files = proof.render(doc, out_dir)
     except Exception as exc:  # noqa: BLE001 - video is optional proof; the draft stands without it
         return {"status": "failed", "reason": f"{type(exc).__name__}: {exc}"}
@@ -733,7 +739,7 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
     document = scrubber.value(evidence_document(evidence, classification, fp, caveats, options))
     staging = Path(tempfile.mkdtemp(prefix=".issue-", dir=evidence.run_dir))
     try:
-        document["video"] = render_video(document, staging, bool(options.get("no_video")))
+        document["video"] = render_video(document, staging, bool(options.get("no_video")), scrubber)
         script = scrubber.text(repro.synthesize(evidence, Path(scenario_dir) if scenario_dir else None, scrubber))
         env_names = sorted(secret_env_names(evidence.manifest)) if evidence.manifest else []
         _write(staging / "repro.sh", script, SCRIPT_MODE)
@@ -831,7 +837,8 @@ def format_draft(result: dict) -> list[str]:
     if video.get("status") == "rendered":
         lines.append("video: " + ", ".join(f"{result['bundle']}/{name}" for name in video.get("files", [])))
     elif video.get("status") == "unavailable":
-        lines.append(f"video: unavailable — {video['enable']}")
+        gap = f" (missing: {', '.join(video['missing'])})" if video.get("missing") else ""
+        lines.append(f"video: unavailable{gap} — {video['enable']}")
     else:
         lines.append(f"video: {video.get('status')}" + (f" ({video['reason']})" if video.get("reason") else ""))
     lines.append("nothing was sent; add --submit --repo OWNER/NAME to file it")

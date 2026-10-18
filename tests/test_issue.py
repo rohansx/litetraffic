@@ -854,6 +854,16 @@ def test_video_render_failure_degrades(fail_run, capsys, monkeypatch):
     assert (fail_run / "issue" / "issue.md").exists()
 
 
+def test_video_refuses_to_draw_unscrubbed_lines(fail_run, capsys, monkeypatch):
+    fake_video(monkeypatch)
+    token = "ghp_" + "A1b2C3d4" * 5
+    monkeypatch.setattr(proof, "lines", lambda evidence: [("title", (0, 0, 0)), (f"leaked {token}", (0, 0, 0))])
+    assert report(str(fail_run)) == 0
+    evidence = json.loads((fail_run / "issue" / "evidence.json").read_text())
+    assert evidence["video"]["status"] == "failed" and "redaction" in evidence["video"]["reason"]
+    assert not (fail_run / "issue" / "proof.mp4").exists()
+
+
 def test_video_render_deterministic(fail_run, tmp_path, capsys, monkeypatch):
     if REAL_AVAILABLE() is None:
         pytest.skip("video extra (pillow + ffmpeg) not installed")
