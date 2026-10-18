@@ -10,6 +10,7 @@ import shlex
 import shutil
 import tempfile
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
@@ -714,6 +715,9 @@ class Bundle:
     video: dict
     document: dict  # the scrubbed evidence.json content
     body: Path  # issue.md, or security.md for a security-class failure
+    scrubber: Scrubber
+    repro: str  # the scrubbed repro.sh text
+    env_names: list[str]
 
 
 def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
@@ -745,8 +749,11 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
         _write(staging / "evidence.json", json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
         for name, path in scenario_files.items():
             _write(staging / "scenario" / name, scrubber.text(path.read_text(encoding="utf-8", errors="replace")))
-        _restrict(staging)
         target = evidence.run_dir / BUNDLE
+        filed = target / "filed.json"
+        if filed.is_file() and not filed.is_symlink() and not target.is_symlink():
+            shutil.copyfile(filed, staging / "filed.json")  # a re-draft keeps the record of an earlier filing
+        _restrict(staging)
         if target.is_symlink() or target.is_file():
             target.unlink()
         elif target.exists():
@@ -757,7 +764,16 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
         raise
     scrubber.verify(target)
     files = sorted(path.relative_to(target).as_posix() for path in target.rglob("*") if path.is_file())
-    return Bundle(target, files, classification, fp, document["title"], caveats, document["video"], document, target / body_name)
+    return Bundle(target, files, classification, fp, document["title"], caveats, document["video"], document, target / body_name,
+                  scrubber, script, env_names)
+
+
+def embed_video(bundle: Bundle, name: str) -> None:
+    """Rewrite issue.md so it references the attached video inline (gh rewrites `./name` to the uploaded URL)."""
+    bundle.document["embed_video"] = name
+    _write(bundle.body, bundle.scrubber.text(render_issue_md(bundle.document, bundle.repro, bundle.env_names)))
+    _write(bundle.dir / "evidence.json", json.dumps(bundle.document, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
+    bundle.scrubber.verify(bundle.dir)
 
 
 def would_file(bundle: Bundle, repo: str | None) -> list[str]:
@@ -767,14 +783,13 @@ def would_file(bundle: Bundle, repo: str | None) -> list[str]:
     return ["gh", "issue", "create", "-R", where, "-t", bundle.title, "-F", str(bundle.body)]
 
 
-def draft(ref: str, runs_dir: Path, options: dict) -> dict:
-    """Draft the bundle for a failing run and describe what --submit would send; nothing leaves the machine."""
-    evidence = load_run(ref, runs_dir)
-    if gate(evidence) == "pass":
-        return {"ok": True, "run_id": evidence.run_id, "verdict": "pass", "kind": None, "fingerprint": None, "bundle": None, "files": [],
-                "would_file": None, "url": None, "duplicate": None, "video": None, "attach": None, "removed": False,
-                "message": f"run {evidence.run_id} passed; nothing to report"}
-    bundle = build_bundle(evidence, options)
+def _passed(evidence: RunEvidence) -> dict:
+    return {"ok": True, "run_id": evidence.run_id, "verdict": "pass", "kind": None, "fingerprint": None, "bundle": None, "files": [],
+            "would_file": None, "url": None, "duplicate": None, "video": None, "attach": None, "removed": False,
+            "message": f"run {evidence.run_id} passed; nothing to report"}
+
+
+def _drafted(evidence: RunEvidence, bundle: Bundle, repo: str | None) -> dict:
     return {
         "ok": True,
         "run_id": evidence.run_id,
@@ -786,13 +801,21 @@ def draft(ref: str, runs_dir: Path, options: dict) -> dict:
         "bundle": str(bundle.dir),
         "files": bundle.files,
         "caveats": bundle.caveats,
-        "would_file": {"command": would_file(bundle, options.get("repo"))},  # the title is already scrubbed
+        "would_file": {"command": would_file(bundle, repo)},  # the title is already scrubbed
         "url": None,
         "duplicate": None,
         "video": bundle.video,
         "attach": bundle.document.get("attach_url"),
         "removed": False,
     }
+
+
+def draft(ref: str, runs_dir: Path, options: dict) -> dict:
+    """Draft the bundle for a failing run and describe what --submit would send; nothing leaves the machine."""
+    evidence = load_run(ref, runs_dir)
+    if gate(evidence) == "pass":
+        return _passed(evidence)
+    return _drafted(evidence, build_bundle(evidence, options), options.get("repo"))
 
 
 def format_draft(result: dict) -> list[str]:
@@ -815,6 +838,149 @@ def format_draft(result: dict) -> list[str]:
     return lines
 
 
+LEDGER = "issues.jsonl"  # next to the run directories, so it survives --remove-local
+PRUNE_HINT = "run 'litetraffic prune' after adding the video"
+
+
+def ledger_path(evidence: RunEvidence) -> Path:
+    return evidence.run_dir.parent / LEDGER
+
+
+def ledger_match(evidence: RunEvidence, fp: str, repo: str) -> dict | None:
+    """The most recent local filing of this fingerprint in this repo, if any."""
+    path, match = ledger_path(evidence), None
+    if not path.is_file() or path.is_symlink():
+        return None
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict) and entry.get("fingerprint") == fp and entry.get("repo") == repo and entry.get("url"):
+            match = entry
+    return match
+
+
+def record_filing(evidence: RunEvidence, bundle: Bundle, entry: dict) -> dict:
+    """filed.json in the bundle, plus one line in the runs-dir ledger."""
+    filed = {"run_id": evidence.run_id, "kind": bundle.classification.kind, "fingerprint": bundle.fingerprint,
+             "filed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **entry}
+    _write(bundle.dir / "filed.json", json.dumps(filed, indent=2, sort_keys=True) + "\n")
+    ledger = ledger_path(evidence)
+    if ledger.is_symlink():
+        raise IssueError(f"refusing to append to a symlinked ledger: {ledger}")
+    with ledger.open("a", encoding="utf-8") as out:
+        out.write(json.dumps(filed, sort_keys=True) + "\n")
+    return filed
+
+
+def render_comment_md(evidence: RunEvidence, bundle: Bundle) -> str:
+    """A duplicate's follow-up: the new run, its summary and samples, nothing the issue already has."""
+    doc = bundle.document
+    lines = [f"Reproduced again by LiteTraffic run `{evidence.run_id}`.", "", *doc["summary"], "",
+             "## Expected vs actual", "", *_check_rows(doc), "", "## Failing samples", "", *_sample_rows(doc), "",
+             "---", f"Reported with LiteTraffic {doc['litetraffic_version']} · litetraffic-fingerprint: {bundle.fingerprint}"]
+    return bundle.scrubber.text("\n".join(lines) + "\n")
+
+
+def manual_route(repo: str, bundle: Bundle) -> str:
+    return (f"open https://github.com/{repo}/security/advisories/new, or contact the maintainers via SECURITY.md or their "
+            f"security contact, sending {bundle.body}. Do not open a public issue.")
+
+
+def video_file(bundle: Bundle) -> str | None:
+    names = (bundle.video.get("files") or []) if bundle.video.get("status") == "rendered" else []
+    for name in ("proof.mp4", "proof.gif"):
+        if name in names and (bundle.dir / name).is_file():
+            return name
+    return None
+
+
+def remove_run(run_dir: Path) -> None:
+    """The `prune` rules: a real directory (not a symlink) that holds run.json."""
+    if run_dir.is_symlink() or not run_dir.is_dir() or run_dir != run_dir.resolve():
+        raise IssueError(f"refusing to delete {run_dir}: not a real run directory")
+    if not (run_dir / "run.json").is_file() or (run_dir / "run.json").is_symlink():
+        raise IssueError(f"refusing to delete {run_dir}: it has no run.json")
+    shutil.rmtree(run_dir)
+
+
+def submit_security(evidence: RunEvidence, bundle: Bundle, gh, repo: str) -> dict:
+    """A private vulnerability report, never an issue and never an attachment (uploads in public repos are world-readable)."""
+    from litetraffic.github import GhError
+
+    previous = ledger_match(evidence, bundle.fingerprint, repo)
+    if previous:
+        raise IssueError(f"already reported: {previous['url']}")
+    try:
+        enabled = gh.pvr_enabled(repo)
+    except GhError as exc:
+        raise IssueError(f"could not check private vulnerability reporting on {repo}: {exc}; {manual_route(repo, bundle)}") from exc
+    if not enabled:
+        raise IssueError(f"private vulnerability reporting is disabled on {repo}; {manual_route(repo, bundle)}")
+    try:
+        url = gh.report_vulnerability(repo, bundle.dir / "report.json")
+    except GhError as exc:
+        raise IssueError(f"{exc}; {manual_route(repo, bundle)}") from exc
+    filed = record_filing(evidence, bundle, {"url": url, "repo": repo, "action": "private-report", "attached": []})
+    return {"url": url, "duplicate": None, "filed": filed, "attached": [],
+            "notes": [f"reported privately: {url}"], "remote_complete": False, "keep_reason": "security reports keep their evidence locally"}
+
+
+def submit_public(evidence: RunEvidence, bundle: Bundle, gh, repo: str, comment: bool, labels: list[str]) -> dict:
+    """Dedupe (ledger, search, the user's own open issues), then comment on the duplicate or create the issue."""
+    previous = ledger_match(evidence, bundle.fingerprint, repo)
+    duplicates = [{"url": previous["url"]}] if previous else gh.find_duplicates(repo, bundle.fingerprint)
+    video, notes = video_file(bundle), []
+    if duplicates:
+        duplicate = duplicates[0]["url"]
+        if not comment:
+            raise IssueError(f"already reported: {duplicate}; add --comment to attach this run's evidence")
+        body = bundle.dir / "comment.md"
+        _write(body, render_comment_md(evidence, bundle))
+        bundle.scrubber.verify(bundle.dir)
+        url = gh.comment_issue(duplicate, body)
+        notes.append(f"commented on {duplicate}: {url}")
+        attached: list[str] = []
+        entry = {"url": duplicate, "comment_url": url, "repo": repo, "action": "comment", "attached": attached}
+    else:
+        duplicate = None
+        allowed, reason = gh.can_attach(repo) if video else (False, "no video")
+        if allowed:
+            embed_video(bundle, video)
+        url, attach_error = gh.create_issue(repo, bundle.title, bundle.body, labels, [f"./{video}"] if allowed else [])
+        attached = [video] if allowed and attach_error is None else []
+        notes.append(f"filed {url}")
+        if attach_error:
+            notes.append(f"the issue exists but the video upload failed: {attach_error}")
+        elif video and not allowed:
+            notes.append(f"not attaching the video: {reason}")
+        entry = {"url": url, "repo": repo, "action": "create", "attached": attached}
+    if video and not attached:
+        notes.append(f"drag {bundle.dir / video} into {url} to add the video")
+    filed = record_filing(evidence, bundle, entry)
+    complete = video is None or bool(attached) or bool(bundle.document.get("attach_url"))
+    return {"url": url, "duplicate": duplicate, "filed": filed, "attached": attached, "notes": notes,
+            "remote_complete": complete, "keep_reason": None if complete else "the video was not uploaded"}
+
+
+def submit(evidence: RunEvidence, bundle: Bundle, args) -> dict:
+    from litetraffic.github import Gh
+
+    blockers = submit_blockers(evidence)
+    if blockers:
+        raise IssueError(f"not submitting while the evidence is in doubt ({'; '.join(blockers)}); the draft is in {bundle.dir}")
+    gh = Gh(bundle.scrubber.text)
+    gh.ensure_auth()
+    if bundle.classification.kind == "security":
+        return submit_security(evidence, bundle, gh, args.repo)
+    return submit_public(evidence, bundle, gh, args.repo, args.comment, list(args.label or []))
+
+
+def _run_is_symlink(ref: str, runs_dir: Path) -> bool:
+    return Path(ref).is_symlink() or (Path(ref).name == ref and (Path(runs_dir) / ref).is_symlink())
+
+
 REPO_RE = re.compile(r"^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$")
 
 
@@ -826,13 +992,38 @@ def report(args) -> dict:
         raise IssueError("--submit needs --repo OWNER/NAME")
     if args.repo is not None and (not REPO_RE.match(args.repo) or args.repo.startswith("-")):
         raise IssueError(f"--repo must be OWNER/NAME, got {args.repo!r}")
+    if args.remove_local and _run_is_symlink(args.run, args.runs_dir):
+        raise IssueError(f"--remove-local refuses a symlinked run directory: {args.run}")
     options = {"scenario": args.scenario, "repo": args.repo, "security": args.security, "title": args.title,
                "target_version": args.target_version, "attach_url": args.attach_url, "no_video": args.no_video}
-    result = draft(args.run, args.runs_dir, options)
-    if args.submit and result["verdict"] == "fail":
-        raise IssueError("--submit is not available yet; the draft is in " + result["bundle"])
+    evidence = load_run(args.run, args.runs_dir)
+    if gate(evidence) == "pass":
+        return _passed(evidence)
+    bundle = build_bundle(evidence, options)
+    result = _drafted(evidence, bundle, args.repo)
+    if bundle.classification.kind == "security":
+        if args.public:
+            raise IssueError("security-class failures are never filed publicly; omit --public to send a private vulnerability report")
+        if args.comment:
+            raise IssueError("--comment is for public issues; a security-class failure goes only to a private vulnerability report")
+    if not args.submit:
+        return result
+    filed = submit(evidence, bundle, args)
+    result.update(submitted=True, url=filed["url"], duplicate=filed["duplicate"], filed=filed["filed"], notes=filed["notes"])
+    if args.remove_local:
+        reason = filed["keep_reason"] if not filed["remote_complete"] else None
+        if reason is None:
+            remove_run(evidence.run_dir)
+            result["removed"] = True
+            result["notes"].append(f"removed {evidence.run_dir}")
+        elif bundle.classification.kind == "security":
+            result["notes"].append(f"kept {evidence.run_dir}: {reason}; maintainers may ask for the evidence")
+        else:
+            result["notes"].append(f"kept {evidence.run_dir}: {reason}; {PRUNE_HINT}")
     return result
 
 
 def format_result(result: dict) -> list[str]:
+    if result.get("submitted"):
+        return [f"drafted {result['bundle']} ({result['kind']})", *result["notes"]]
     return format_draft(result)

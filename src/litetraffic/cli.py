@@ -151,8 +151,23 @@ def _emit(value: dict, as_json: bool, formatter: Callable[[dict], list[str]] | N
             print(f"{key}: {item}")
 
 
+def _join_repo(argv: list[str]) -> list[str]:
+    """`report issue --repo -x/app` would read the value as an option; join it so issue.py can refuse it by name."""
+    if argv[:1] != ["report"]:
+        return argv
+    joined, index = [], 0
+    while index < len(argv):
+        if argv[index] == "--repo" and index + 1 < len(argv):
+            joined.append(f"--repo={argv[index + 1]}")
+            index += 2
+        else:
+            joined.append(argv[index])
+            index += 1
+    return joined
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    args = _parser().parse_args(_join_repo(list(sys.argv[1:] if argv is None else argv)))
     try:
         if args.command == "doctor":
             report = run_doctor(target=args.target, k6_path=args.k6_path, output_dir=args.output_dir)
