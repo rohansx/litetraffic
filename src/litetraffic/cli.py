@@ -8,7 +8,7 @@ from typing import Callable, Sequence
 
 from pydantic import ValidationError
 
-from litetraffic import __version__
+from litetraffic import __version__, issue
 from litetraffic.activity import up
 from litetraffic.approval import approve, require_approval
 from litetraffic.capture import parse_spec
@@ -113,6 +113,25 @@ def _parser() -> argparse.ArgumentParser:
     prune_command.add_argument("--older-than", type=float, metavar="DAYS", help="delete runs finished more than DAYS ago")
     prune_command.add_argument("--dry-run", action="store_true", help="list what would be deleted")
     prune_command.add_argument("--json", action="store_true")
+
+    report = commands.add_parser("report", help="turn a run into something to send")
+    report_commands = report.add_subparsers(dest="report_command", required=True)
+    issue_command = report_commands.add_parser("issue", help="draft (or, with --submit, file) a maintainer-facing issue from a failing run")
+    issue_command.add_argument("run", help="run directory or run ID")
+    issue_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
+    issue_command.add_argument("--scenario", type=Path, metavar="DIR", help="scenario bundle to include, checked against scenario.lock.json")
+    issue_command.add_argument("--repo", metavar="OWNER/NAME", help="repository to file in (required with --submit)")
+    issue_command.add_argument("--submit", action="store_true", help="actually file it; without this nothing leaves the machine")
+    issue_command.add_argument("--comment", action="store_true", help="comment on a matching open issue instead of refusing")
+    issue_command.add_argument("--security", action="store_true", help="treat the failure as security-class (upgrade only)")
+    issue_command.add_argument("--public", action="store_true", help="assert public filing; refused for security-class failures")
+    issue_command.add_argument("--attach-url", metavar="URL", help="link to the evidence bundle, such as a CI artifact")
+    issue_command.add_argument("--no-video", action="store_true", help="skip rendering the replay video")
+    issue_command.add_argument("--label", action="append", default=[], metavar="NAME", help="issue label (repeatable)")
+    issue_command.add_argument("--title", help="override the generated title")
+    issue_command.add_argument("--target-version", metavar="TEXT", help="app version for the environment section")
+    issue_command.add_argument("--remove-local", action="store_true", help="after filing, delete the run directory (needs --submit)")
+    issue_command.add_argument("--json", action="store_true")
     return parser
 
 
@@ -162,6 +181,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             _emit(payload, args.json, text)
             return 0 if failure is None else 3
+
+        if args.command == "report":
+            payload = issue.report(args)
+            _emit(payload, args.json, issue.format_result)
+            return 0
 
         if args.command == "init":
             try:

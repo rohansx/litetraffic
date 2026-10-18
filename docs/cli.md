@@ -2,7 +2,7 @@
 
 [Documentation index](README.md)
 
-All scenario arguments are **directory paths** containing `manifest.json` and the named script. `inspect`, `verify`, `up`, and `approve` take the scenario either positionally or as `--scenario DIR`; the two spellings are equivalent, and giving both or neither exits `3`. Run `litetraffic COMMAND --help` for the installed version's syntax; `litetraffic --version` prints the installed version. The following describes `0.1.0.dev0`.
+All scenario arguments are **directory paths** containing `manifest.json` and the named script. `inspect`, `verify`, `up`, and `approve` take the scenario either positionally or as `--scenario DIR`; the two spellings are equivalent, and giving both or neither exits `3`. `report issue` also takes `--scenario DIR`, but only as a flag and only to include the bundle the run used, checked against the run's `scenario.lock.json`. Run `litetraffic COMMAND --help` for the installed version's syntax; `litetraffic --version` prints the installed version. The following describes `0.1.0.dev0`.
 
 ## `doctor`
 
@@ -159,6 +159,39 @@ Deletes old run directories under `--runs-dir` (default `.litetraffic/runs`). At
 
 Only real directories directly under `--runs-dir` that contain a real (non-symlink) `run.json` are candidates; a symlinked `result.json` is ignored and deleting a run removes the link, never its target. Nested directories, symlinks, other directories, and `series_*.json` summaries are never deleted. Runs are ordered by `finished_at` in `result.json`; a run without a readable `finished_at` uses its directory modification time. Text output prints one `deleted: PATH` (or `would delete: PATH`) line per run, newest first, or `nothing to prune`. Deletion stops at the first run that cannot be deleted: `pruned` lists the runs deleted before it, `failed` names its path, text output adds `failed: PATH` and `error: MESSAGE` after the `deleted:` lines, and the exit status is `3`. A missing `--runs-dir` prunes nothing. It does not check whether a run is still in progress.
 
+## `report issue`
+
+```bash
+litetraffic report issue RUN [--runs-dir DIR] [--scenario DIR] [--repo OWNER/NAME] [--submit] [--comment]
+    [--security] [--public] [--attach-url URL] [--no-video] [--label NAME]... [--title TEXT]
+    [--target-version TEXT] [--remove-local] [--json]
+```
+
+Drafts a maintainer-facing issue from a failing run into `RUN/issue/` (mode `0700`; files `0600`, `repro.sh` `0700`). By default nothing leaves the machine: the command prints the `gh` command it would run.
+
+The run must be intact and failing. Every file listed in the run's `artifacts.json` must still match its sha256, and `artifacts.json` must exist; otherwise it exits `3` with `run artifacts changed after the run; refusing to report`. A `pass` run prints `run ID passed; nothing to report` and exits `0` without writing anything. An `inconclusive` or `error` run exits `3`: missing evidence is not a bug report. `artifacts.json` itself is never modified; `evidence.json` records the source hashes instead.
+
+A failure is classified as `security` or `correctness`, failing closed: a failing isolation assertion (`cross_tenant_read_blocked` and the other kit checks), an assertion id that looks like an authorization check, a tenant-isolation kit scenario failing anything other than `own_access`, a failing sample that carries markers, or `--security` all make it security-class. A correctness failure is drafted as `issue.md`; a security-class one as `security.md` plus `report.json` (the private vulnerability report payload), and no `issue.md` is written.
+
+| Option | Meaning |
+|---|---|
+| `--runs-dir DIR` | Where to resolve a run ID (default `.litetraffic/runs`) |
+| `--scenario DIR` | Scenario bundle whose files must match the run's `scenario.lock.json`; scrubbed copies go to `issue/scenario/` and kit markers become `[marker:IDENTITY#N]`. Never inferred |
+| `--repo OWNER/NAME` | Repository to file in; required with `--submit`, otherwise only fills in the previewed command |
+| `--submit` | File the issue (or, for security-class failures, a private vulnerability report) through `gh` |
+| `--comment` | When an open issue with the same fingerprint exists, add this run as a comment instead of refusing (public issues only) |
+| `--security` | Treat the failure as security-class; it never downgrades one |
+| `--public` | Assert public filing; a security-class failure then exits `3` |
+| `--attach-url URL` | Link to the evidence bundle (for example a CI artifact). In GitHub Actions the run URL is used when this is absent |
+| `--no-video` | Skip the replay video |
+| `--label NAME` | Issue label; repeatable |
+| `--title TEXT` | Override the generated title |
+| `--target-version TEXT` | App version for the Environment section |
+| `--remove-local` | Needs `--submit`; delete the run directory after a successful filing when nothing the issue points to would be lost |
+| `--json` | Emit one object with `run_id`, `verdict`, `kind`, `fingerprint`, `title`, `bundle`, `files`, `would_file`, `url`, `duplicate`, `video`, `attach` and `removed` |
+
+Every file in the bundle, and the command's output, is scrubbed: declared credential values present in the environment and JWT or GitHub tokens become `[redacted]`, the target origin becomes `$TARGET`, and the run directory, runs directory and home directory become `<run>`, `<runs>` and `~`. The bundle is then re-read; if a credential, token or (for security-class failures) marker value is still present, the bundle is deleted and the command exits `3` with `redaction check failed`. The body carries a `litetraffic-fingerprint` derived from the scenario name, the failing assertion ids and a hash of the normalized target origin, so the same failure against the same origin gets the same fingerprint.
+
 ## Exit codes
 
 The current commands have different exit mappings. Integrations should inspect the JSON verdict as well as the shell status.
@@ -172,6 +205,7 @@ The current commands have different exit mappings. Integrations should inspect t
 | `approve` | Approval recorded | — | CLI usage error | Invalid scenario, target or approvals file | — |
 | `diff` | Comparison `pass` | Comparison `fail` | Inconclusive comparison or CLI usage error | Invalid arguments/artifacts | — |
 | `dashboard` | — | — | CLI usage error | Port cannot be bound | Stopped with Ctrl+C |
+| `report issue` | Draft written, issue filed, or a `pass` run | — | CLI usage error | Not a failing run, changed artifacts, unknown run, scenario mismatch, redaction check failed, or a refused or failed submission | — |
 | `prune` | Pruned (or listed with `--dry-run`) | — | CLI usage error | Invalid retention options or deletion failed (runs deleted before the failure stay deleted) | — |
 
 With `--repeat`, `verify` applies the same mapping to the aggregate series verdict.
