@@ -720,6 +720,10 @@ def evidence_document(evidence: RunEvidence, classification: Classification, fp:
         "title": make_title(evidence, options.get("title")),
         "summary": [summary_line(evidence, row) for row in failing(evidence)],
         "mechanism": mechanism(evidence),
+        "journeys": [{"name": j.get("name"), "stages": j.get("stages") or []}
+                     for j in evidence.manifest_data.get("journeys") or [] if isinstance(j, dict)],
+        "observations": [{"assertion": o.get("assertion"), "path": o.get("path")}
+                         for o in _manifest_observations(evidence.manifest_data) if o.get("assertion") in {r["id"] for r in failing(evidence)}],
         "journey_samples": journey_samples(evidence),
         "failing": [
             {"id": row["id"], "expected": row.get("expected"), "actual": row.get("actual"), "samples": row.get("samples"),
@@ -842,20 +846,58 @@ def _environment(doc: dict) -> list[str]:
     ]
 
 
+def _manifest_observations(manifest: dict) -> list[dict]:
+    found = manifest.get("observations") or ([manifest["observation"]] if isinstance(manifest.get("observation"), dict) else [])
+    return [o for o in found if isinstance(o, dict)]
+
+
+def _what_the_run_did(doc: dict) -> list[str]:
+    """Plain-language steps from the scenario: each journey's operations in the order they were first sent, its stages,
+    and the read-back that failed. Written for someone who will not install LiteTraffic."""
+    operations = (doc.get("traffic") or {}).get("operations") or []
+    steps = []
+    for op in operations:
+        request = f"{op['method']} $TARGET{op['path']}"
+        steps.append(f"{_code(op['operation'], 60)} ({_code(request, 200)})")
+    sent = ", then ".join(steps)
+    lines = []
+    for journey in doc.get("journeys") or []:
+        stages = ", ".join(_code(stage, 40) for stage in journey["stages"])
+        lines.append(f"- Each {_code(journey['name'], 60)} journey sends {sent or 'requests'}"
+                     + (f"; it marks the stages {stages} as it goes." if stages else "."))
+    lines.append(f"- The run sent {_num(doc['run']['planned_journeys'])} journeys on the schedule in the Summary.")
+    for observation in doc.get("observations") or []:
+        lines.append(f"- Afterwards it read {_code('GET $TARGET' + str(observation['path']), 200)} for "
+                     f"{_code(observation['assertion'], 60)}; Expected vs actual shows what it found.")
+    return lines
+
+
 def _steps(doc: dict, repro: str, env_names: list[str]) -> list[str]:
+    script = (doc.get("script") or {}).get("file", "repro.sh")
+    replays = (doc.get("script") or {}).get("replays_cause", True)
     names = " ".join(f"{name}=…" for name in env_names)
     exports = " and export " + ", ".join(_code(name) for name in env_names) if env_names else ""
-    lines = [
-        f"1. Set `TARGET` to the app's base URL{exports}.",
-        f"2. Run {_code(f'TARGET=… {names} bash repro.sh', 400)}. Exit 1 means the failure reproduced; exit 0 means it did not; "
-        "exit 2 means the script could not check (a missing variable, or a step that failed before the check).",
-        "3. A failure can depend on timing, so one attempt may not reproduce it; rerun a few times. "
-        f"The recorded run planned {_num(doc['run']['planned_journeys'])} journeys.",
-    ]
-    if len(repro.encode()) <= INLINE_REPRO_BYTES:
-        lines += ["", "<details><summary>repro.sh</summary>", "", *_fence(repro.rstrip("\n"), "bash"), "", "</details>"]
+    run = _code(f"TARGET=… {names} bash {script}".replace("  ", " "), 400)
+    if replays:
+        lines = [
+            f"1. Set `TARGET` to the app's base URL{exports}.",
+            f"2. Run {run}. Exit 1 means the failure reproduced; exit 0 means it did not; "
+            "exit 2 means the script could not check (a missing variable, or a step that failed before the check).",
+            "3. A failure can depend on timing, so one attempt may not reproduce it; rerun a few times. "
+            f"The recorded run planned {_num(doc['run']['planned_journeys'])} journeys.",
+        ]
     else:
-        lines += ["", "repro.sh is too long to inline; it is in the reporter's bundle."]
+        lines = [
+            "LiteTraffic does not record request bodies, so this report has no script that replays the cause. What the run did:",
+            "", *_what_the_run_did(doc), "",
+            f"{_code(script)} does not reproduce the cause: it only checks whether the bad end state is present on an instance. "
+            f"Set `TARGET`{exports}, then run {run}. Exit 1 means the bad state is present; exit 0 means it is not; "
+            "exit 2 means the script could not check.",
+        ]
+    if len(repro.encode()) <= INLINE_REPRO_BYTES:
+        lines += ["", f"<details><summary>{script}</summary>", "", *_fence(repro.rstrip("\n"), "bash"), "", "</details>"]
+    else:
+        lines += ["", f"{script} is too long to inline; it is in the reporter's bundle."]
     return lines
 
 
@@ -991,7 +1033,7 @@ def _write(path: Path, text: str, mode: int = FILE_MODE) -> None:
 def _restrict(root: Path) -> None:
     for path in [root, *root.rglob("*")]:
         if not path.is_symlink():
-            path.chmod(DIR_MODE if path.is_dir() else (SCRIPT_MODE if path.name == "repro.sh" and path.parent == root else FILE_MODE))
+            path.chmod(DIR_MODE if path.is_dir() else (SCRIPT_MODE if path.name in ("repro.sh", "check-effect.sh") and path.parent == root else FILE_MODE))
 
 
 @dataclass
@@ -1024,9 +1066,10 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
     staging = Path(tempfile.mkdtemp(prefix=".issue-", dir=evidence.run_dir))
     try:
         document["video"] = render_video(document, staging, bool(options.get("no_video")), scrubber)
+        document["script"] = repro.script_kind(evidence, Path(scenario_dir) if scenario_dir else None)
         script = scrubber.text(repro.synthesize(evidence, Path(scenario_dir) if scenario_dir else None, scrubber))
         env_names = sorted(secret_env_names(evidence.manifest)) if evidence.manifest else []
-        _write(staging / "repro.sh", script, SCRIPT_MODE)
+        _write(staging / document["script"]["file"], script, SCRIPT_MODE)
         if security:
             body_name = "security.md"
             body = scrubber.text(render_security_md(document, script, env_names, options.get("repo")))

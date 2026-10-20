@@ -287,12 +287,12 @@ def test_draft_writes_issue_md_repro_evidence_and_sends_nothing(fail_run, capsys
     assert report(str(fail_run)) == 0
     out = capsys.readouterr().out
     bundle = fail_run / "issue"
-    for name in ("issue.md", "repro.sh", "evidence.json"):
+    for name in ("issue.md", "check-effect.sh", "evidence.json"):  # no scenario given: the script can only check the effect
         assert (bundle / name).is_file(), name
     assert stat.S_IMODE(bundle.stat().st_mode) == 0o700
     assert stat.S_IMODE((bundle / "issue.md").stat().st_mode) == 0o600
     assert stat.S_IMODE((bundle / "evidence.json").stat().st_mode) == 0o600
-    assert stat.S_IMODE((bundle / "repro.sh").stat().st_mode) == 0o700
+    assert stat.S_IMODE((bundle / "check-effect.sh").stat().st_mode) == 0o700
     assert gh.calls() == []
     assert "nothing was sent" in out
     assert "would run: gh issue create -R OWNER/NAME" in out
@@ -325,7 +325,7 @@ def test_issue_md_sections_and_fingerprint(fail_run, capsys):
     assert "## What this does and does not establish" in body
     assert "does not know the root cause" in body
     assert "found the root cause" not in body
-    assert "repro.sh" in body
+    assert "check-effect.sh" in body  # no scenario given, so the script only checks the effect and is named for it
     assert result["title"].startswith("hievents-promo-oversell: promo_usage_within_limit failed")
     assert len(result["title"]) <= 100
 
@@ -435,7 +435,7 @@ def test_redaction_verify_failure_deletes_bundle_exit_3(fail_run, monkeypatch, c
 def test_repro_reads_credentials_from_env_never_inline(fail_run, monkeypatch, capsys):
     monkeypatch.setenv("LT_HIEVENTS_ORG_TOKEN", SECRET)
     assert report(str(fail_run), "--scenario", str(SCENARIO)) == 0
-    script = (fail_run / "issue" / "repro.sh").read_text()
+    script = script_of(fail_run).read_text()
     assert "${LT_HIEVENTS_ORG_TOKEN}" in script
     # the guards exit 2 (could not check), not the 1 a `:?` guard gives under set -e
     assert '[ -n "${LT_HIEVENTS_ORG_TOKEN:-}" ] || {' in script and '[ -n "${TARGET:-}" ] || {' in script
@@ -445,6 +445,57 @@ def test_repro_reads_credentials_from_env_never_inline(fail_run, monkeypatch, ca
 # --- repro -------------------------------------------------------------------------------------
 
 
+def script_of(run_dir: Path) -> Path:
+    """The bundle's script: repro.sh when it replays the cause, check-effect.sh when it can only check the end state."""
+    name = json.loads((run_dir / "issue" / "evidence.json").read_text())["script"]["file"]
+    return run_dir / "issue" / name
+
+
+def test_effect_only_run_writes_check_effect_sh_not_repro_sh(fail_run, capsys):
+    result = draft_json(capsys, str(fail_run))
+    assert "check-effect.sh" in result["files"] and "repro.sh" not in result["files"]
+    script = (fail_run / "issue" / "check-effect.sh").read_text()
+    assert "It does NOT reproduce the cause" in script
+    assert "REPRODUCED" not in script and "BAD STATE PRESENT" in script
+    doc = json.loads((fail_run / "issue" / "evidence.json").read_text())
+    assert doc["script"] == {"file": "check-effect.sh", "replays_cause": False, "source": "effect check only"}
+
+
+def test_author_repro_keeps_the_repro_sh_name(fail_run, capsys):
+    result = draft_json(capsys, str(fail_run), "--scenario", str(SCENARIO))
+    assert "repro.sh" in result["files"] and "check-effect.sh" not in result["files"]
+    doc = json.loads((fail_run / "issue" / "evidence.json").read_text())
+    assert doc["script"] == {"file": "repro.sh", "replays_cause": True, "source": "scenario author"}
+    assert "REPRODUCED" in script_of(fail_run).read_text()
+
+
+def test_kit_scenario_replay_is_a_repro(runs, tmp_path, capsys):
+    run_dir, scenario = write_kit_run(runs, tmp_path)
+    assert report(str(run_dir), "--scenario", str(scenario)) == 0
+    doc = json.loads((run_dir / "issue" / "evidence.json").read_text())
+    assert doc["script"]["file"] == "repro.sh" and doc["script"]["replays_cause"] is True
+
+
+def test_issue_md_is_honest_about_an_effect_only_script(fail_run, capsys):
+    draft_json(capsys, str(fail_run))
+    steps = section((fail_run / "issue" / "issue.md").read_text(), "Steps to reproduce")
+    assert "check-effect.sh" in steps and "repro.sh" not in steps
+    assert "does not reproduce the cause" in steps
+    assert "Exit 1 means the bad state is present" in steps and "the failure reproduced" not in steps
+    # plain-language steps from the scenario: each journey's operations in order, with the stage they lead to
+    assert "`buy`" in steps
+    assert steps.index("`reserve_order`") < steps.index("`complete_order`")
+    assert "POST $TARGET/api/public/events/{id}/order" in steps and "`reserved`" in steps and "`completed`" in steps
+    assert "10 journeys" in steps
+
+
+def test_issue_md_with_author_repro_says_it_replays(fail_run, capsys):
+    draft_json(capsys, str(fail_run), "--scenario", str(SCENARIO))
+    steps = section((fail_run / "issue" / "issue.md").read_text(), "Steps to reproduce")
+    assert "repro.sh" in steps and "Exit 1 means the failure reproduced" in steps
+    assert "does not reproduce the cause" not in steps
+
+
 def test_repro_is_valid_bash(fail_run, runs, tmp_path, capsys):
     kit_run, scenario = write_kit_run(runs, tmp_path)
     assert report(str(fail_run)) == 0
@@ -452,7 +503,7 @@ def test_repro_is_valid_bash(fail_run, runs, tmp_path, capsys):
     shutil.rmtree(fail_run / "issue")
     assert report(str(fail_run), "--scenario", str(SCENARIO)) == 0
     for run_dir in (fail_run, kit_run):
-        script = run_dir / "issue" / "repro.sh"
+        script = script_of(run_dir)
         assert script.read_text().startswith("#!/usr/bin/env bash\nset -euo pipefail\n")
         checked = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
         assert checked.returncode == 0, checked.stderr
@@ -483,7 +534,7 @@ def test_repro_effect_check_detects_violation(fail_run, capsys, count, code):
     try:
         env = dict(os.environ, TARGET=f"http://127.0.0.1:{server.server_port}", LT_HIEVENTS_ORG_TOKEN="local-test-token",
                    REPRO_DEADLINE_SECONDS="0")
-        done = subprocess.run(["bash", str(fail_run / "issue" / "repro.sh")], capture_output=True, text=True, env=env, timeout=60)
+        done = subprocess.run(["bash", str(script_of(fail_run))], capture_output=True, text=True, env=env, timeout=60)
     finally:
         server.shutdown()
     assert done.returncode == code, done.stdout + done.stderr
@@ -494,7 +545,7 @@ def test_repro_effect_check_detects_violation(fail_run, capsys, count, code):
 def test_repro_kit_emits_curl_per_failing_sample(runs, tmp_path, capsys):
     run_dir, scenario = write_kit_run(runs, tmp_path)
     assert report(str(run_dir), "--scenario", str(scenario)) == 0
-    script = (run_dir / "issue" / "repro.sh").read_text()
+    script = script_of(run_dir).read_text()
     assert '"$TARGET/api/v1/repos/alice/r"' in script
     assert "Authorization: Bearer ${GITEA_TOKEN_BOB}" in script
     assert "401 403 404" in script
@@ -505,13 +556,13 @@ def test_repro_kit_emits_curl_per_failing_sample(runs, tmp_path, capsys):
 def test_kit_run_without_scenario_still_drafts_and_says_why(runs, tmp_path, capsys):
     run_dir, _ = write_kit_run(runs, tmp_path)
     assert report(str(run_dir)) == 0
-    script = (run_dir / "issue" / "repro.sh").read_text()
+    script = script_of(run_dir).read_text()
     assert "--scenario" in script
 
 
 def test_repro_without_scenario_has_honest_timeline_note(fail_run, capsys):
     assert report(str(fail_run)) == 0
-    script = (fail_run / "issue" / "repro.sh").read_text()
+    script = script_of(fail_run).read_text()
     assert "LiteTraffic does not record request bodies" in script
     assert "reserve_order" in script and "POST" in script and "/api/public/events/{id}/order" in script
     assert "19d90ac2d7b16360ab7b16e3e366acc36384b54df2d9ec9ca02fc59a2c909ec1" in script
@@ -527,7 +578,7 @@ def test_scenario_sha_mismatch_refuses(fail_run, tmp_path, capsys):
 
 def test_author_repro_included_from_scenario_dir(fail_run, capsys):
     assert report(str(fail_run), "--scenario", str(SCENARIO)) == 0
-    script = (fail_run / "issue" / "repro.sh").read_text()
+    script = script_of(fail_run).read_text()
     digest = hashlib.sha256((SCENARIO / "repro.sh").read_bytes()).hexdigest()
     assert f"# --- provided by the scenario author (sha256 {digest}) ---" in script
     assert "max_allowed_usages\\\":1" in script
@@ -1150,14 +1201,14 @@ class canned_server:
 
 def test_repro_without_target_exits_2(fail_run, capsys):
     assert report(str(fail_run)) == 0
-    done = run_repro(fail_run / "issue" / "repro.sh", {"LT_HIEVENTS_ORG_TOKEN": "local-test-token"})
+    done = run_repro(script_of(fail_run), {"LT_HIEVENTS_ORG_TOKEN": "local-test-token"})
     assert done.returncode == 2, done.stdout + done.stderr
     assert "TARGET" in done.stderr and "REPRODUCED" not in done.stdout
 
 
 def test_repro_without_credential_exits_2(fail_run, capsys):
     assert report(str(fail_run)) == 0
-    done = run_repro(fail_run / "issue" / "repro.sh", {"TARGET": "http://127.0.0.1:9"})
+    done = run_repro(script_of(fail_run), {"TARGET": "http://127.0.0.1:9"})
     assert done.returncode == 2, done.stdout + done.stderr
     assert "LT_HIEVENTS_ORG_TOKEN" in done.stderr
 
@@ -1165,7 +1216,7 @@ def test_repro_without_credential_exits_2(fail_run, capsys):
 def test_repro_author_step_failure_exits_2(fail_run, capsys):
     assert report(str(fail_run), "--scenario", str(SCENARIO)) == 0
     with canned_server({"unexpected": "shape"}) as target:
-        done = run_repro(fail_run / "issue" / "repro.sh", {"TARGET": target, "LT_HIEVENTS_ORG_TOKEN": "local-test-token",
+        done = run_repro(script_of(fail_run), {"TARGET": target, "LT_HIEVENTS_ORG_TOKEN": "local-test-token",
                                                             "REPRO_DEADLINE_SECONDS": "0"})
     assert done.returncode == 2, done.stdout + done.stderr
     assert "REPRODUCED" not in done.stdout
@@ -1185,7 +1236,7 @@ def test_repro_labels_are_shell_inert(fail_run, tmp_path, capsys):
     edit_json(fail_run, "scenario.lock.json", lock)
     edit_json(fail_run, "run.json", lambda r: r.update(scenario="oversell\ntouch PWNED5 #"))
     assert report(str(fail_run)) == 0
-    script = fail_run / "issue" / "repro.sh"
+    script = script_of(fail_run)
     assert "# === effect:" in script.read_text()
     assert subprocess.run(["bash", "-n", str(script)], capture_output=True).returncode == 0
     work = tmp_path / "work"
@@ -1209,11 +1260,11 @@ def test_security_upgrade_keeps_expected_strings_in_repro(fail_run, capsys):
     edit_json(fail_run, "observation.json", observation)
     assert report(str(fail_run), "--security") == 0
     files = bundle_text(fail_run)
-    assert "COMPLETED" in files["repro.sh"]
+    assert "COMPLETED" in files["check-effect.sh"]
     assert "promo_usage_within_limit" in files["security.md"] and "[marker:expected" not in files["security.md"]
     body = {"data": [{"max_allowed_usages": 1, "order_usage_count": 1, "status": "COMPLETED"}]}
     with canned_server(body) as target:
-        done = run_repro(fail_run / "issue" / "repro.sh", {"TARGET": target, "LT_HIEVENTS_ORG_TOKEN": "local-test-token",
+        done = run_repro(script_of(fail_run), {"TARGET": target, "LT_HIEVENTS_ORG_TOKEN": "local-test-token",
                                                             "REPRO_DEADLINE_SECONDS": "0"})
     assert done.returncode == 0, done.stdout + done.stderr
 

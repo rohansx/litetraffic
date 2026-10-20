@@ -110,7 +110,7 @@ Notes:
 
 ## File an issue draft when a run fails
 
-When the verdict is `fail`, `litetraffic report issue` can turn the run into a scrubbed issue draft for the app's maintainers: a title, the failing checks, a `repro.sh` that does not need LiteTraffic, and (with the `video` extra) a replay video. In CI, draft on failure and keep the draft as a build artifact. Filing stays a separate, explicit opt-in.
+When the verdict is `fail`, `litetraffic report issue` can turn the run into a scrubbed issue draft for the app's maintainers: a title, the failing checks, a script that does not need LiteTraffic (`repro.sh` when it can replay the cause, otherwise `check-effect.sh`, which only checks the bad end state), and (with the `video` extra) a replay video. In CI, draft on failure and keep the draft as a build artifact. Filing stays a separate, explicit opt-in.
 
 Add these steps after **Verify** and before **Fail on a non-passing verdict**, and install the extra so the draft gets its video:
 
