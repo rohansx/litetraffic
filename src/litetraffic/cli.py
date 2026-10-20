@@ -124,7 +124,7 @@ def _parser() -> argparse.ArgumentParser:
     issue_command.add_argument("--submit", action="store_true", help="actually file it; without this nothing leaves the machine")
     issue_command.add_argument("--comment", action="store_true", help="comment on a matching open issue instead of refusing")
     issue_command.add_argument("--security", action="store_true", help="treat the failure as security-class (upgrade only)")
-    issue_command.add_argument("--public", action="store_true", help="assert public filing; refused for security-class failures")
+    issue_command.add_argument("--public", action="store_true", help="confirm a public issue (required for one); refused for security-class failures")
     issue_command.add_argument("--attach-url", metavar="URL", help="link to the evidence bundle, such as a CI artifact")
     issue_command.add_argument("--no-video", action="store_true", help="skip rendering the replay video")
     issue_command.add_argument("--label", action="append", default=[], metavar="NAME", help="issue label (repeatable)")

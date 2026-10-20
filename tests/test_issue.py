@@ -121,6 +121,14 @@ def reseal(run_dir: Path) -> None:
     (run_dir / "artifacts.json").write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
+def reseal_scenario_script(run_dir: Path, scenario: Path, extra: str) -> None:
+    """Append to the scenario's script and record its new digest in the run's lock, as if the run had used it."""
+    script = scenario / "journeys.js"
+    script.write_text(script.read_text() + extra)
+    digest = hashlib.sha256(script.read_bytes()).hexdigest()
+    edit_json(run_dir, "scenario.lock.json", lambda lock: lock["files"].update({"journeys.js": digest}))
+
+
 def edit_json(run_dir: Path, name: str, change) -> None:
     path = run_dir / name
     data = json.loads(path.read_text())
@@ -597,14 +605,14 @@ def test_author_repro_included_from_scenario_dir(fail_run, capsys):
 
 
 def test_submit_requires_repo(fail_run, capsys, gh):
-    assert report(str(fail_run), "--submit") == 3
+    assert report(str(fail_run), "--submit", "--public") == 3
     assert "--submit needs --repo" in capsys.readouterr().out
     assert gh.calls() == []
 
 
 @pytest.mark.parametrize("repo", ["owner", "owner/app/extra", "-x/app", "owner/app;rm", "https://github.com/owner/app"])
 def test_submit_rejects_malformed_repo(fail_run, capsys, gh, repo):
-    assert report(str(fail_run), "--submit", "--repo", repo) == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", repo) == 3
     assert "--repo must be OWNER/NAME" in capsys.readouterr().out
     assert gh.calls() == []
 
@@ -613,20 +621,20 @@ def test_gh_missing_clear_error(fail_run, tmp_path, monkeypatch, capsys):
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     assert "Install GitHub CLI" in capsys.readouterr().out
 
 
 def test_gh_unauthenticated_clear_error(fail_run, capsys, gh):
     gh.respond(["auth", "status"], exit=1, stderr="You are not logged into any GitHub hosts.")
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     assert "gh is not authenticated" in capsys.readouterr().out
     assert not any("create" in argv for argv in gh.argvs())
 
 
 def test_submit_creates_issue_with_body_file_and_repo_flag(fail_run, runs, capsys, gh, monkeypatch):
     monkeypatch.setenv("GH_REPO", "evil/elsewhere")
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 0
     out = capsys.readouterr().out
     create = next(call for call in gh.calls() if call["argv"][:2] == ["issue", "create"] and "--help" not in call["argv"])
     argv = create["argv"]
@@ -646,7 +654,7 @@ def test_duplicate_open_issue_refuses_and_prints_url(fail_run, runs, capsys, gh)
     fingerprint = issue.fingerprint(issue.load_run(str(fail_run), runs))
     existing = [{"number": 3, "url": "https://github.com/owner/app/issues/3", "body": f"x\nlitetraffic-fingerprint: {fingerprint}"}]
     gh.respond(["search", "issues"], stdout=json.dumps(existing))
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     out = capsys.readouterr().out
     assert "already reported: https://github.com/owner/app/issues/3" in out and "--comment" in out
     assert not any(argv[:2] == ["issue", "create"] and "--help" not in argv for argv in gh.argvs())
@@ -658,7 +666,7 @@ def test_duplicate_found_via_rest_list_when_search_lags(fail_run, runs, capsys, 
     fingerprint = issue.fingerprint(issue.load_run(str(fail_run), runs))
     line = json.dumps({"number": 5, "url": "https://github.com/owner/app/issues/5", "body": f"litetraffic-fingerprint: {fingerprint}"})
     gh.respond(["api", "repos/owner/app/issues"], stdout=line + "\n")
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     assert "already reported: https://github.com/owner/app/issues/5" in capsys.readouterr().out
     listing = next(argv for argv in gh.argvs() if "repos/owner/app/issues" in argv)
     assert "creator=tester" in listing
@@ -668,7 +676,7 @@ def test_duplicate_with_comment_adds_comment(fail_run, runs, capsys, gh):
     fingerprint = issue.fingerprint(issue.load_run(str(fail_run), runs))
     existing = [{"number": 3, "url": "https://github.com/owner/app/issues/3", "body": f"litetraffic-fingerprint: {fingerprint}"}]
     gh.respond(["search", "issues"], stdout=json.dumps(existing))
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--comment") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--comment") == 0
     comment = next(call for call in gh.calls() if call["argv"][:2] == ["issue", "comment"])
     assert comment["argv"][2] == "https://github.com/owner/app/issues/3"
     assert comment["argv"][comment["argv"].index("-F") + 1].endswith("comment.md")
@@ -677,9 +685,9 @@ def test_duplicate_with_comment_adds_comment(fail_run, runs, capsys, gh):
 
 
 def test_ledger_blocks_refile(fail_run, runs, capsys, gh):
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 0
     capsys.readouterr()
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     assert f"already reported: {CREATED}" in capsys.readouterr().out
     creates = [argv for argv in gh.argvs() if argv[:2] == ["issue", "create"] and "--help" not in argv]
     assert len(creates) == 1
@@ -708,7 +716,7 @@ def test_attach_not_used_without_write_permission_or_support(fail_run, capsys, g
         gh.respond(["issue", "create", "--help"], stdout="  -F, --body-file file\n")
     else:
         monkeypatch.setenv("GH_TOKEN", "ghs_installationtokeninstallationtoken")
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 0
     out = capsys.readouterr().out
     assert "--attach" not in _create_argv(gh)
     assert f"drag {fail_run / 'issue' / 'proof.mp4'} into {CREATED}" in out
@@ -716,7 +724,7 @@ def test_attach_not_used_without_write_permission_or_support(fail_run, capsys, g
 
 def test_attach_used_with_write_permission_and_supported_gh(fail_run, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 0
     create = next(call for call in gh.calls() if call["argv"][:2] == ["issue", "create"] and "--help" not in call["argv"])
     assert create["argv"][create["argv"].index("--attach") + 1] == "./proof.mp4"
     assert create["cwd"] == str((fail_run / "issue").resolve())
@@ -727,7 +735,7 @@ def test_attach_used_with_write_permission_and_supported_gh(fail_run, capsys, gh
 def test_partial_attach_failure_reports_url_and_drag_hint_exit_0(fail_run, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
     gh.respond(["issue", "create", "-R"], stdout=CREATED + "\n", stderr="failed to upload proof.mp4: 422", exit=1)
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 0
     out = capsys.readouterr().out
     assert CREATED in out and "failed to upload proof.mp4" in out and "drag " in out
     assert (fail_run / "issue" / "filed.json").exists()
@@ -748,7 +756,7 @@ def test_attach_url_flag_and_actions_autodetect_in_body(fail_run, capsys, monkey
 
 
 def test_labels_are_passed_through(fail_run, capsys, gh):
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--label", "bug", "--label", "promo") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--label", "bug", "--label", "promo") == 0
     argv = _create_argv(gh)
     assert [argv[i + 1] for i, token in enumerate(argv) if token == "-l"] == ["bug", "promo"]
 
@@ -822,21 +830,21 @@ def test_remove_local_requires_submit(fail_run, capsys, gh):
 
 def test_remove_local_deletes_run_after_attached_filing(fail_run, runs, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
-    result = draft_json(capsys, str(fail_run), "--submit", "--repo", "owner/app", "--remove-local")
+    result = draft_json(capsys, str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local")
     assert result["removed"] is True and result["url"] == CREATED
     assert not fail_run.exists()
     assert (runs / "issues.jsonl").exists()
 
 
 def test_remove_local_deletes_run_with_no_video(fail_run, runs, capsys, gh):
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local") == 0
     assert not fail_run.exists()
 
 
 def test_remove_local_keeps_run_when_video_not_uploaded(fail_run, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
     gh.respond(["repo", "view"], stdout="READ\n")
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local") == 0
     out = capsys.readouterr().out
     assert fail_run.exists() and f"kept {fail_run}" in out and "litetraffic prune" in out
 
@@ -844,14 +852,14 @@ def test_remove_local_keeps_run_when_video_not_uploaded(fail_run, capsys, gh, mo
 def test_remove_local_with_attach_url_keeps_a_video_that_was_never_uploaded(fail_run, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
     gh.respond(["repo", "view"], stdout="READ\n")
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
     out = capsys.readouterr().out
     assert fail_run.exists() and f"kept {fail_run}" in out  # the URL is not checked to hold the video, so it is no proof it is safe
     assert not ("drag " in out and "removed " in out)
 
 
 def test_remove_local_with_attach_url_and_no_video_deletes(fail_run, capsys, gh):
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
     assert not fail_run.exists()
 
 
@@ -873,7 +881,7 @@ def test_remove_local_refuses_symlinked_run(fail_run, tmp_path, capsys, gh):
 
 def test_submit_refuses_while_blockers_exist_but_drafts(fail_run, capsys, gh):
     edit_json(fail_run, "result.json", lambda r: r.update(limitations=["observer HTTP 503"]))
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     assert "observer HTTP 503" in capsys.readouterr().out
     assert (fail_run / "issue" / "issue.md").exists()
     assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
@@ -1073,7 +1081,7 @@ def test_renamed_kit_manifest_is_security(runs, tmp_path):
 
 @pytest.mark.parametrize("repo", ["o/.", "o/..", "o/.hidden"])
 def test_submit_rejects_dot_repo_names(fail_run, capsys, gh, repo):
-    assert report(str(fail_run), "--submit", "--repo", repo) == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", repo) == 3
     assert "--repo must be OWNER/NAME" in capsys.readouterr().out
     assert gh.calls() == []
 
@@ -1082,7 +1090,7 @@ def test_ledger_lives_in_runs_dir_for_a_run_outside_it(fail_run, runs, tmp_path,
     elsewhere = tmp_path / "downloaded"
     elsewhere.mkdir()
     moved = Path(shutil.move(str(fail_run), elsewhere / FAIL_ID))
-    assert report(str(moved), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    assert report(str(moved), "--runs-dir", str(runs), "--submit", "--public", "--repo", "owner/app") == 0
     assert (runs / "issues.jsonl").is_file()
     assert not (elsewhere / "issues.jsonl").exists()
 
@@ -1099,11 +1107,11 @@ def test_security_ledger_is_case_insensitive_on_repo(runs, tmp_path, capsys, gh)
 
 
 def test_closed_ledger_issue_does_not_block_a_new_filing(fail_run, runs, capsys, gh):
-    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--public", "--repo", "owner/app") == 0
     capsys.readouterr()
     gh.respond(["issue", "view"], stdout="CLOSED\n")
     gh.respond(["issue", "create", "-R"], stdout="https://github.com/owner/app/issues/8\n")
-    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--public", "--repo", "owner/app") == 0
     assert "https://github.com/owner/app/issues/8" in capsys.readouterr().out
     view = next(argv for argv in gh.argvs() if argv[:2] == ["issue", "view"])
     assert CREATED in view
@@ -1112,9 +1120,9 @@ def test_closed_ledger_issue_does_not_block_a_new_filing(fail_run, runs, capsys,
 
 
 def test_open_ledger_issue_still_blocks(fail_run, runs, capsys, gh):
-    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--public", "--repo", "owner/app") == 0
     capsys.readouterr()
-    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--repo", "OWNER/app") == 3
+    assert report(str(fail_run), "--runs-dir", str(runs), "--submit", "--public", "--repo", "OWNER/app") == 3
     assert f"already reported: {CREATED}" in capsys.readouterr().out
 
 
@@ -1171,7 +1179,7 @@ def test_planted_fingerprint_mid_line_is_not_a_duplicate(fail_run, runs, capsys,
     planted = [{"number": 4, "url": "https://github.com/owner/app/issues/4",
                 "body": f"observed `10 litetraffic-fingerprint: {fp}` in a table cell"}]
     gh.respond(["search", "issues"], stdout=json.dumps(planted))
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 0
     assert CREATED in capsys.readouterr().out
 
 
@@ -1358,7 +1366,7 @@ def test_real_video_renders_through_report(fail_run, capsys, monkeypatch):
 def test_partial_attach_failure_edits_the_embed_out_of_the_filed_body(fail_run, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
     gh.respond(["issue", "create", "-R"], stdout=CREATED + "\n", stderr="failed to upload proof.mp4: 422", exit=1)
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 0
     edit = next(call for call in gh.calls() if call["argv"][:2] == ["issue", "edit"])
     assert edit["argv"][2] == CREATED
     assert "![LiteTraffic replay]" not in edit["files"]["-F"] and "litetraffic-fingerprint" in edit["files"]["-F"]
@@ -1372,7 +1380,7 @@ def test_remove_local_keeps_run_when_video_render_failed(fail_run, capsys, gh, m
         raise RuntimeError("encoder exploded")
 
     monkeypatch.setattr(proof, "render", boom)
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local") == 0
     out = capsys.readouterr().out
     assert fail_run.exists() and f"kept {fail_run}" in out
 
@@ -1380,7 +1388,7 @@ def test_remove_local_keeps_run_when_video_render_failed(fail_run, capsys, gh, m
 def test_remove_local_keeps_run_after_failed_upload_even_with_attach_url(fail_run, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
     gh.respond(["issue", "create", "-R"], stdout=CREATED + "\n", stderr="failed to upload proof.mp4: 422", exit=1)
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
     assert fail_run.exists() and f"kept {fail_run}" in capsys.readouterr().out
 
 
@@ -1389,7 +1397,7 @@ def test_remove_local_ignores_autodetected_actions_url(fail_run, capsys, gh, mon
     for name, value in (("GITHUB_SERVER_URL", "https://github.com"), ("GITHUB_REPOSITORY", "owner/app"), ("GITHUB_RUN_ID", "12345")):
         monkeypatch.setenv(name, value)
     gh.respond(["repo", "view"], stdout="READ\n")
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--remove-local") == 0
     assert fail_run.exists() and f"kept {fail_run}" in capsys.readouterr().out
 
 
@@ -1506,7 +1514,7 @@ def test_samples_table_is_in_the_duplicate_comment(fail_run, runs, capsys, gh):
     fp = issue.fingerprint(issue.load_run(str(fail_run), runs))
     gh.respond(["search", "issues"], stdout=json.dumps([{"number": 3, "url": "https://github.com/owner/app/issues/3",
                                                           "body": f"litetraffic-fingerprint: {fp}"}]))
-    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--comment") == 0
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app", "--comment") == 0
     comment = (fail_run / "issue" / "comment.md").read_text()
     assert "o_0xFu6JnvD28yM" in comment and "no per-request samples" not in comment
 
@@ -1576,7 +1584,7 @@ def test_unset_declared_secret_blocks_submit_and_names_it(fail_run, monkeypatch,
     monkeypatch.delenv("LT_HIEVENTS_ORG_TOKEN")
     result = draft_json(capsys, str(fail_run))
     assert any("LT_HIEVENTS_ORG_TOKEN" in item for item in result["caveats"])
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     out = capsys.readouterr().out
     assert "LT_HIEVENTS_ORG_TOKEN" in out and "not set" in out
     assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
@@ -1591,7 +1599,7 @@ def test_manifest_from_another_version_still_scrubs_and_blocks_submit(fail_run, 
     result = draft_json(capsys, str(fail_run))
     assert all(secret not in text for text in bundle_text(fail_run).values())
     assert any("does not validate" in item for item in result["caveats"])
-    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--submit", "--public", "--repo", "owner/app") == 3
     assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
 
 
@@ -1627,7 +1635,7 @@ def test_known_issue_blocks_filing_a_duplicate(fail_run, capsys, gh):
     assert any("already reported" in item for item in result["caveats"])
     top = top_of((fail_run / "issue" / "issue.md").read_text())
     assert f"**Already reported upstream:** <{url}>" in top
-    assert report(str(fail_run), "--known-issue", url, "--submit", "--repo", "owner/app") == 3
+    assert report(str(fail_run), "--known-issue", url, "--submit", "--public", "--repo", "owner/app") == 3
     assert "already reported" in capsys.readouterr().out
     assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
 
@@ -1664,3 +1672,78 @@ def test_issue_never_points_to_a_video_the_maintainer_cannot_see(fail_run, capsy
     body = (fail_run / "issue" / "issue.md").read_text()
     assert (fail_run / "issue" / "proof.mp4").exists()
     assert "proof.mp4" not in body  # not attached, not embedded: the body must not send a maintainer looking for it
+
+
+# --- hardening round 4: public filing is an explicit choice; undeclared credentials; unreadable scenario ---
+
+
+def test_public_issue_needs_explicit_public(fail_run, capsys, gh):
+    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    out = capsys.readouterr().out
+    assert "PUBLIC" in out and "--public" in out and "--security" in out
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--public") == 0
+
+
+@pytest.mark.parametrize("name", ["user_a_cannot_read_user_b", "attacker_gets_404", "mass_assignment_rejected"])
+def test_unrecognised_authz_names_still_cannot_go_public_by_accident(fail_run, capsys, gh, name):
+    rename_failing(fail_run, name)
+    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+def test_credential_looking_env_var_is_scrubbed_even_if_undeclared(fail_run, monkeypatch, capsys):
+    key = "sk_live_Ab3Q/Def+Ghi=Jkl9mnopZZ"
+    monkeypatch.setenv("API_KEY", key)
+    plant(fail_run, f"upstream rejected X-Api-Key {key}")
+    assert report(str(fail_run)) == 0
+    assert all(key not in text for text in bundle_text(fail_run).values())
+
+
+def test_script_reading_an_undeclared_env_var_blocks_submit(fail_run, tmp_path, capsys, gh):
+    scenario = Path(shutil.copytree(SCENARIO, tmp_path / "scenario"))
+    reseal_scenario_script(fail_run, scenario, "const key = __ENV.PARTNER_SECRET_VALUE;\n")
+    assert report(str(fail_run), "--scenario", str(scenario), "--submit", "--repo", "owner/app", "--public") == 3
+    assert "PARTNER_SECRET_VALUE" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("damage", ["missing", "not_a_dict"])
+def test_unreadable_scenario_lock_blocks_submit(fail_run, capsys, gh, damage):
+    if damage == "missing":
+        (fail_run / "scenario.lock.json").unlink()
+        reseal(fail_run)
+    else:
+        edit_json(fail_run, "scenario.lock.json", lambda lock: lock.update(manifest=json.dumps(lock["manifest"])))
+    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--public") == 3
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+@pytest.mark.parametrize("variant", ["base64_offset_1", "base64_offset_2", "unicode_escape", "percent_x4"])
+def test_more_secret_spellings_fail_closed(fail_run, monkeypatch, capsys, variant):
+    import base64
+
+    secret = "Sup3r$ecret+Val/ue=="
+    monkeypatch.setenv("LT_HIEVENTS_ORG_TOKEN", secret)
+    form = {"base64_offset_1": base64.b64encode(b"u:" + secret.encode()).decode(),
+            "base64_offset_2": base64.b64encode(b"ab:" + secret.encode()).decode(),
+            "unicode_escape": secret.replace("/", "\\u002f").replace("+", "\\u002b"),
+            "percent_x4": secret.replace("/", "%2525252F")}[variant]
+    plant(fail_run, f"server said: {form}")
+    code = report(str(fail_run))
+    assert code == 3 or all(form not in text for text in bundle_text(fail_run).values())
+
+
+def test_jwt_pattern_is_linear_on_long_runs():
+    import time
+
+    started = time.monotonic()
+    issue.JWT_RE.search("eyJ" * 40000)
+    assert time.monotonic() - started < 1
+
+
+def test_comment_adds_evidence_to_the_known_issue(fail_run, capsys, gh):
+    url = "https://github.com/owner/app/issues/3"
+    assert report(str(fail_run), "--known-issue", url, "--submit", "--public", "--repo", "owner/app", "--comment") == 0
+    comment = next(argv for argv in gh.argvs() if argv[:2] == ["issue", "comment"])
+    assert url in comment or "3" in comment
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())

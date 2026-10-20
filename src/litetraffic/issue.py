@@ -202,9 +202,9 @@ def submit_blockers(evidence: RunEvidence) -> list[str]:
     if unset:
         blockers.append(f"declared credential(s) {', '.join(unset)} not set in this shell, so their values could not be scrubbed; "
                         "export them as they were for the run")
-    if evidence.manifest is None and evidence.manifest_data:
-        blockers.append("the run's scenario manifest does not validate with this LiteTraffic version, so its declarations "
-                        "may be incomplete; report it with the version that recorded the run")
+    if evidence.manifest is None:
+        blockers.append("the run's scenario manifest is missing or does not validate with this LiteTraffic version, so its "
+                        "credential declarations are unknown; report it with the version that recorded the run")
     return blockers
 
 
@@ -282,7 +282,7 @@ def fingerprint(evidence: RunEvidence) -> str:
     return "lt" + hashlib.sha256(key.encode()).hexdigest()[:12]
 
 
-JWT_RE = re.compile(r"eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]*")
+JWT_RE = re.compile(r"(?<![\w-])eyJ[\w-]{8,4096}\.[\w-]{8,4096}\.[\w-]{0,4096}")  # bounded and anchored: linear on long runs
 GH_TOKEN_RE = re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}|github_pat_\w{20,}")
 TOKEN_LIKE = re.compile(r"\S{12,}")
 IDENTIFIER_LIKE = re.compile(r"^[A-Za-z_]+$|^[A-Za-z]+(?:[-_][A-Za-z]+)*$")
@@ -341,6 +341,54 @@ def declared_secret_env(evidence: RunEvidence) -> set[str]:
     return {name for name in names if name}
 
 
+CREDENTIAL_NAME = re.compile(r"TOKEN|SECRET|PASSW|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|AUTH|COOKIE|SESSION|CREDENTIAL|_KEY$", re.IGNORECASE)
+NOT_CREDENTIALS = frozenset({"PWD", "OLDPWD", "SSH_AUTH_SOCK"})
+
+
+def credential_looking_env() -> set[str]:
+    """Environment variables that look like credentials whatever the manifest declares: a script can read __ENV.API_KEY
+    without declaring it, and a target can echo it back. Values must be long and not a path, to keep words readable."""
+    return {name for name, value in os.environ.items()
+            if name not in NOT_CREDENTIALS and CREDENTIAL_NAME.search(name) and len(value) >= MIN_SECRET_LENGTH
+            and not value.startswith("/") and any(char.isdigit() for char in value)}
+
+
+ENV_READ = re.compile(r"__ENV(?:\.([A-Za-z_][A-Za-z0-9_]*)|\[\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\s*\])")
+
+
+def manifest_env_names(manifest: dict) -> set[str]:
+    """Every variable name the manifest refers to under a key ending in `env` (credentials and plain settings alike)."""
+    names: set[str] = set()
+
+    def walk(value) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if str(key).lower().endswith("env"):
+                    names.update(x for x in (item if isinstance(item, list) else item.values() if isinstance(item, dict) else [item])
+                                 if isinstance(x, str))
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(manifest)
+    return names
+
+
+def undeclared_env_reads(scenario_files: dict, evidence: RunEvidence) -> list[str]:
+    """Variables the scenario's scripts read from __ENV that the manifest never names: their values are unknown to the
+    scrubber unless they also look like credentials, so filing waits until they are declared in `secret_env`."""
+    known = manifest_env_names(evidence.manifest_data)
+    found = set()
+    for name, path in scenario_files.items():
+        if name.endswith((".js", ".mjs", ".ts")):
+            for match in ENV_READ.finditer(path.read_text(encoding="utf-8", errors="replace")):
+                var = match.group(1) or match.group(2)
+                if var not in known and not var.startswith(("LT_", "K6_")) and var != "TARGET":
+                    found.add(var)
+    return sorted(found)
+
+
 def _spellings(text: str) -> set[str]:
     """`text` raw, JSON-escaped and URL-encoded (either hex case)."""
     encoded = quote(text, safe="")
@@ -353,6 +401,10 @@ def _secret_spellings(secret: str) -> list[str]:
     forms = _spellings(secret) | {data.hex(), data.hex().upper()}
     for encoded in (base64.b64encode(data).decode(), base64.urlsafe_b64encode(data).decode()):
         forms |= {encoded, encoded.rstrip("=")}
+    if len(data) >= 9:  # inside a longer blob ('user:' + token, a cookie): the stable middle at the other two offsets
+        for pad in (1, 2):
+            for encode in (base64.b64encode, base64.urlsafe_b64encode):
+                forms.add(encode(b"\0" * pad + data).decode()[4:-4])
     return sorted(forms, key=len, reverse=True)
 
 
@@ -360,22 +412,26 @@ def _decodings(text: str) -> list[str]:
     """`text` and its percent-decoded (until stable), HTML-unescaped and JSON-slash-unescaped readings: a secret partly
     encoded by the target (Go's PathEscape, Python's quote, PHP's \\/) is still the secret."""
     found, current = [text], text
-    for _ in range(3):
+    for _ in range(8):
         decoded = unquote(current)
         if decoded == current:
             break
         found.append(decoded)
         current = decoded
     for base in list(found):
-        found += [html.unescape(base), base.replace("\\/", "/")]
+        found += [html.unescape(base), base.replace("\\/", "/"), UNICODE_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), base)]
     return found
+
+
+UNICODE_ESCAPE = re.compile(r"\\u([0-9a-fA-F]{4})")
 
 
 class Scrubber:
     """Every byte the bundle (and the CLI output) carries goes through `text`; `verify` re-reads what was written."""
 
     def __init__(self, evidence: RunEvidence, kit: dict | None = None, security: bool = False) -> None:
-        self.secrets = sorted({os.environ.get(name, "") for name in declared_secret_env(evidence)} - {""}, key=len, reverse=True)
+        names = declared_secret_env(evidence) | credential_looking_env()
+        self.secrets = sorted({os.environ.get(name, "") for name in names} - {""}, key=len, reverse=True)
         self.secret_forms = sorted({form for secret in self.secrets if len(secret) >= MIN_SECRET_LENGTH
                                     for form in _secret_spellings(secret)}, key=len, reverse=True)
         self.security = security
@@ -1108,6 +1164,10 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
         caveats.append(f"already reported upstream at {options['known_issue']}: add to that issue instead of filing a new one")
     scenario_dir = options.get("scenario")
     scenario_files = verify_scenario(scenario_dir, evidence) if scenario_dir else {}
+    undeclared = undeclared_env_reads(scenario_files, evidence)
+    if undeclared:
+        caveats.append(f"the scenario reads {', '.join(undeclared)} from __ENV without declaring it; add it to secret_env "
+                       "(or another *_env field) so its value is scrubbed")
     security = classification.kind == "security"
     scrubber = Scrubber(evidence, scenario_kit(scenario_files, evidence), security=security)
     document = scrubber.value(evidence_document(evidence, classification, fp, caveats, options))
@@ -1331,10 +1391,14 @@ def submit_security(evidence: RunEvidence, bundle: Bundle, gh, repo: str) -> dic
             "notes": [f"reported privately: {url}"], "remote_complete": False, "keep_reason": "security reports keep their evidence locally"}
 
 
-def submit_public(evidence: RunEvidence, bundle: Bundle, gh, repo: str, comment: bool, labels: list[str]) -> dict:
-    """Dedupe (ledger, search, the user's own open issues), then comment on the duplicate or create the issue."""
-    previous = ledger_match(evidence, bundle.fingerprint, repo)
-    if previous and gh.issue_state(previous["url"]) == "CLOSED":
+def submit_public(evidence: RunEvidence, bundle: Bundle, gh, repo: str, comment: bool, labels: list[str],
+                  known: str | None = None) -> dict:
+    """Dedupe (ledger, search, the user's own open issues), then comment on the duplicate or create the issue.
+
+    `known` is a reporter-supplied issue in this repo: the evidence goes there as a comment, never as a new issue.
+    """
+    previous = {"url": known} if known else ledger_match(evidence, bundle.fingerprint, repo)
+    if previous and not known and gh.issue_state(previous["url"]) == "CLOSED":
         bundle.document["supersedes"] = previous["url"]  # a regression of a fixed issue: file anew, linking the old one
         rerender(bundle)
         previous = None
@@ -1403,16 +1467,20 @@ def keep_reason(bundle: Bundle, video: str | None, attached: list[str], upload_f
 def submit(evidence: RunEvidence, bundle: Bundle, args) -> dict:
     from litetraffic.github import Gh
 
-    blockers = submit_blockers(evidence)
-    if bundle.document.get("known_issue", {}).get("reporter"):
-        blockers.append(f"already reported upstream at {bundle.document['known_issue']['reporter']}; this would file a duplicate")
+    known = bundle.document.get("known_issue", {}).get("reporter")
+    blockers = [item for item in bundle.caveats if not item.startswith("already reported upstream")]
+    commentable = known and args.comment and bundle.classification.kind != "security" and re.fullmatch(
+        rf"https://github\.com/{re.escape(args.repo)}/issues/\d+", known, re.IGNORECASE)
+    if known and not commentable:
+        blockers.append(f"already reported upstream at {known}; this would file a duplicate (add --comment to add this run's "
+                        "evidence when that issue is in --repo)")
     if blockers:
         raise IssueError(f"not submitting while the evidence is in doubt ({'; '.join(blockers)}); the draft is in {bundle.dir}")
     gh = Gh(bundle.scrubber.text)
     gh.ensure_auth()
     if bundle.classification.kind == "security":
         return submit_security(evidence, bundle, gh, args.repo)
-    return submit_public(evidence, bundle, gh, args.repo, args.comment, list(args.label or []))
+    return submit_public(evidence, bundle, gh, args.repo, args.comment, list(args.label or []), known if commentable else None)
 
 
 def _run_is_symlink(ref: str, runs_dir: Path) -> bool:
@@ -1454,6 +1522,10 @@ def report(args) -> dict:
             raise IssueError("--comment is for public issues; a security-class failure goes only to a private vulnerability report")
     if not args.submit:
         return result
+    if bundle.classification.kind != "security" and not args.public:
+        raise IssueError(f"this would open a PUBLIC issue on {args.repo} that anyone can read. If the failure could be a "
+                         "vulnerability, rerun with --security to report it privately; otherwise pass --public to confirm. "
+                         f"The draft is in {bundle.dir}")
     filed = submit(evidence, bundle, args)
     result.update(submitted=True, url=filed["url"], duplicate=filed["duplicate"], filed=filed["filed"], notes=filed["notes"])
     if args.remove_local:

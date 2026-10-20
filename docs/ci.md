@@ -127,7 +127,7 @@ Add these steps after **Verify** and before **Fail on a non-passing verdict**, a
           run_id=$(python -c 'import json; print(json.load(open("verify.json"))["run_id"])')
           litetraffic report issue "$run_id" --scenario scenarios/checkout \
             --repo your-org/your-app --json > issue.json
-          # To file it as well, add --submit here and give the step a token (see below).
+          # To file it as well, add --submit --public here (or --submit alone for a security report) and give the step a token (see below).
           # Read a few drafts before you turn that on.
 
       - name: Keep the issue draft
