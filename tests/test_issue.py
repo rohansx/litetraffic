@@ -1747,3 +1747,45 @@ def test_comment_adds_evidence_to_the_known_issue(fail_run, capsys, gh):
     comment = next(argv for argv in gh.argvs() if argv[:2] == ["issue", "comment"])
     assert url in comment or "3" in comment
     assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+# --- hardening round 5: scrub secret-looking values whatever the variable is called; __ENV fails closed ---
+
+
+@pytest.mark.parametrize(("name", "value", "leaked"), [
+    ("DATABASE_URL", "postgres://app:Xk29fQpL7mzr@db.internal:5432/app", "Xk29fQpL7mzr"),
+    ("DB_URL", "mysql://root:Pw0rdQ93zz@10.0.0.5/app", "Pw0rdQ93zz"),
+    ("STRIPE_SK", "sk_live_51HxYz9AbCdEfGh", "sk_live_51HxYz9AbCdEfGh"),
+    ("SENTRY_DSN", "https://abc123def456@o1.ingest.sentry.io/42", "abc123def456"),
+    ("WEBHOOK_URL", "https://hooks.example.test/in?token=T0kQ8zLm93Kd", "T0kQ8zLm93Kd"),
+])
+def test_secret_looking_env_values_are_scrubbed_whatever_the_name(fail_run, monkeypatch, capsys, name, value, leaked):
+    monkeypatch.setenv(name, value)
+    plant(fail_run, f"upstream said: {value}")
+    assert report(str(fail_run)) == 0
+    assert all(leaked not in text for text in bundle_text(fail_run).values())
+
+
+@pytest.mark.parametrize(("name", "value"), [("NEXTAUTH_URL", "http://127.0.0.1:8081"), ("SESSION_STORE", "redis-cache"),
+                                             ("LANG", "en_US.UTF-8"), ("TERM", "xterm-256color")])
+def test_plain_settings_are_not_scrubbed_out_of_the_report(fail_run, monkeypatch, capsys, name, value):
+    monkeypatch.setenv(name, value)
+    plant(fail_run, "500 from http://127.0.0.1:8081/api via redis-cache with xterm-256color en_US.UTF-8")
+    assert report(str(fail_run)) == 0
+    body = (fail_run / "issue" / "evidence.json").read_text()
+    assert "$TARGET/api" in body and "redis-cache" in body and "xterm-256color" in body and "en_US.UTF-8" in body
+
+
+@pytest.mark.parametrize("code", ["const { STRIPE_SK } = __ENV;", "const k = __ENV ['STRIPE_SK'];", "const k = __ENV[name];",
+                                  "const k = __ENV[`STRIPE_SK`];", "const k = __ENV?.STRIPE_SK;", "const env = __ENV; env.X;"])
+def test_env_reads_that_cannot_be_checked_block_submit(fail_run, tmp_path, capsys, gh, code):
+    scenario = Path(shutil.copytree(SCENARIO, tmp_path / "scenario"))
+    reseal_scenario_script(fail_run, scenario, code + "\n")
+    assert report(str(fail_run), "--scenario", str(scenario), "--submit", "--public", "--repo", "owner/app") == 3
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+def test_shipped_examples_read_env_in_checkable_ways():
+    for script in sorted((Path(__file__).parents[1] / "examples").glob("*/journeys.js")):
+        names, unresolved = issue.env_reads(script.read_text())
+        assert not unresolved, (script, unresolved)

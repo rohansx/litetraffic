@@ -14,7 +14,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import parse_qsl, quote, unquote, urlsplit
 
 from pydantic import ValidationError
 
@@ -341,19 +341,73 @@ def declared_secret_env(evidence: RunEvidence) -> set[str]:
     return {name for name in names if name}
 
 
-CREDENTIAL_NAME = re.compile(r"TOKEN|SECRET|PASSW|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|AUTH|COOKIE|SESSION|CREDENTIAL|_KEY$", re.IGNORECASE)
-NOT_CREDENTIALS = frozenset({"PWD", "OLDPWD", "SSH_AUTH_SOCK"})
+CREDENTIAL_NAME = re.compile(r"TOKEN|SECRET|PASSW|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|AUTH_?TOKEN|SESSION_?(SECRET|KEY)|CREDENTIAL"
+                             r"|_SK$|_DSN$", re.IGNORECASE)
 
 
-def credential_looking_env() -> set[str]:
-    """Environment variables that look like credentials whatever the manifest declares: a script can read __ENV.API_KEY
-    without declaring it, and a target can echo it back. Values must be long and not a path, to keep words readable."""
-    return {name for name, value in os.environ.items()
-            if name not in NOT_CREDENTIALS and CREDENTIAL_NAME.search(name) and len(value) >= MIN_SECRET_LENGTH
-            and not value.startswith("/") and any(char.isdigit() for char in value)}
+def _secret_looking(value: str) -> bool:
+    """A value that reads like a key or token rather than a setting: long, no spaces, not a path, mixing letters and
+    digits (or long and mixed-case). en_US.UTF-8, xterm-256color and plain host names stay readable."""
+    if len(value) < MIN_SECRET_LENGTH or any(char.isspace() for char in value) or value.startswith(("/", "~")):
+        return False
+    digits, letters = sum(c.isdigit() for c in value), sum(c.isalpha() for c in value)
+    mixed_case = any(c.isupper() for c in value) and any(c.islower() for c in value)
+    return (digits >= 2 and letters >= 2 and (mixed_case or len(value) >= 16)) or (len(value) >= 20 and mixed_case)
 
 
-ENV_READ = re.compile(r"__ENV(?:\.([A-Za-z_][A-Za-z0-9_]*)|\[\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\s*\])")
+def _url_secrets(value: str) -> set[str]:
+    """The credential parts of a URL-shaped value: userinfo (postgres://user:pass@, a Sentry DSN key) and query values."""
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return set()
+    # with a password the username is just a name; alone in userinfo (a Sentry DSN, https://KEY@host) it is the key
+    found = {parts.password} if parts.password else ({parts.username} if parts.username and len(parts.username) >= MIN_SECRET_LENGTH else set())
+    found |= {item for _, item in parse_qsl(parts.query) if len(item) >= MIN_SECRET_LENGTH}
+    return found
+
+
+def env_secret_values() -> set[str]:
+    """Values in the environment that may be secrets whatever the variable is called: a script can read any variable
+    without declaring it, and a target can echo it back. Plain URLs (an app's own origin, NEXTAUTH_URL) stay readable;
+    their userinfo and query values do not."""
+    found = set()
+    for name, value in os.environ.items():
+        if "://" in value:
+            found |= _url_secrets(value)
+        elif _secret_looking(value) or (CREDENTIAL_NAME.search(name) and len(value) >= MIN_SECRET_LENGTH):
+            found.add(value)
+    return found
+
+
+ENV_TOKEN = re.compile(r"(?<![\w$])__ENV(?![\w$])")
+ENV_DOT = re.compile(r"__ENV\s*\??\.\s*([A-Za-z_$][\w$]*)")
+ENV_INDEX = re.compile(r"__ENV\s*(?:\?\.)?\s*\[\s*(['\"])([A-Za-z_$][\w$]*)\1\s*\]")
+ENV_DESTRUCTURE = re.compile(r"\{([^{}]*)\}\s*=\s*__ENV(?![\w$])")
+
+
+def env_reads(script: str) -> tuple[set[str], list[str]]:
+    """(variable names a script reads from __ENV, snippets of reads that cannot be resolved statically).
+
+    Fails closed: a computed or template key, an alias (`const env = __ENV`) or __ENV passed along is unresolved."""
+    names, unresolved = set(), []
+    for token in ENV_TOKEN.finditer(script):
+        at = token.start()
+        destructure = next((m for m in ENV_DESTRUCTURE.finditer(script) if m.end() == token.end()), None)
+        if destructure:
+            for item in destructure.group(1).split(","):
+                key = item.split(":")[0].split("=")[0].strip()
+                if re.fullmatch(r"[A-Za-z_$][\w$]*", key):
+                    names.add(key)
+                elif key:
+                    unresolved.append(_short(destructure.group(0), 60))
+            continue
+        matched = ENV_DOT.match(script, at) or ENV_INDEX.match(script, at)
+        if matched:
+            names.add(matched.group(matched.lastindex))
+        else:
+            unresolved.append(_short(script[max(0, at - 20):at + 30], 60))
+    return names, unresolved
 
 
 def manifest_env_names(manifest: dict) -> set[str]:
@@ -379,13 +433,17 @@ def undeclared_env_reads(scenario_files: dict, evidence: RunEvidence) -> list[st
     """Variables the scenario's scripts read from __ENV that the manifest never names: their values are unknown to the
     scrubber unless they also look like credentials, so filing waits until they are declared in `secret_env`."""
     known = manifest_env_names(evidence.manifest_data)
+    kit = scenario_kit(scenario_files, evidence) if scenario_files else None
+    kit_tokens = {i.get("token_env") for i in (kit or {}).get("identities") or [] if isinstance(i, dict)} - {None}
+    # a kit script reads __ENV[identity.token_env]: dynamic, but only ever one of the kit's own declared token_env names
+    kit_read = bool(kit_tokens) and kit_tokens <= (known | declared_secret_env(evidence))
     found = set()
     for name, path in scenario_files.items():
         if name.endswith((".js", ".mjs", ".ts")):
-            for match in ENV_READ.finditer(path.read_text(encoding="utf-8", errors="replace")):
-                var = match.group(1) or match.group(2)
-                if var not in known and not var.startswith(("LT_", "K6_")) and var != "TARGET":
-                    found.add(var)
+            names, unresolved = env_reads(path.read_text(encoding="utf-8", errors="replace"))
+            unresolved = [snippet for snippet in unresolved if not (kit_read and re.search(r"__ENV\[\s*\w+\.token_env\s*\]", snippet))]
+            found |= {var for var in names if var not in known and not var.startswith(("LT_", "K6_")) and var != "TARGET"}
+            found |= {f"a read that cannot be checked ({snippet})" for snippet in unresolved}
     return sorted(found)
 
 
@@ -430,8 +488,8 @@ class Scrubber:
     """Every byte the bundle (and the CLI output) carries goes through `text`; `verify` re-reads what was written."""
 
     def __init__(self, evidence: RunEvidence, kit: dict | None = None, security: bool = False) -> None:
-        names = declared_secret_env(evidence) | credential_looking_env()
-        self.secrets = sorted({os.environ.get(name, "") for name in names} - {""}, key=len, reverse=True)
+        declared = {os.environ.get(name, "") for name in declared_secret_env(evidence)}
+        self.secrets = sorted((declared | env_secret_values()) - {""}, key=len, reverse=True)
         self.secret_forms = sorted({form for secret in self.secrets if len(secret) >= MIN_SECRET_LENGTH
                                     for form in _secret_spellings(secret)}, key=len, reverse=True)
         self.security = security
