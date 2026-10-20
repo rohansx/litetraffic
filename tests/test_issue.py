@@ -920,6 +920,36 @@ def test_video_refuses_to_draw_unscrubbed_lines(fail_run, capsys, monkeypatch):
     assert not (fail_run / "issue" / "proof.mp4").exists()
 
 
+def drafted_evidence(fail_run, *args) -> dict:
+    assert report(str(fail_run), "--no-video", *args) == 0
+    return json.loads((fail_run / "issue" / "evidence.json").read_text())
+
+
+def test_video_is_evidence_not_a_terminal(fail_run, capsys):
+    drawn = [text for text, _ in proof.lines(drafted_evidence(fail_run))]
+    assert all(text.isascii() for text in drawn), [t for t in drawn if not t.isascii()]
+    assert not any(text.lstrip().startswith("$ ") for text in drawn)  # no shell prompt pretending to be a live session
+    assert any("Replay of recorded LiteTraffic evidence, not a screen recording" in text for text in drawn)
+
+
+def test_video_shows_version_samples_invariant_and_verdict(fail_run, capsys):
+    evidence = drafted_evidence(fail_run, "--target-version", "v1.9.0-beta")
+    drawn = [text for text, _ in proof.lines(evidence)]
+    assert any("v1.9.0-beta" in text for text in drawn)
+    header = next(text for text in drawn if "short_id" in text)
+    assert "discount_applied" in header and "total_gross" in header
+    rows = [text for text in drawn if "o_" in text and "true" in text]
+    assert len(rows) == 10 and any("o_0xFu6JnvD28yM" in row for row in rows)
+    assert any("expected <= 1" in text and "actual 10" in text and "VIOLATED" in text for text in drawn)
+    assert any(text.startswith("FAIL") for text in drawn)
+    assert any("201 x10" in text for text in drawn)  # every response said success
+
+
+def test_video_is_at_most_ten_seconds(fail_run, capsys):
+    frames = list(proof.frame_plan(drafted_evidence(fail_run)))
+    assert 0 < len(frames) <= 10 * proof.FPS
+
+
 def test_video_render_deterministic(fail_run, tmp_path, capsys, monkeypatch):
     if REAL_AVAILABLE() is None:
         pytest.skip("video extra (pillow + ffmpeg) not installed")

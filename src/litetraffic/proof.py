@@ -1,7 +1,9 @@
 """Optional video proof: a deterministic Pillow + ffmpeg replay drawn only from a bundle's scrubbed evidence.json.
 
-It is a replay of recorded evidence, not a screen recording, and every frame says so. Nothing here reads run
-artifacts; `lines(evidence)` is the complete text that `render` draws, so a caller can check it before rendering.
+It is a replay of recorded evidence, not a screen recording, and every frame says so: a title card (what was tested),
+the per-journey samples revealed row by row, what the app recorded afterwards against the expectation, and the verdict
+with the HTTP statuses that hid it. Nothing here reads run artifacts; `lines(evidence)` is the complete text that
+`render` draws, so a caller can check it before rendering. Text is ASCII only, so no glyph can be missing.
 """
 
 from __future__ import annotations
@@ -18,14 +20,17 @@ GIF_WIDTH, GIF_HEIGHT, GIF_FPS = 640, 360, 6
 MP4_LIMIT = int(9.5 * 1024 * 1024)  # under the 10 MB upload limit of GitHub's Free plan
 GIF_LIMIT = 5 * 1024 * 1024
 FFMPEG_TIMEOUT_SECONDS = 120
-REVEAL_SECONDS, HOLD_SECONDS = 10, 4
-FONT_SIZE, LINE_HEIGHT, MARGIN, TOP = 18, 24, 24, 52
+FONT_SIZE, BIG_SIZE, LINE_HEIGHT, MARGIN, TOP = 18, 30, 26, 40, 48
 MAX_CHARS = 108  # JetBrains Mono at 18 px is 11 px a glyph; 1280 px less margins
+MAX_ROWS, MAX_COLUMNS, CELL = 12, 6, 18
 FONT_FILE = Path(__file__).parent / "dashboard_ui" / "assets" / "jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2"
-NOTICE = "Replayed from LiteTraffic run artifacts — not a live screen recording"
+NOTICE = "Replay of recorded LiteTraffic evidence, not a screen recording"
+# (scene, seconds): 10 s in all. The samples scene reveals its rows over its time; the others are shown whole.
+TIMING = (("title", 2), ("samples", 4), ("invariant", 2), ("verdict", 2))
 
-BG, BAR, FG, DIM = (24, 24, 27), (39, 39, 42), (228, 228, 231), (150, 150, 160)
+BG, FG, DIM = (24, 24, 27), (228, 228, 231), (150, 150, 160)
 RED, GREEN, YELLOW, BLUE = (248, 113, 113), (74, 222, 128), (250, 204, 21), (125, 211, 252)
+ASCII = {"\u2264": "<=", "\u2265": ">=", "\u2014": "-", "\u2013": "-", "\u2026": "...", "\u00d7": "x", "\u2192": "->"}
 
 
 def ffmpeg() -> str | None:
@@ -61,10 +66,17 @@ def missing() -> list[str]:
     return ([] if _has_pillow() else ["pillow"]) + ([] if ffmpeg() else ["ffmpeg"])
 
 
+def _ascii(text: str) -> str:
+    """ASCII only, so no glyph can render as a missing-character box."""
+    for char, plain in ASCII.items():
+        text = text.replace(char, plain)
+    return text.encode("ascii", "replace").decode("ascii")
+
+
 def _short(value: object, limit: int = 60) -> str:
     text = value if isinstance(value, str) else json.dumps(value, sort_keys=True, ensure_ascii=False)
-    text = " ".join(str(text).split())
-    return text if len(text) <= limit else text[: limit - 1] + "…"
+    text = _ascii(" ".join(str(text).split()))
+    return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
 def _matcher(matcher: object) -> str:
@@ -78,112 +90,118 @@ def _matcher(matcher: object) -> str:
     return f"= {_short(matcher, 30)}"
 
 
-def _intro(evidence: dict) -> list[tuple[str, tuple]]:
-    run, target = evidence.get("run") or {}, evidence.get("target") or {}
-    phases = [p for p in run.get("schedule") or [] if isinstance(p, dict)]
-    schedule = ", ".join(f"{p.get('name', 'phase')} {p.get('rate', '?')}/s for {p.get('seconds', '?')}s" for p in phases)
-    return [
-        ("LiteTraffic replay", FG), (NOTICE, YELLOW),
-        (_short(evidence.get("title") or "", MAX_CHARS), FG),
-        (f"litetraffic {evidence.get('litetraffic_version', '?')}   fingerprint {evidence.get('fingerprint', '?')}", DIM),
-        ("", FG),
-        ("$ litetraffic run   (as recorded)", BLUE),
-        (f"run       {run.get('run_id', '?')}", FG),
-        (f"scenario  {run.get('scenario', '?')}   sha256 {str(run.get('scenario_sha256') or '?')[:16]}", FG),
-        (f"target    {target.get('origin', '$TARGET')}   origin sha256 {str(target.get('origin_sha256') or '?')[:12]}", FG),
-        (f"version   {_short(target.get('version') or 'unknown', 90)}", DIM),
-        (f"seed {run.get('seed', '?')}   engine {_short(str(run.get('engine') or '?').split(' (')[0], 30)}"
-         f"   journeys {run.get('planned_journeys', '?')}   schedule {_short(schedule or '?', 50)}", DIM),
-        (f"window    {run.get('started_at', '?')} -> {run.get('finished_at', '?')}", DIM),
-    ]
-
-
-def _traffic(evidence: dict) -> list[tuple[str, tuple]]:
-    traffic = evidence.get("traffic") or {}
-    out = [("", FG), (f"traffic   {'operation':<24} {'method':<6} {'path':<36} {'requests':>8}  statuses", BLUE)]
-    for op in (traffic.get("operations") or [])[:10]:
-        statuses = " ".join(f"{code}x{count}" for code, count in sorted((op.get("statuses") or {}).items()))
-        out.append((f"          {_short(op.get('operation'), 24):<24} {_short(op.get('method') or '?', 6):<6} "
-                    f"{_short(op.get('path') or '?', 36):<36} {op.get('requests', '?'):>8}  {_short(statuses, 18)}", FG))
-    overlap = traffic.get("overlap") or {}
-    if overlap:
-        out.append((f"          peak in flight: {_short(', '.join(f'{k} {v}' for k, v in sorted(overlap.items())), 80)}", DIM))
+def _title(evidence: dict) -> list[tuple[str, tuple]]:
+    run, target, known = evidence.get("run") or {}, evidence.get("target") or {}, evidence.get("known_issue") or {}
+    out = [(NOTICE, YELLOW), ("", FG), (_short(evidence.get("title") or "", MAX_CHARS), FG), ("", FG),
+           (f"Target version: {_short(target.get('version') or 'not recorded', 80)}", FG),
+           (f"Scenario {_short(run.get('scenario', '?'), 50)}, seed {run.get('seed', '?')}, "
+            f"{run.get('planned_journeys', '?')} journeys", DIM)]
+    if known.get("reporter"):
+        out.append((f"Known issue: {_short(known['reporter'], 90)}", DIM))
     return out
 
 
-def _failing(evidence: dict) -> list[tuple[str, tuple]]:
-    out = [("", FG), ("checks    (what the run asserted, and what it saw)", BLUE)]
-    for item in (evidence.get("failing") or [])[:6]:
-        count = f"   {item['failed']}/{item.get('samples', '?')} samples failed" if item.get("failed") is not None else ""
-        out.append((f"  {_short(item.get('id'), 40)}{count}", YELLOW))
-        for check in (item.get("checks") or [])[:4]:
-            out.append((f"    {_short(check.get('pointer'), 34):<34} expected {_matcher(check.get('expected')):<16} "
+def _samples(evidence: dict) -> list[tuple[str, tuple]]:
+    """The per-journey table: one line per journey, columns clipped so the row fits the frame."""
+    table = evidence.get("journey_samples") or {}
+    columns, rows = list(table.get("columns") or [])[:MAX_COLUMNS], list(table.get("rows") or [])[:MAX_ROWS]
+    if not rows:
+        return [("What each journey recorded", BLUE), ("(the run recorded no per-journey samples)", DIM)]
+    cells = [[_short(row.get("journey"), CELL), *(_short(v, CELL) for v in (row.get("values") or [])[:MAX_COLUMNS])] for row in rows]
+    header = ["journey", *(_short(c, CELL) for c in columns)]
+    widths = [max(len(line[i]) if i < len(line) else 0 for line in [header, *cells]) for i in range(len(header))]
+
+    def joined(values: list[str]) -> str:
+        return "  ".join(value.ljust(width) for value, width in zip(values, widths)).rstrip()
+
+    out = [("What each journey recorded", BLUE), (joined(header), DIM)]
+    out += [(joined(line), RED if row.get("failed") else FG) for line, row in zip(cells, rows)]
+    if (table.get("total") or 0) > len(rows):
+        out.append((f"first {len(rows)} of {table['total']} journeys", DIM))
+    return out
+
+
+def _invariant(evidence: dict) -> list[tuple[str, tuple]]:
+    out = [("What the app recorded afterwards", BLUE)]
+    for item in (evidence.get("failing") or [])[:4]:
+        out.append((_short(item.get("id"), 60), YELLOW))
+        for check in (item.get("checks") or [])[:3]:
+            out.append((f"  {_short(check.get('pointer'), 40)}   expected {_matcher(check.get('expected'))}   "
                         f"actual {_short(check.get('actual'), 24)}   VIOLATED", RED))
         if not item.get("checks"):
             for failure in (item.get("failures") or [])[:3]:
                 failure = failure if isinstance(failure, dict) else {}
-                out.append((f"    expected {_short(failure.get('expected'), 36)}   actual {_short(failure.get('actual'), 36)}   VIOLATED", RED))
+                out.append((f"  expected {_short(failure.get('expected'), 36)}   actual {_short(failure.get('actual'), 36)}   VIOLATED", RED))
     return out
 
 
-def _outro(evidence: dict) -> list[tuple[str, tuple]]:
-    verdict = str(evidence.get("verdict") or "?")
+def _verdict(evidence: dict) -> list[tuple[str, tuple]]:
+    verdict = str(evidence.get("verdict") or "?").upper()
     kind = (evidence.get("classification") or {}).get("kind", "?")
-    out = [("", FG), (f"VERDICT  {verdict.upper()}   ({kind}; completeness {evidence.get('completeness', '?')})",
-                      RED if verdict == "fail" else GREEN)]
-    out += [(f"  limitation: {_short(text, 90)}", DIM) for text in (evidence.get("limitations") or [])[:2]]
-    out.append(("source artifacts (sha256, check against artifacts.json):", DIM))
-    out += [(f"  {name:<22} {digest}", DIM) for name, digest in sorted((evidence.get("source_sha256") or {}).items())]
+    out = [(f"{verdict}   {kind}, evidence {evidence.get('completeness', '?')}", RED if verdict == "FAIL" else GREEN), ("", FG)]
+    operations = ((evidence.get("traffic") or {}).get("operations") or [])[:6]
+    if operations:
+        out.append(("HTTP responses during the run:", DIM))
+        for op in operations:
+            statuses = ", ".join(f"{code} x{count}" for code, count in sorted((op.get("statuses") or {}).items()))
+            out.append((f"  {_short(op.get('operation'), 30)}: {_short(statuses, 60)}", FG))
     return out
+
+
+def scenes(evidence: dict) -> list[tuple[str, list[tuple[str, tuple]]]]:
+    builders = {"title": _title, "samples": _samples, "invariant": _invariant, "verdict": _verdict}
+    return [(name, [(text[:MAX_CHARS], colour) for text, colour in builders[name](evidence)]) for name, _ in TIMING]
 
 
 def lines(evidence: dict) -> list[tuple[str, tuple]]:
-    """Every line the replay draws, with its colour; built from evidence.json alone and clipped to the frame width."""
-    drawn = _intro(evidence) + _traffic(evidence) + _failing(evidence) + _outro(evidence)
-    return [(text if len(text) <= MAX_CHARS else text[: MAX_CHARS - 1] + "…", colour) for text, colour in drawn]
+    """Every line the replay draws (scenes and the footer notice), built from evidence.json alone."""
+    return [line for _, drawn in scenes(evidence) for line in drawn] + [(NOTICE, YELLOW)]
+
+
+def frame_plan(evidence: dict):
+    """(scene index, lines shown) for every frame: TIMING's seconds per scene, the samples rows revealed in turn."""
+    for index, ((name, drawn), (_, seconds)) in enumerate(zip(scenes(evidence), TIMING)):
+        frames = seconds * FPS
+        fixed = 2 if name == "samples" else len(drawn)  # the samples heading and column header stay; rows appear
+        for frame in range(frames):
+            shown = len(drawn) if name != "samples" else min(len(drawn), fixed + (len(drawn) - fixed) * (frame + 1) // max(1, frames - FPS))
+            yield index, shown
 
 
 def _fonts():
     from PIL import ImageFont
 
     try:
-        return ImageFont.truetype(str(FONT_FILE), FONT_SIZE), ImageFont.truetype(str(FONT_FILE), FONT_SIZE + 10)
+        return ImageFont.truetype(str(FONT_FILE), FONT_SIZE), ImageFont.truetype(str(FONT_FILE), BIG_SIZE)
     except OSError:  # a Pillow built without WOFF2 (brotli) support
-        return ImageFont.load_default(size=FONT_SIZE), ImageFont.load_default(size=FONT_SIZE + 10)
+        return ImageFont.load_default(size=FONT_SIZE), ImageFont.load_default(size=BIG_SIZE)
 
 
-def _frame(shown: list[tuple[str, tuple]], fonts, final: bool) -> bytes:
+def _frame(drawn: list[tuple[str, tuple]], big_first: bool, footer: bool, fonts) -> bytes:
     from PIL import Image, ImageDraw
 
     font, big = fonts
     image = Image.new("RGB", (WIDTH, HEIGHT), BG)
     draw = ImageDraw.Draw(image)
-    draw.rectangle([0, 0, WIDTH, 36], fill=BAR)
-    for index, colour in enumerate([(239, 68, 68), (234, 179, 8), (34, 197, 94)]):
-        draw.ellipse([16 + index * 22, 12, 28 + index * 22, 24], fill=colour)
-    draw.text((100, 8), "litetraffic report issue — replay", font=font, fill=DIM)
-    rows = (HEIGHT - TOP - 44 - (10 if final else 0)) // LINE_HEIGHT  # the final frame's verdict line is taller
     y = TOP
-    for text, colour in shown[-rows:]:
-        large = final and text.startswith("VERDICT")
-        draw.text((MARGIN, y - (4 if large else 0)), text, font=big if large else font, fill=colour)
-        y += LINE_HEIGHT + (10 if large else 0)
-    draw.rectangle([0, HEIGHT - 32, WIDTH, HEIGHT], fill=BAR)
-    draw.text((MARGIN, HEIGHT - 27), NOTICE, font=font, fill=YELLOW)
+    for number, (text, colour) in enumerate(drawn):
+        large = big_first and number == 0
+        draw.text((MARGIN, y), text, font=big if large else font, fill=colour)
+        y += LINE_HEIGHT + (14 if large else 0)
+    if footer:  # the title card already leads with the notice
+        draw.text((MARGIN, HEIGHT - 34), NOTICE, font=font, fill=DIM)
     return image.tobytes()
 
 
-def _frames(drawn: list[tuple[str, tuple]]):
-    """The whole video as raw RGB frames: each line revealed in turn over REVEAL_SECONDS, then the result held."""
-    fonts = _fonts()
-    per_line = max(1, REVEAL_SECONDS * FPS // max(1, len(drawn)))
-    for count in range(1, len(drawn) + 1):
-        frame = _frame(drawn[:count], fonts, final=False)
-        for _ in range(per_line):
-            yield frame
-    final = _frame(drawn, fonts, final=True)
-    for _ in range(HOLD_SECONDS * FPS):
-        yield final
+def _frames(evidence: dict):
+    """The whole video as raw RGB frames, drawn per frame_plan; identical frames are drawn once."""
+    fonts, drawn_scenes, cache = _fonts(), scenes(evidence), {}
+    for index, shown in frame_plan(evidence):
+        key = (index, shown)
+        if key not in cache:
+            name, drawn = drawn_scenes[index]
+            cache[key] = _frame(drawn[:shown], name in ("title", "verdict"), name != "title", fonts)
+        yield cache[key]
 
 
 def _ffmpeg(args: list[str], frames=None) -> None:
@@ -233,7 +251,7 @@ def render(evidence: dict, out_dir) -> list[Path]:
     try:
         _ffmpeg([exe, "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{WIDTH}x{HEIGHT}", "-r", str(FPS), "-i", "-",
                  "-c:v", "libx264", "-preset", "medium", "-crf", "28", "-pix_fmt", "yuv420p", "-x264-params", "threads=1",
-                 *BITEXACT, "-movflags", "+faststart", str(mp4)], _frames(lines(evidence)))
+                 *BITEXACT, "-movflags", "+faststart", str(mp4)], _frames(evidence))
         _ffmpeg([exe, "-i", str(mp4), "-vf", f"fps={GIF_FPS},scale={GIF_WIDTH}:{GIF_HEIGHT}:flags=lanczos,split[a][b];"
                  "[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4", *BITEXACT, str(gif)])
     except BaseException:
