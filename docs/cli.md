@@ -164,7 +164,7 @@ Only real directories directly under `--runs-dir` that contain a real (non-symli
 ```bash
 litetraffic report issue RUN [--runs-dir DIR] [--scenario DIR] [--repo OWNER/NAME] [--submit] [--comment]
     [--security] [--public] [--attach-url URL] [--no-video] [--label NAME]... [--title TEXT]
-    [--target-version TEXT] [--remove-local] [--json]
+    [--target-version TEXT] [--known-issue URL] [--remove-local] [--json]
 ```
 
 Drafts a maintainer-facing issue from a failing run into `RUN/issue/` (mode `0700`; files `0600`, `repro.sh` `0700`). By default nothing leaves the machine: the command prints the `gh` command it would run.
@@ -186,7 +186,8 @@ A failure is classified as `security` or `correctness`, failing closed: a failin
 | `--no-video` | Skip the replay video |
 | `--label NAME` | Issue label; repeatable |
 | `--title TEXT` | Override the generated title |
-| `--target-version TEXT` | App version for the Environment section |
+| `--target-version TEXT` | App version shown at the top of the issue; without it, and without a captured container image tag, the draft says the version was not recorded and warns |
+| `--known-issue URL` | An existing issue or advisory this failure matches (plain https); shown as **Known/fixed?** at the top. A scenario that declares a CVE or GHSA (in `report.known_issue` or its README) makes the draft warn |
 | `--remove-local` | Needs `--submit`; delete the run directory after a successful filing when nothing the issue points to would be lost |
 | `--json` | Emit one object with `run_id`, `verdict`, `kind`, `fingerprint`, `title`, `bundle`, `files`, `would_file`, `url`, `duplicate`, `video`, `attach` and `removed` |
 

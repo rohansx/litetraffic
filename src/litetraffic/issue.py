@@ -25,7 +25,7 @@ from litetraffic.runs import read_json, resolve
 
 BUNDLE = "issue"
 # The files whose hashes tie a report to what the run recorded; any of them present must match artifacts.json.
-SOURCE_FILES = ("run.json", "result.json", "observation.json", "scenario.lock.json", "events/000001.jsonl")
+SOURCE_FILES = ("run.json", "result.json", "observation.json", "scenario.lock.json", "events/000001.jsonl", "server.json")
 CHANGED = "run artifacts changed after the run; refusing to report"
 SECURITY_ASSERTIONS = frozenset(
     {"cross_tenant_read_blocked", "cross_tenant_write_blocked", "victim_unchanged", "unauthenticated_rejected", "no_foreign_data_in_own_responses"}
@@ -57,6 +57,8 @@ class RunEvidence:
     manifest: ScenarioManifest | None
     source_sha256: dict[str, str]
     requests: list[dict] = field(default_factory=list)  # tags of each http_reqs point in metrics.jsonl
+    events: list[dict] = field(default_factory=list)  # every stage and assertion event in the checked events/*.jsonl, in order
+    server: dict | None = None  # server.json from --capture docker, when the run had it
     runs_dir_given: bool = True  # --runs-dir was passed (so the ledger lives there even for a run outside it)
 
     @property
@@ -79,8 +81,8 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _check_integrity(run_dir: Path) -> dict[str, str]:
-    """sha256 of every source file, after checking each listed file against artifacts.json."""
+def _check_integrity(run_dir: Path) -> tuple[dict[str, str], set[str]]:
+    """sha256 of every source file, and every listed name, after checking each listed file against artifacts.json."""
     manifest = read_json(run_dir / MANIFEST)
     files = manifest.get("files") if manifest else None
     if not isinstance(files, list):
@@ -95,7 +97,7 @@ def _check_integrity(run_dir: Path) -> dict[str, str]:
     present = [name for name in SOURCE_FILES if (run_dir / name).is_file()]
     if any(name not in listed for name in present):
         raise IssueError(CHANGED)
-    return {name: listed[name] for name in present}
+    return {name: listed[name] for name in present}, {name for name in listed if isinstance(name, str)}
 
 
 def _http_requests(path: Path) -> list[dict]:
@@ -115,12 +117,27 @@ def _http_requests(path: Path) -> list[dict]:
     return requests
 
 
+def _events(run_dir: Path, listed: set[str]) -> list[dict]:
+    """Stage and assertion events from the checked events/*.jsonl files, ordered by sequence."""
+    found = []
+    for name in sorted(n for n in listed if n.startswith("events/") and n.endswith(".jsonl") and n.count("/") == 1):
+        with (run_dir / name).open(encoding="utf-8", errors="replace") as lines:
+            for line in lines:
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(event, dict) and event.get("type") in ("stage", "assertion"):
+                    found.append(event)
+    return sorted(found, key=lambda e: e.get("sequence") if isinstance(e.get("sequence"), int) else 0)
+
+
 def load_run(ref: str, runs_dir: Path) -> RunEvidence:
     run_dir = resolve(ref, runs_dir)
     run, result = read_json(run_dir / "run.json"), read_json(run_dir / "result.json")
     if run is None or result is None:
         raise IssueError(f"{run_dir} has no readable run.json and result.json")
-    sources = _check_integrity(run_dir)
+    sources, listed = _check_integrity(run_dir)
     lock = read_json(run_dir / "scenario.lock.json") or {}
     try:
         manifest = ScenarioManifest.model_validate(lock["manifest"]) if isinstance(lock.get("manifest"), dict) else None
@@ -136,6 +153,8 @@ def load_run(ref: str, runs_dir: Path) -> RunEvidence:
         manifest=manifest,
         source_sha256=sources,
         requests=_http_requests(run_dir / "metrics.jsonl"),
+        events=_events(run_dir, listed),
+        server=read_json(run_dir / "server.json") if "server.json" in sources else None,
     )
 
 
@@ -223,6 +242,9 @@ def classify(evidence: RunEvidence, force_security: bool) -> Classification:
         reasons.extend(_kit_run(evidence.manifest_data))
     if any("markers" in sample for row in rows for sample in _samples(row)):
         reasons.append("a failing sample carries another identity's markers")
+    declared = evidence.manifest_data.get("report")
+    if isinstance(declared, dict) and declared.get("security") is True:
+        reasons.append("the scenario declares report.security")
     if force_security:
         reasons.append("--security was passed")
     return Classification("security" if reasons else "correctness", reasons)
@@ -502,21 +524,90 @@ def traffic(evidence: RunEvidence) -> list[dict]:
     ]
 
 
-def _journeys_phrase(evidence: RunEvidence) -> str:
-    journeys = evidence.manifest_data.get("journeys") or []
-    name = journeys[0].get("name") if len(journeys) == 1 and isinstance(journeys[0], dict) else None
+MAX_JOURNEY_ROWS, MAX_SAMPLE_COLUMNS = 20, 8
+
+
+def _scalar(value: object) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
+
+
+def journey_samples(evidence: RunEvidence) -> dict:
+    """One row per journey from its assertion events, passing ones included: their actuals are often the clearest evidence.
+
+    Columns are the scalar fields of each assertion's `actual` (a key two assertions share is prefixed by the assertion).
+    """
+    prefix = f"{evidence.run_id}-"
+    journeys: dict[str, dict] = {}
+    columns: dict[tuple[str, str], None] = {}
+    for event in evidence.events:
+        key = event.get("logical_key")
+        if not isinstance(key, str):
+            continue
+        row = journeys.setdefault(key, {"journey": key.removeprefix(prefix), "stages": [], "values": {}, "failed": []})
+        if event.get("type") == "stage" and isinstance(event.get("stage"), str):
+            row["stages"].append(event["stage"])
+        elif event.get("type") == "assertion" and isinstance(event.get("assertion"), str):
+            name, actual = event["assertion"], event.get("actual")
+            if event.get("passed") is False:
+                row["failed"].append(name)
+            for field_name, value in (actual.items() if isinstance(actual, dict) else []):
+                if _scalar(value):
+                    columns.setdefault((name, str(field_name)), None)
+                    row["values"][f"{name}.{field_name}"] = value
+    chosen = list(columns)[:MAX_SAMPLE_COLUMNS]
+    names = [field_name for _, field_name in chosen]
+    labels = [field_name if names.count(field_name) == 1 else f"{name}.{field_name}" for name, field_name in chosen]
+    rows = [{"journey": row["journey"], "stages": row["stages"], "failed": row["failed"],
+             "values": [row["values"].get(f"{name}.{field_name}") for name, field_name in chosen]}
+            for row in journeys.values() if row["values"] or row["failed"]]
+    return {"columns": labels, "rows": rows[:MAX_JOURNEY_ROWS], "total": len(rows)}
+
+
+def mechanism(evidence: RunEvidence) -> list[str]:
+    """What the evidence shows about how the journeys ran: the stage funnel, event order and peak in-flight requests.
+
+    Nothing here says "concurrent": overlap is stated only as the measured peak.
+    """
+    lines = []
     rates = [phase.get("rate") for phase in evidence.run.get("resolved_schedule") or [] if isinstance(phase, dict)]
-    count = evidence.result.get("planned_journeys")
-    what = f"{_code(name, 40)} journeys" if name else "journeys"
-    rate = f" at {'/'.join(_num(r) for r in rates)}/s" if rates else ""
-    return f"{_num(count)} concurrent {what}{rate}" if count is not None else f"concurrent {what}{rate}"
+    rate = f" at {'/'.join(_num(r) for r in rates)} per second" if rates else ""
+    for name, journey in sorted((evidence.result.get("journeys") or {}).items()):
+        if not isinstance(journey, dict):
+            continue
+        started = journey.get("started")
+        stages = [stage for stage in journey.get("stages") or [] if isinstance(stage, dict)]
+        funnel = ", ".join(f"{_code(stage.get('name'), 40)} {_num(stage.get('reached'))}/{_num(started)}" for stage in stages)
+        line = f"The run started {_num(started)} {_code(name, 40)} journeys{rate}."
+        lines.append(line + (f" Stages reached: {funnel}." if funnel else ""))
+        lines += _stage_order([stage.get("name") for stage in stages], evidence.events)
+    overlap = {name: count for name, count in ((evidence.result.get("metrics") or {}).get("overlap") or {}).items()
+               if isinstance(count, (int, float)) and not isinstance(count, bool)}
+    if not overlap:
+        lines.append("Request overlap was not measured.")
+    elif max(overlap.values()) > 1:
+        detail = ", ".join(f"{_code(name, 40)} {_num(count)}" for name, count in sorted(overlap.items()))
+        lines.append(f"Requests overlapped: at most {_num(max(overlap.values()))} were in flight at once ({detail}).")
+    else:
+        lines.append("Requests did not overlap: at most 1 was in flight at once.")
+    return lines
+
+
+def _stage_order(stages: list, events: list[dict]) -> list[str]:
+    """For consecutive stages A, B: whether every journey reached A before any reached B, in the recorded event order."""
+    lines = []
+    for first, second in zip(stages, stages[1:]):
+        before = [e["sequence"] for e in events if e.get("type") == "stage" and e.get("stage") == first and isinstance(e.get("sequence"), int)]
+        after = [e["sequence"] for e in events if e.get("type") == "stage" and e.get("stage") == second and isinstance(e.get("sequence"), int)]
+        if len(before) > 1 and after and max(before) < min(after):
+            lines.append(f"In the recorded event order, every journey reached {_code(first, 40)} before any reached {_code(second, 40)}.")
+    return lines
 
 
 def summary_line(evidence: RunEvidence, row: dict) -> str:
     found = checks(row)
     if found:
         first = found[0]
-        return (f"{_journeys_phrase(evidence)}; {_code(row['id'])}: {_code(first['pointer'])} expected "
+        return (f"{_code(row['id'])}: {_code(first['pointer'])} expected "
                 f"{_code(describe_matcher(first['expected']))}, observed {_code(first['actual'])}.")
     failures = [f for f in row.get("failures") or [] if isinstance(f, dict)]
     line = f"{_num(row.get('failed', len(failures)))}/{_num(row.get('samples', '?'))} {_code(row['id'])} checks failed"
@@ -553,10 +644,62 @@ def attach_url(explicit: str | None) -> tuple[str | None, str | None]:
     return None, None
 
 
+KNOWN_ID_RE = re.compile(r"\b(CVE-\d{4}-\d{4,}|GHSA(?:-[a-z0-9]{4}){3})\b", re.IGNORECASE)
+NOT_RECORDED = "target version not recorded; pass --target-version (or run with --capture docker:NAME) before filing"
+
+
+def captured_images(evidence: RunEvidence) -> dict[str, str]:
+    """{container: image reference} from server.json; the tag is the closest thing to a version the run recorded."""
+    containers = (evidence.server or {}).get("containers")
+    if not isinstance(containers, dict):
+        return {}
+    return {str(name): _short(entry["image"], 200) for name, entry in sorted(containers.items())
+            if isinstance(entry, dict) and isinstance(entry.get("image"), str) and entry["image"].strip()}
+
+
+def _known_ids(text: str) -> list[str]:
+    """CVE ids upper-cased, GHSA ids in GitHub's own spelling (GHSA- then lower case)."""
+    ids = [match.group(0) for match in KNOWN_ID_RE.finditer(text)]
+    return [i.upper() if i.upper().startswith("CVE-") else "GHSA-" + i[5:].lower() for i in ids]
+
+
+def declared_known_issues(evidence: RunEvidence, scenario_dir: Path | None) -> list[str]:
+    """What the scenario says it reproduces: manifest `report.known_issue`, then CVE/GHSA ids in the scenario's README."""
+    found = []
+    declared = evidence.manifest_data.get("report")
+    known = declared.get("known_issue") if isinstance(declared, dict) else None
+    if isinstance(known, str) and known.strip():
+        found += _known_ids(known) or [_short(known, 120)]
+    if scenario_dir is not None and Path(scenario_dir).is_dir():
+        for path in sorted(Path(scenario_dir).iterdir()):
+            if path.is_file() and not path.is_symlink() and path.name.lower().startswith("readme"):
+                found += _known_ids(path.read_text(encoding="utf-8", errors="replace")[:200_000])
+    return list(dict.fromkeys(found))
+
+
+def known_issue_warning(ids: list[str]) -> str:
+    return (f"the scenario says it reproduces {', '.join(ids)}; check the tracker and changelog first, since this may already "
+            "be reported or fixed in a later version than the target")
+
+
+def draft_warnings(target: dict, known: dict) -> list[str]:
+    warnings = [] if target["version"] else [NOT_RECORDED]
+    if known["declared"]:
+        warnings.append(known_issue_warning(known["declared"]))
+    return warnings
+
+
 def evidence_document(evidence: RunEvidence, classification: Classification, fp: str, caveats: list[str], options: dict) -> dict:
     """evidence.json before scrubbing; the markdown bodies are rendered from this, so they cannot say more than it does."""
     run, result, metrics = evidence.run, evidence.result, evidence.result.get("metrics") or {}
     url, note = attach_url(options.get("attach_url"))
+    images = captured_images(evidence)
+    version = options.get("target_version") or ("; ".join(f"{name}: {image}" for name, image in images.items()) or None)
+    target = {"origin": "$TARGET", "origin_sha256": origin_hash(run.get("target") or ""), "version": version, "images": images,
+              "version_source": "reporter" if options.get("target_version") else ("container image" if images else None)}
+    scenario_dir = options.get("scenario")
+    known = {"declared": declared_known_issues(evidence, Path(scenario_dir) if scenario_dir else None),
+             "reporter": options.get("known_issue")}
     return {
         "schema_version": 1,
         "litetraffic_version": __version__,
@@ -566,8 +709,9 @@ def evidence_document(evidence: RunEvidence, classification: Classification, fp:
             "finished_at": run.get("finished_at"), "schedule": run.get("resolved_schedule") or [],
             "planned_journeys": result.get("planned_journeys"),
         },
-        "target": {"origin": "$TARGET", "origin_sha256": origin_hash(run.get("target") or ""),
-                   "version": options.get("target_version") or "unknown (not reported by the target)"},
+        "target": target,
+        "known_issue": known,
+        "warnings": draft_warnings(target, known),
         "verdict": result.get("verdict"),
         "completeness": result.get("completeness"),
         "limitations": result.get("limitations") or [],
@@ -575,6 +719,8 @@ def evidence_document(evidence: RunEvidence, classification: Classification, fp:
         "fingerprint": fp,
         "title": make_title(evidence, options.get("title")),
         "summary": [summary_line(evidence, row) for row in failing(evidence)],
+        "mechanism": mechanism(evidence),
+        "journey_samples": journey_samples(evidence),
         "failing": [
             {"id": row["id"], "expected": row.get("expected"), "actual": row.get("actual"), "samples": row.get("samples"),
              "failed": row.get("failed"), "checks": checks(row), "failures": (row.get("failures") or [])[:MAX_SAMPLES]}
@@ -609,15 +755,37 @@ def _check_rows(doc: dict) -> list[str]:
 
 
 def _sample_rows(doc: dict) -> list[str]:
+    """Recorded failures first, then one row per journey from its assertion events (passing ones included)."""
+    rows = []
     samples = [(item["id"], failure) for item in doc["failing"] for failure in item["failures"]]
-    if not samples:
-        return ["The failing checks are final-state reads; there are no per-request samples."]
-    rows = ["| Check | Sequence | Key | Expected | Actual | Detail |", "|---|---|---|---|---|---|"]
-    for name, failure in samples:
-        failure = failure if isinstance(failure, dict) else {}
-        rows.append(f"| {_cell(name)} | {_cell(failure.get('sequence'))} | {_cell(failure.get('logical_key'))} | {_cell(failure.get('expected'))} "
-                    f"| {_cell(failure.get('actual'))} | {_cell(failure['detail']) if failure.get('detail') else ''} |")
-    return rows
+    if samples:
+        rows += ["| Check | Sequence | Key | Expected | Actual | Detail |", "|---|---|---|---|---|---|"]
+        for name, failure in samples:
+            failure = failure if isinstance(failure, dict) else {}
+            rows.append(f"| {_cell(name)} | {_cell(failure.get('sequence'))} | {_cell(failure.get('logical_key'))} "
+                        f"| {_cell(failure.get('expected'))} | {_cell(failure.get('actual'))} "
+                        f"| {_cell(failure['detail']) if failure.get('detail') else ''} |")
+    journeys = doc.get("journey_samples") or {}
+    if journeys.get("rows"):
+        if rows:
+            rows.append("")
+        rows.append("What each journey's checks recorded (passing checks included):")
+        rows.append("")
+        columns = ["Journey", "Stages", *(_cell(label) for label in journeys["columns"]), "Failed checks"]
+        rows += ["| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)]
+        for row in journeys["rows"]:
+            values = [_cell(value) for value in row["values"]]
+            stages = _cell(" > ".join(row["stages"])) if row["stages"] else ""
+            failed = _cell(", ".join(row["failed"])) if row["failed"] else ""
+            rows.append(f"| {_cell(row['journey'])} | {stages} | {' | '.join(values)}{' | ' if values else ''}{failed} |")
+        if journeys.get("total", 0) > len(journeys["rows"]):
+            rows.append(f"\nFirst {_num(len(journeys['rows']))} of {_num(journeys['total'])} journeys; the rest are in events/*.jsonl.")
+    return rows or ["The run recorded no per-request or per-journey samples."]
+
+
+def _ms(value: object) -> str:
+    """A latency in whole milliseconds: three decimals of a p95 tell a maintainer nothing."""
+    return str(round(value)) if isinstance(value, (int, float)) and not isinstance(value, bool) else ""
 
 
 def _traffic_rows(doc: dict) -> list[str]:
@@ -627,12 +795,9 @@ def _traffic_rows(doc: dict) -> list[str]:
     rows = ["| Operation | Request | Count | Statuses | p95 ms |", "|---|---|---|---|---|"]
     for op in traffic_doc["operations"]:
         statuses = ", ".join(f"{status}×{count}" for status, count in op["statuses"].items())
-        p95 = (traffic_doc["by_operation"].get(op["operation"]) or {}).get("p95", "")
-        request, p95 = f"{op['method']} $TARGET{op['path']}", "" if p95 in ("", None) else _num(p95)
+        p95 = _ms((traffic_doc["by_operation"].get(op["operation"]) or {}).get("p95"))
+        request = f"{op['method']} $TARGET{op['path']}"
         rows.append(f"| {_cell(op['operation'])} | {_cell(request)} | {_num(op['requests'])} | {_cell(statuses)} | {p95} |")
-    if traffic_doc["overlap"]:
-        overlap = ", ".join(f"{_code(name, 40)} {_num(count)}" for name, count in traffic_doc["overlap"].items())
-        rows += ["", f"Peak requests in flight at once, per operation: {overlap}."]
     return rows
 
 
@@ -661,15 +826,19 @@ def cwe_ids(doc: dict) -> list[str]:
 
 
 def _environment(doc: dict) -> list[str]:
-    run = doc["run"]
+    run, target = doc["run"], doc["target"]
+    version = _code(target["version"], 200) if target["version"] else "not recorded"
     return [
-        f"- Target version: {_code(doc['target']['version'], 120)}",
-        f"- Target origin: `$TARGET` (sha256 of the normalized origin {_code(doc['target']['origin_sha256'])})",
+        f"- Target version: {version}",
+        f"- Scenario: {_code(run['scenario'])}, seed {_num(run['seed'])}",
         f"- LiteTraffic: {_code(doc['litetraffic_version'])}",
+        "", "<details><summary>Run metadata</summary>", "",
+        f"- Target origin: `$TARGET` (sha256 of the normalized origin {_code(target['origin_sha256'])})",
         f"- Load engine: {_code(run['engine'], 120)}",
-        f"- Seed: {_num(run['seed'])}",
         f"- Run: {_code(run['run_id'])}, started {_code(run['started_at'])} (UTC)",
-        f"- Scenario: {_code(run['scenario'])}, sha256 {_code(run['scenario_sha256'])}",
+        f"- Scenario sha256: {_code(run['scenario_sha256'])}",
+        "", f"litetraffic-fingerprint: {doc['fingerprint']}",
+        "", "</details>",
     ]
 
 
@@ -680,7 +849,7 @@ def _steps(doc: dict, repro: str, env_names: list[str]) -> list[str]:
         f"1. Set `TARGET` to the app's base URL{exports}.",
         f"2. Run {_code(f'TARGET=… {names} bash repro.sh', 400)}. Exit 1 means the failure reproduced; exit 0 means it did not; "
         "exit 2 means the script could not check (a missing variable, or a step that failed before the check).",
-        "3. Failures under concurrent load can depend on timing, so one attempt may not reproduce it; rerun a few times. "
+        "3. A failure can depend on timing, so one attempt may not reproduce it; rerun a few times. "
         f"The recorded run planned {_num(doc['run']['planned_journeys'])} journeys.",
     ]
     if len(repro.encode()) <= INLINE_REPRO_BYTES:
@@ -699,21 +868,39 @@ def _proof(doc: dict) -> list[str]:
     if doc["attach_url"]:
         note = f" ({doc['attach_note']})" if doc["attach_note"] else ""
         lines.append(f"- Evidence bundle: {_link(doc['attach_url'])}{note}")
-    lines.append("- Source artifacts (sha256):")
-    lines += [f"  - {_code(name)}: {_code(digest)}" for name, digest in sorted(doc["source_sha256"].items())]
-    return lines
+    lines += ["", "<details><summary>Source artifacts (sha256)</summary>", ""]
+    lines += [f"- {_code(name)}: {_code(digest)}" for name, digest in sorted(doc["source_sha256"].items())]
+    return [*lines, "", "</details>"]
+
+
+def _header(doc: dict) -> list[str]:
+    """What a maintainer needs before the summary: which version was tested and whether this is already known."""
+    target, known = doc["target"], doc["known_issue"]
+    if target["version"]:
+        lines = [f"Target version: {_code(target['version'], 200)}"]
+    else:
+        lines = ["**Target version: not recorded.** The reporter should add it (`--target-version`) before this is filed."]
+    lines.append("")
+    if known["reporter"]:
+        lines.append(f"**Known/fixed?** {_link(known['reporter'])}")
+    else:
+        lines.append("**Known/fixed?** not checked by the reporter (`--known-issue URL` records an existing issue or advisory).")
+    if known["declared"]:
+        lines += ["", f"The scenario says it reproduces {', '.join(_code(item, 60) for item in known['declared'])}; "
+                      "it may already be reported, or fixed in a later version than the one tested."]
+    return [*lines, ""]
 
 
 def _sections(doc: dict, repro: str, env_names: list[str]) -> list[str]:
     caveats = ["", "## Caveats", "", *(f"- {_code(item, 300)}" for item in doc["caveats"])] if doc["caveats"] else []
     return [
-        "## Summary", "", *doc["summary"], "",
+        "## Summary", "", *doc["summary"], "", *doc["mechanism"], "",
         *([f"This failure was reported before in {_link(doc['supersedes'])}, which is now closed; it is happening again.", ""]
           if doc.get("supersedes") else []),
         "## Expected vs actual", "", *_check_rows(doc), "",
-        "## Failing samples", "", *_sample_rows(doc), "",
+        "## Samples", "", *_sample_rows(doc), "",
         "## Steps to reproduce", "", *_steps(doc, repro, env_names), "",
-        "## What LiteTraffic sent", "", *_traffic_rows(doc), "",
+        "## Requests sent", "", *_traffic_rows(doc), "",
         "## Environment", "", *_environment(doc), "",
         "## Proof", "", *_proof(doc), "",
         "## What this does and does not establish", "", ESTABLISHES, *caveats, "",
@@ -721,10 +908,7 @@ def _sections(doc: dict, repro: str, env_names: list[str]) -> list[str]:
 
 
 def render_issue_md(doc: dict, repro: str, env_names: list[str]) -> str:
-    fp = doc["fingerprint"]
-    lines = [f"<!-- litetraffic-fingerprint: {fp} -->", "", *_sections(doc, repro, env_names),
-             "---", f"Reported with LiteTraffic {doc['litetraffic_version']} · litetraffic-fingerprint: {fp}"]
-    return "\n".join(lines) + "\n"
+    return "\n".join([*_header(doc), *_sections(doc, repro, env_names)]) + "\n"
 
 
 def render_security_md(doc: dict, repro: str, env_names: list[str], repo: str | None) -> str:
@@ -732,7 +916,7 @@ def render_security_md(doc: dict, repro: str, env_names: list[str], repo: str | 
     impact = [f"- {_code(item['id'])} failed ({_num(item.get('failed') or '?')}/{_num(item.get('samples') or '?')} samples)"
               for item in doc["failing"]]
     lines = [
-        f"<!-- litetraffic-fingerprint: {fp} -->", "", "**Private vulnerability report — do not post publicly.**", "",
+        "**Private vulnerability report — do not post publicly.**", "", *_header(doc),
         "## Observed impact", "", *impact, "", "Why this is treated as security-class:",
         *(f"- {_code(reason, 200)}" for reason in doc["classification"]["reasons"]), "",
         f"Suggested CWE: {', '.join(cwe_ids(doc))}", "",
@@ -740,7 +924,6 @@ def render_security_md(doc: dict, repro: str, env_names: list[str], repo: str | 
         "## If this report cannot be sent privately", "",
         f"Open https://github.com/{where}/security/advisories/new, or use the contact in the project's SECURITY.md. "
         "Do not open a public issue.", "",
-        "---", f"Reported with LiteTraffic {doc['litetraffic_version']} · litetraffic-fingerprint: {fp}",
     ]
     return "\n".join(lines) + "\n"
 
@@ -913,6 +1096,7 @@ def _drafted(evidence: RunEvidence, bundle: Bundle, repo: str | None) -> dict:
         "bundle": str(bundle.dir),
         "files": bundle.files,
         "caveats": bundle.caveats,
+        "warnings": bundle.document.get("warnings", []),
         "would_file": {"command": would_file(bundle, repo)},  # the title is already scrubbed
         "url": None,
         "duplicate": None,
@@ -937,6 +1121,7 @@ def format_draft(result: dict) -> list[str]:
     detail = f"security: {', '.join(result['reasons'])}" if result["kind"] == "security" else "correctness"
     lines = [f"drafted {result['bundle']}/{body} ({detail})", f"files: {', '.join(result['files'])}", f"title: {result['title']}"]
     lines += [f"caveat: {item}" for item in result["caveats"]]
+    lines += [f"warning: {item}" for item in result.get("warnings", [])]
     command = result["would_file"]["command"]
     lines.append(f"would POST {command[4]}" if result["kind"] == "security" else f"would run: {shlex.join(command)}")
     video = result["video"] or {}
@@ -1153,11 +1338,14 @@ def report(args) -> dict:
         raise IssueError("--submit needs --repo OWNER/NAME")
     if args.repo is not None and (not REPO_RE.match(args.repo) or args.repo.startswith("-")):
         raise IssueError(f"--repo must be OWNER/NAME, got {args.repo!r}")
+    if args.known_issue is not None and not SAFE_URL.match(args.known_issue):
+        raise IssueError(f"--known-issue must be a plain https:// URL, got {_short(args.known_issue, 80)!r}")
     runs_dir = Path(args.runs_dir) if args.runs_dir is not None else DEFAULT_RUNS_DIR
     if args.remove_local and _run_is_symlink(args.run, runs_dir):
         raise IssueError(f"--remove-local refuses a symlinked run directory: {args.run}")
     options = {"scenario": args.scenario, "repo": args.repo, "security": args.security, "title": args.title,
-               "target_version": args.target_version, "attach_url": args.attach_url, "no_video": args.no_video}
+               "target_version": args.target_version, "attach_url": args.attach_url, "no_video": args.no_video,
+               "known_issue": args.known_issue}
     evidence = load_run(args.run, runs_dir)
     evidence.runs_dir_given = args.runs_dir is not None
     if gate(evidence) == "pass":

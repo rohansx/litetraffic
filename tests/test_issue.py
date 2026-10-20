@@ -313,8 +313,9 @@ def test_issue_md_sections_and_fingerprint(fail_run, capsys):
     body = (fail_run / "issue" / "issue.md").read_text()
     fingerprint = result["fingerprint"]
     assert fingerprint.startswith("lt") and len(fingerprint) == 14
-    assert f"<!-- litetraffic-fingerprint: {fingerprint} -->" in body
-    assert f"litetraffic-fingerprint: {fingerprint}" in body.splitlines()[-1]
+    from litetraffic.github import carries_fingerprint
+
+    assert carries_fingerprint(body, fingerprint) and body.count(fingerprint) == 1  # one searchable line, no HTML comment
     summary = body.split("## Summary", 1)[1].split("\n## ", 1)[0]
     assert "order_usage_count" in summary and "10" in summary and "≤ 1" in summary
     assert "| Check | Expected | Actual |" in body
@@ -1063,8 +1064,8 @@ def test_hostile_response_body_is_inert_in_issue_md(fail_run, capsys):
     live = strip_code(body)
     for bad in ("@octocat", "@github/security", "<img", "](https://evil.test)", "lt000000000000"):
         assert bad not in live, bad
-    assert [line for line in lines if "<!--" in line] == [lines[0]]
-    assert lines[-1].endswith(f"litetraffic-fingerprint: {result['fingerprint']}")
+    assert not [line for line in lines if "<!--" in line]
+    assert f"litetraffic-fingerprint: {result['fingerprint']}" in lines
     assert "\n" not in result["title"] and "\r" not in result["title"]
     table = [line for line in lines if line.startswith("| `promo_usage_within_limit`")]
     assert table and all(line.count(" | ") == 2 for line in table)
@@ -1301,3 +1302,173 @@ def test_remove_local_ignores_autodetected_actions_url(fail_run, capsys, gh, mon
 def test_attach_url_must_be_plain_https(fail_run, capsys, gh, url):
     assert report(str(fail_run), "--attach-url", url) == 3
     assert "--attach-url must be a plain https:// URL" in capsys.readouterr().out
+
+
+# --- issue quality: target version, known issues, samples, mechanism, metadata ---------------------
+
+
+def top_of(body: str) -> str:
+    """What a maintainer reads before the first heading."""
+    return body.split("## Summary", 1)[0]
+
+
+def add_server_json(run_dir: Path, image: str | None) -> None:
+    server = {"schema_version": 1, "source": "docker", "problems": [],
+              "containers": {"api": {"image": image, "log_lines": 3, "error_lines": 0, "signatures": [], "truncated": False}}}
+    (run_dir / "server.json").write_text(json.dumps(server, indent=2, sort_keys=True) + "\n")
+    reseal(run_dir)
+
+
+def test_target_version_from_captured_image_tag(fail_run, capsys):
+    add_server_json(fail_run, "daveearley/hi.events-all-in-one:v1.9.0-beta")
+    draft_json(capsys, str(fail_run))
+    body = (fail_run / "issue" / "issue.md").read_text()
+    assert "Target version:" in top_of(body) and "v1.9.0-beta" in top_of(body)
+    evidence = json.loads((fail_run / "issue" / "evidence.json").read_text())
+    assert evidence["target"]["images"] == {"api": "daveearley/hi.events-all-in-one:v1.9.0-beta"}
+    assert "v1.9.0-beta" in evidence["target"]["version"]
+
+
+def test_target_version_flag_when_nothing_was_captured(fail_run, capsys):
+    draft_json(capsys, str(fail_run), "--target-version", "1.11.0-beta")
+    top = top_of((fail_run / "issue" / "issue.md").read_text())
+    assert "Target version:" in top and "1.11.0-beta" in top and "not recorded" not in top
+
+
+def test_target_version_not_recorded_is_prominent(fail_run, capsys):
+    add_server_json(fail_run, None)  # captured, but docker reported no image
+    result = draft_json(capsys, str(fail_run))
+    top = top_of((fail_run / "issue" / "issue.md").read_text())
+    assert "**Target version: not recorded.**" in top and "--target-version" in top
+    assert "unknown (not reported by the target)" not in (fail_run / "issue" / "issue.md").read_text()
+    assert any("target version" in item for item in result["warnings"])
+
+
+def test_known_issue_field_is_filled_by_the_reporter(fail_run, capsys):
+    url = "https://github.com/HiEventsDev/hi.events/issues/1223"
+    draft_json(capsys, str(fail_run), "--known-issue", url)
+    top = top_of((fail_run / "issue" / "issue.md").read_text())
+    assert f"**Known/fixed?** <{url}>" in top
+    assert json.loads((fail_run / "issue" / "evidence.json").read_text())["known_issue"]["reporter"] == url
+
+
+def test_known_issue_field_says_unchecked_by_default(fail_run, capsys):
+    draft_json(capsys, str(fail_run))
+    top = top_of((fail_run / "issue" / "issue.md").read_text())
+    assert "**Known/fixed?** not checked" in top and "--known-issue" in top
+
+
+@pytest.mark.parametrize("url", ["CVE-2026-57959", "http://example.test/1", "https://x.test/a b"])
+def test_known_issue_must_be_plain_https(fail_run, capsys, url):
+    assert report(str(fail_run), "--known-issue", url) == 3
+    assert "--known-issue must be a plain https:// URL" in capsys.readouterr().out
+
+
+def test_scenario_readme_declaring_a_cve_warns(fail_run, tmp_path, capsys):
+    scenario = Path(shutil.copytree(SCENARIO, tmp_path / "scenario"))
+    (scenario / "README.md").write_text("# Hi.Events oversell\n\nReproduces CVE-2026-57959 (hi.events#1223), fixed in v1.11.0-beta.\n")
+    assert report(str(fail_run), "--scenario", str(scenario)) == 0
+    out = capsys.readouterr().out
+    assert "warning:" in out and "CVE-2026-57959" in out
+    top = top_of((fail_run / "issue" / "issue.md").read_text())
+    assert "CVE-2026-57959" in top and "already" in top
+    evidence = json.loads((fail_run / "issue" / "evidence.json").read_text())
+    assert evidence["known_issue"]["declared"] == ["CVE-2026-57959"]
+
+
+def test_manifest_report_known_issue_warns_without_scenario_dir(fail_run, capsys):
+    edit_json(fail_run, "scenario.lock.json", lambda lock: lock["manifest"].update(report={"known_issue": "GHSA-abcd-efgh-ijkl"}))
+    result = draft_json(capsys, str(fail_run))
+    assert any("GHSA-abcd-efgh-ijkl" in item for item in result["warnings"])
+    assert "GHSA-abcd-efgh-ijkl" in top_of((fail_run / "issue" / "issue.md").read_text())
+
+
+def test_no_known_issue_warning_without_a_declaration(fail_run, capsys):
+    result = draft_json(capsys, str(fail_run), "--target-version", "1.0")
+    assert result["warnings"] == []
+    assert "CVE-" not in (fail_run / "issue" / "issue.md").read_text()
+
+
+def section(body: str, heading: str) -> str:
+    return body.split(f"## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def test_samples_table_carries_per_journey_evidence(fail_run, capsys):
+    draft_json(capsys, str(fail_run))
+    body = (fail_run / "issue" / "issue.md").read_text()
+    assert "no per-request samples" not in body
+    samples = section(body, "Samples")
+    rows = [line for line in samples.splitlines() if line.startswith("| ") and "---" not in line]
+    header, journeys = rows[0], rows[1:]
+    for column in ("short_id", "discount_applied", "promo_code", "total_gross"):
+        assert column in header, column
+    assert len(journeys) == 10
+    assert "o_0xFu6JnvD28yM" in samples and "o_bEysuf1XeKPuq" in samples
+    assert all("`true`" in row and "`0`" in row for row in journeys)
+
+
+def test_samples_table_is_in_the_duplicate_comment(fail_run, runs, capsys, gh):
+    fp = issue.fingerprint(issue.load_run(str(fail_run), runs))
+    gh.respond(["search", "issues"], stdout=json.dumps([{"number": 3, "url": "https://github.com/owner/app/issues/3",
+                                                          "body": f"litetraffic-fingerprint: {fp}"}]))
+    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--comment") == 0
+    comment = (fail_run / "issue" / "comment.md").read_text()
+    assert "o_0xFu6JnvD28yM" in comment and "no per-request samples" not in comment
+
+
+def test_summary_describes_the_funnel_and_peak_in_flight(fail_run, capsys):
+    draft_json(capsys, str(fail_run))
+    summary = section((fail_run / "issue" / "issue.md").read_text(), "Summary")
+    assert "concurrent" not in summary.lower()
+    assert "`reserved` 10/10" in summary and "`completed` 10/10" in summary
+    assert "at most 3" in summary  # complete_order peaked at 3 in flight
+    assert "every journey reached `reserved` before any reached `completed`" in summary
+
+
+def test_summary_never_claims_overlap_that_was_not_observed(fail_run, capsys):
+    edit_json(fail_run, "result.json", lambda r: r["metrics"].update(overlap={"reserve_order": 1, "complete_order": 1}))
+    draft_json(capsys, str(fail_run))
+    body = (fail_run / "issue" / "issue.md").read_text()
+    assert "concurrent" not in body.lower()
+    assert "did not overlap" in section(body, "Summary")
+
+
+def test_metadata_is_collapsed_and_latencies_rounded(fail_run, capsys):
+    draft_json(capsys, str(fail_run))
+    body = (fail_run / "issue" / "issue.md").read_text()
+    visible = re.sub(r"<details>.*?</details>", "", body, flags=re.DOTALL)
+    for hidden in ("5ee64a14f5063505e67beb4a1c811f1773a6a5debf005806a5b5e8f706a25af0", FAIL_ID, "commit/", "go1."):
+        assert hidden in body and hidden not in visible, hidden
+    assert not re.search(r"\d+\.\d{3}", visible)
+    sent = section(body, "Requests sent")
+    assert "154" in sent and "79" in sent and "153.967" not in body
+    assert "What LiteTraffic sent" not in body
+
+
+def test_one_searchable_fingerprint_and_no_marketing_footer(fail_run, capsys):
+    from litetraffic.github import carries_fingerprint
+
+    result = draft_json(capsys, str(fail_run))
+    body = (fail_run / "issue" / "issue.md").read_text()
+    fp = result["fingerprint"]
+    assert body.count(fp) == 1
+    assert carries_fingerprint(body, fp)
+    assert "Reported with LiteTraffic" not in body and "<!--" not in body
+
+
+def test_scenario_report_security_flag_routes_privately(fail_run, runs):
+    edit_json(fail_run, "scenario.lock.json", lambda lock: lock["manifest"].update(report={"security": True}))
+    evidence = issue.load_run(str(fail_run), runs)
+    assert evidence.manifest is not None and evidence.manifest.report.security is True
+    classification = issue.classify(evidence, force_security=False)
+    assert classification.kind == "security"
+    assert any("report.security" in reason for reason in classification.reasons)
+
+
+def test_report_block_leaves_existing_scenario_digests_alone():
+    from litetraffic.scenario import load_scenario
+
+    recorded = json.loads((DATA / "fail_run" / FAIL_ID / "run.json").read_text())["scenario_sha256"]
+    bundle = load_scenario(SCENARIO)
+    assert bundle.digest == recorded  # digests hash the raw manifest, so a new optional key changes nothing for old ones
+    assert bundle.manifest.report.security is False and bundle.manifest.report.known_issue is None

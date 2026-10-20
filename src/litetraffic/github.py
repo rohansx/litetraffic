@@ -131,7 +131,7 @@ class Gh:
 
 
 def carries_fingerprint(body: str, fingerprint: str) -> bool:
-    """The fingerprint on a line of its own, as the tool writes it (the leading HTML comment or the footer), never mid-text.
+    """The fingerprint on a line of its own, as the tool writes it (and as older drafts did: an HTML comment or footer), never mid-text.
 
     Values from the target are rendered inline and cannot start a line, so a response body cannot plant one.
     """

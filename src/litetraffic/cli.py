@@ -130,6 +130,7 @@ def _parser() -> argparse.ArgumentParser:
     issue_command.add_argument("--label", action="append", default=[], metavar="NAME", help="issue label (repeatable)")
     issue_command.add_argument("--title", help="override the generated title")
     issue_command.add_argument("--target-version", metavar="TEXT", help="app version for the environment section")
+    issue_command.add_argument("--known-issue", metavar="URL", help="an existing issue or advisory this failure matches (https)")
     issue_command.add_argument("--remove-local", action="store_true", help="after filing, delete the run directory (needs --submit)")
     issue_command.add_argument("--json", action="store_true")
     return parser
