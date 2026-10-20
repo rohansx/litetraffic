@@ -11,7 +11,6 @@ from pathlib import Path
 from urllib.parse import quote
 
 from litetraffic import __version__
-from litetraffic.auth import secret_env_names
 
 AUTHOR_REPRO = "repro.sh"
 MAX_SAMPLES = 3  # per assertion, the same cap the kit script records (MAX_FAILURE_SAMPLES)
@@ -345,7 +344,9 @@ def synthesize(evidence, scenario_dir: Path | None, scrubber) -> str:
     kit = None
     if scenario_dir is not None and authored is None and kit_run:
         kit = scenario_kit({str(evidence.manifest_data.get("script")): Path(scenario_dir) / str(evidence.manifest_data.get("script"))}, evidence)
-    needed = set(secret_env_names(evidence.manifest)) if evidence.manifest else set()
+    from litetraffic.issue import declared_secret_env
+
+    needed = declared_secret_env(evidence)
     needed |= {o.origin_env for o in observations if o.origin_env}
     body: list[str] = []
     if authored is not None:

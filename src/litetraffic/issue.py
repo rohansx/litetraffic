@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import json
 import os
 import re
@@ -13,13 +14,13 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from pydantic import ValidationError
 
 from litetraffic import __version__
 from litetraffic.artifacts import MANIFEST
-from litetraffic.auth import MIN_SECRET_LENGTH, REDACTED, redact, secret_env_names, secret_values
+from litetraffic.auth import MIN_SECRET_LENGTH, REDACTED, redact, secret_env_names
 from litetraffic.models import ScenarioManifest
 from litetraffic.runs import read_json, resolve
 
@@ -34,7 +35,9 @@ SECURITY_ASSERTIONS = frozenset(
 SECURITY_ID_RE = re.compile(
     r"(tenant|isolat|authz|authori[sz]|authn|authenticat|permission|privilege|idor|bola|bfla|cross|foreign|leak|secret|marker|unauth"
     r"|token|session|victim|bypass|access|acl|rbac|abac|owner|csrf|xsrf|ssrf|xss|inject|credential|password|otheruser|otheraccount"
-    r"|otherorg|hidden|forbid|denied|blocked|escalat|impersonat|scope)"
+    r"|otherorg|hidden|forbid|denied|blocked|escalat|impersonat|scope|private|admin|role|guest|anonym|login|signin|logout|jwt"
+    r"|signature|pii|expos|visib|sqli|sql|xxe|rce|traversal|redirect|cors|tamper|spoof|mfa|2fa|otp|confidential|sensitive|gdpr"
+    r"|encrypt|rate?limit|bruteforce|lockout)"
 )
 NOT_SECURITY_IDS = frozenset({"ownaccess"})  # the kit's own-resource control check: failing alone, it is a correctness bug
 KIT_OBSERVER = "tenant-isolation-kit"
@@ -195,6 +198,13 @@ def submit_blockers(evidence: RunEvidence) -> list[str]:
     blockers.extend(f"limitation: {item}" for item in result.get("limitations") or [])
     if any(sample.get("status") in OVERLOADED for row in failing(evidence) for sample in _samples(row)):
         blockers.append("the target was rate-limiting or overloaded (HTTP 429/503); this FAIL may come from the traffic, not a bug")
+    unset = sorted(name for name in declared_secret_env(evidence) if not os.environ.get(name))
+    if unset:
+        blockers.append(f"declared credential(s) {', '.join(unset)} not set in this shell, so their values could not be scrubbed; "
+                        "export them as they were for the run")
+    if evidence.manifest is None and evidence.manifest_data:
+        blockers.append("the run's scenario manifest does not validate with this LiteTraffic version, so its declarations "
+                        "may be incomplete; report it with the version that recorded the run")
     return blockers
 
 
@@ -308,6 +318,29 @@ def _strings(value) -> list[str]:
     return []
 
 
+def declared_secret_env(evidence: RunEvidence) -> set[str]:
+    """Every credential variable the run's manifest declares, read from the raw locked manifest as well, so a manifest this
+    version cannot validate (recorded by another LiteTraffic) still has its secrets scrubbed."""
+    names = set(secret_env_names(evidence.manifest)) if evidence.manifest else set()
+
+    def walk(value) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key in ("bearer_token_env", "token_env") and isinstance(item, str):
+                    names.add(item)
+                elif key == "secret_env":
+                    names.update(x for x in ([item] if isinstance(item, str) else item if isinstance(item, list) else []) if isinstance(x, str))
+                elif key == "headers_env" and isinstance(item, dict):
+                    names.update(x for x in item.values() if isinstance(x, str))
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(evidence.manifest_data)
+    return {name for name in names if name}
+
+
 def _spellings(text: str) -> set[str]:
     """`text` raw, JSON-escaped and URL-encoded (either hex case)."""
     encoded = quote(text, safe="")
@@ -317,17 +350,32 @@ def _spellings(text: str) -> set[str]:
 def _secret_spellings(secret: str) -> list[str]:
     """A secret as `_spellings` gives it, plus base64 and base64url (padded or not); longest first."""
     data = secret.encode()
-    forms = _spellings(secret)
+    forms = _spellings(secret) | {data.hex(), data.hex().upper()}
     for encoded in (base64.b64encode(data).decode(), base64.urlsafe_b64encode(data).decode()):
         forms |= {encoded, encoded.rstrip("=")}
     return sorted(forms, key=len, reverse=True)
+
+
+def _decodings(text: str) -> list[str]:
+    """`text` and its percent-decoded (until stable), HTML-unescaped and JSON-slash-unescaped readings: a secret partly
+    encoded by the target (Go's PathEscape, Python's quote, PHP's \\/) is still the secret."""
+    found, current = [text], text
+    for _ in range(3):
+        decoded = unquote(current)
+        if decoded == current:
+            break
+        found.append(decoded)
+        current = decoded
+    for base in list(found):
+        found += [html.unescape(base), base.replace("\\/", "/")]
+    return found
 
 
 class Scrubber:
     """Every byte the bundle (and the CLI output) carries goes through `text`; `verify` re-reads what was written."""
 
     def __init__(self, evidence: RunEvidence, kit: dict | None = None, security: bool = False) -> None:
-        self.secrets = secret_values(evidence.manifest, os.environ, {}) if evidence.manifest else []
+        self.secrets = sorted({os.environ.get(name, "") for name in declared_secret_env(evidence)} - {""}, key=len, reverse=True)
         self.secret_forms = sorted({form for secret in self.secrets if len(secret) >= MIN_SECRET_LENGTH
                                     for form in _secret_spellings(secret)}, key=len, reverse=True)
         self.security = security
@@ -388,7 +436,7 @@ class Scrubber:
         return data
 
     def leak(self, text: str) -> bool:
-        if any(form in text for form in self.secret_forms):
+        if any(form in candidate for candidate in _decodings(text) for form in self.secret_forms):
             return True
         if JWT_RE.search(text) or GH_TOKEN_RE.search(text) or BEARER_RE.search(text):
             return True
@@ -411,7 +459,7 @@ ACTIONS_NOTE = "requires GitHub sign-in; expires with artifact retention"
 
 
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
-SAFE_URL = re.compile(r"^https://[A-Za-z0-9.-]+(?::\d+)?(?:/[A-Za-z0-9._~/?#=&%+:-]*)?$")
+SAFE_URL = re.compile(r"^https://[A-Za-z0-9.-]+(?::\d+)?(?:/[A-Za-z0-9._~/?#=&%+:-]*)?\Z")
 
 
 def _short(value: object, limit: int = 80) -> str:
@@ -905,8 +953,6 @@ def _proof(doc: dict) -> list[str]:
     lines, video = [], doc["video"]
     if doc.get("embed_video"):
         lines.append(f"![LiteTraffic replay](./{doc['embed_video']})")
-    elif video.get("status") == "rendered":
-        lines.append("A replay video of the recorded evidence is in the reporter's bundle (issue/proof.mp4).")
     if doc["attach_url"]:
         note = f" ({doc['attach_note']})" if doc["attach_note"] else ""
         lines.append(f"- Evidence bundle: {_link(doc['attach_url'])}{note}")
@@ -924,7 +970,7 @@ def _header(doc: dict) -> list[str]:
         lines = ["**Target version: not recorded.** The reporter should add it (`--target-version`) before this is filed."]
     lines.append("")
     if known["reporter"]:
-        lines.append(f"**Known/fixed?** {_link(known['reporter'])}")
+        lines.append(f"**Already reported upstream:** {_link(known['reporter'])}")
     else:
         lines.append("**Known/fixed?** not checked by the reporter (`--known-issue URL` records an existing issue or advisory).")
     if known["declared"]:
@@ -1058,6 +1104,8 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
 
     classification = classify(evidence, bool(options.get("security")))
     fp, caveats = fingerprint(evidence), submit_blockers(evidence)
+    if options.get("known_issue"):
+        caveats.append(f"already reported upstream at {options['known_issue']}: add to that issue instead of filing a new one")
     scenario_dir = options.get("scenario")
     scenario_files = verify_scenario(scenario_dir, evidence) if scenario_dir else {}
     security = classification.kind == "security"
@@ -1068,7 +1116,7 @@ def build_bundle(evidence: RunEvidence, options: dict) -> Bundle:
         document["video"] = render_video(document, staging, bool(options.get("no_video")), scrubber)
         document["script"] = repro.script_kind(evidence, Path(scenario_dir) if scenario_dir else None)
         script = scrubber.text(repro.synthesize(evidence, Path(scenario_dir) if scenario_dir else None, scrubber))
-        env_names = sorted(secret_env_names(evidence.manifest)) if evidence.manifest else []
+        env_names = sorted(declared_secret_env(evidence))
         _write(staging / document["script"]["file"], script, SCRIPT_MODE)
         if security:
             body_name = "security.md"
@@ -1201,6 +1249,9 @@ def ledger_match(evidence: RunEvidence, fp: str, repo: str) -> dict | None:
     match = None
     lines = [line for path in ledger_paths(evidence) if path.is_file() and not path.is_symlink()
              for line in path.read_text(encoding="utf-8", errors="replace").splitlines()]
+    filed = evidence.run_dir / BUNDLE / "filed.json"
+    if filed.is_file() and not filed.is_symlink():
+        lines.insert(0, json.dumps(read_json(filed) or {}))  # a moved or copied run carries its own record
     for line in lines:
         try:
             entry = json.loads(line)
@@ -1338,8 +1389,7 @@ def drop_embed(bundle: Bundle, gh, url: str) -> str:
 def keep_reason(bundle: Bundle, video: str | None, attached: list[str], upload_failed: bool) -> str | None:
     """Why --remove-local must keep the run, or None when everything the issue points to is reachable remotely.
 
-    A video that failed to render is kept for the record; an explicit --attach-url stands in for a video that was never
-    uploaded, but not for one whose upload failed, and the auto-detected Actions URL never counts.
+    A video that failed to render is kept for the record, and a rendered video is kept unless gh attached it.
     """
     if bundle.video.get("status") == "failed":
         return "the video failed to render"
@@ -1347,15 +1397,15 @@ def keep_reason(bundle: Bundle, video: str | None, attached: list[str], upload_f
         return None
     if upload_failed:
         return "the video upload failed"
-    if bundle.document.get("attach_url") and bundle.document.get("attach_note") is None:
-        return None  # an explicit --attach-url (the Actions URL carries its note)
-    return "the video was not uploaded"
+    return "the video was not uploaded"  # an --attach-url is never checked to hold it, so it is no proof the video is safe
 
 
 def submit(evidence: RunEvidence, bundle: Bundle, args) -> dict:
     from litetraffic.github import Gh
 
     blockers = submit_blockers(evidence)
+    if bundle.document.get("known_issue", {}).get("reporter"):
+        blockers.append(f"already reported upstream at {bundle.document['known_issue']['reporter']}; this would file a duplicate")
     if blockers:
         raise IssueError(f"not submitting while the evidence is in doubt ({'; '.join(blockers)}); the draft is in {bundle.dir}")
     gh = Gh(bundle.scrubber.text)
@@ -1370,7 +1420,7 @@ def _run_is_symlink(ref: str, runs_dir: Path) -> bool:
 
 
 DEFAULT_RUNS_DIR = Path(".litetraffic/runs")
-REPO_RE = re.compile(r"^(?!-)[A-Za-z0-9-]{1,39}/(?!\.)[A-Za-z0-9._-]{1,100}$")  # no '.', '..' or dot-led names
+REPO_RE = re.compile(r"^(?!-)[A-Za-z0-9-]{1,39}/(?!\.)[A-Za-z0-9._-]{1,100}\Z")  # no '.', '..' or dot-led names
 
 
 def report(args) -> dict:
@@ -1381,6 +1431,8 @@ def report(args) -> dict:
         raise IssueError("--submit needs --repo OWNER/NAME")
     if args.repo is not None and (not REPO_RE.match(args.repo) or args.repo.startswith("-")):
         raise IssueError(f"--repo must be OWNER/NAME, got {args.repo!r}")
+    if args.repo is not None and args.repo.lower().endswith(".git"):
+        args.repo = args.repo[:-4]  # GitHub serves OWNER/NAME.git as OWNER/NAME; one ledger key for both
     if args.known_issue is not None and not SAFE_URL.match(args.known_issue):
         raise IssueError(f"--known-issue must be a plain https:// URL, got {_short(args.known_issue, 80)!r}")
     runs_dir = Path(args.runs_dir) if args.runs_dir is not None else DEFAULT_RUNS_DIR

@@ -93,6 +93,9 @@ class FakeGh:
         return [call["argv"] for call in self.calls()]
 
 
+FIXTURE_TOKEN = "lt-fixture-org-token-0000"
+
+
 @pytest.fixture(autouse=True)
 def gh(tmp_path, monkeypatch):
     """Every test runs with a fake gh first on PATH; the real one must never run."""
@@ -101,8 +104,12 @@ def gh(tmp_path, monkeypatch):
     fake = FakeGh(root)
     monkeypatch.setenv("PATH", f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("GH_TOKEN", "ghp_fakefakefakefakefakefakefakefake00")
-    for name in ("GH_REPO", "GITHUB_TOKEN", "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "LT_HIEVENTS_ORG_TOKEN"):
+    for name in ("GH_REPO", "GITHUB_TOKEN", "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID"):
         monkeypatch.delenv(name, raising=False)
+    # the fixture scenario declares this credential; a report only files once every declared one is set (and so scrubbed)
+    monkeypatch.setenv("LT_HIEVENTS_ORG_TOKEN", FIXTURE_TOKEN)
+    for name in ("GITEA_TOKEN_ALICE", "GITEA_TOKEN_BOB"):  # the kit fixture's identities
+        monkeypatch.setenv(name, f"lt-fixture-{name.lower()}-0000")
     monkeypatch.setattr(proof, "available", lambda: None)  # video tests opt back in
     assert shutil.which("gh") == str(root / "bin" / "gh")
     return fake
@@ -834,9 +841,16 @@ def test_remove_local_keeps_run_when_video_not_uploaded(fail_run, capsys, gh, mo
     assert fail_run.exists() and f"kept {fail_run}" in out and "litetraffic prune" in out
 
 
-def test_remove_local_with_attach_url_deletes(fail_run, capsys, gh, monkeypatch):
+def test_remove_local_with_attach_url_keeps_a_video_that_was_never_uploaded(fail_run, capsys, gh, monkeypatch):
     fake_video(monkeypatch)
     gh.respond(["repo", "view"], stdout="READ\n")
+    assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
+    out = capsys.readouterr().out
+    assert fail_run.exists() and f"kept {fail_run}" in out  # the URL is not checked to hold the video, so it is no proof it is safe
+    assert not ("drag " in out and "removed " in out)
+
+
+def test_remove_local_with_attach_url_and_no_video_deletes(fail_run, capsys, gh):
     assert report(str(fail_run), "--submit", "--repo", "owner/app", "--remove-local", "--attach-url", "https://ci.example.test/a/1") == 0
     assert not fail_run.exists()
 
@@ -1429,7 +1443,7 @@ def test_known_issue_field_is_filled_by_the_reporter(fail_run, capsys):
     url = "https://github.com/HiEventsDev/hi.events/issues/1223"
     draft_json(capsys, str(fail_run), "--known-issue", url)
     top = top_of((fail_run / "issue" / "issue.md").read_text())
-    assert f"**Known/fixed?** <{url}>" in top
+    assert f"**Already reported upstream:** <{url}>" in top
     assert json.loads((fail_run / "issue" / "evidence.json").read_text())["known_issue"]["reporter"] == url
 
 
@@ -1553,3 +1567,100 @@ def test_report_block_leaves_existing_scenario_digests_alone():
     bundle = load_scenario(SCENARIO)
     assert bundle.digest == recorded  # digests hash the raw manifest, so a new optional key changes nothing for old ones
     assert bundle.manifest.report.security is False and bundle.manifest.report.known_issue is None
+
+
+# --- hardening round 3: fail closed on secrets, more security names, known issues, input edges ----
+
+
+def test_unset_declared_secret_blocks_submit_and_names_it(fail_run, monkeypatch, capsys, gh):
+    monkeypatch.delenv("LT_HIEVENTS_ORG_TOKEN")
+    result = draft_json(capsys, str(fail_run))
+    assert any("LT_HIEVENTS_ORG_TOKEN" in item for item in result["caveats"])
+    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    out = capsys.readouterr().out
+    assert "LT_HIEVENTS_ORG_TOKEN" in out and "not set" in out
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+def test_manifest_from_another_version_still_scrubs_and_blocks_submit(fail_run, runs, monkeypatch, capsys, gh):
+    secret = "Sup3r$ecret+Val/ue=="
+    monkeypatch.setenv("LT_HIEVENTS_ORG_TOKEN", secret)
+    edit_json(fail_run, "scenario.lock.json", lambda lock: lock["manifest"].update(future_option=True))
+    plant(fail_run, f"echo {secret}")
+    assert issue.load_run(str(fail_run), runs).manifest is None  # this version cannot validate it
+    result = draft_json(capsys, str(fail_run))
+    assert all(secret not in text for text in bundle_text(fail_run).values())
+    assert any("does not validate" in item for item in result["caveats"])
+    assert report(str(fail_run), "--submit", "--repo", "owner/app") == 3
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+@pytest.mark.parametrize("encode", ["quote_default", "path_escape", "php_slashes", "hex", "html_entities"])
+def test_partially_encoded_secret_fails_closed(fail_run, monkeypatch, capsys, gh, encode):
+    import html
+    from urllib.parse import quote
+
+    secret = "Sup3r$ecret+Val/ue=="
+    monkeypatch.setenv("LT_HIEVENTS_ORG_TOKEN", secret)
+    form = {"quote_default": quote(secret), "path_escape": secret.replace("/", "%2F"), "php_slashes": secret.replace("/", "\\/"),
+            "hex": secret.encode().hex(), "html_entities": html.escape(secret).replace("$", "&#36;").replace("+", "&#43;")}[encode]
+    plant(fail_run, f"error: token={form}")
+    code = report(str(fail_run))
+    if code == 0:  # scrubbed: then no spelling of it may survive anywhere
+        assert all(form not in text for text in bundle_text(fail_run).values())
+    else:
+        assert code == 3 and "redaction check failed" in capsys.readouterr().out and not (fail_run / "issue").exists()
+
+
+@pytest.mark.parametrize("name", ["private_orders_not_visible", "admin_only_endpoint", "role_enforced", "guest_cannot_see_drafts",
+                                  "pii_not_exposed", "sqli_rejected", "jwt_signature_checked", "login_required",
+                                  "anonymous_cannot_read", "data_exposure_check", "open_redirect_rejected", "cors_restricted",
+                                  "othersOrdersInvisible", "visibility_respected"])
+def test_more_security_names_classify_as_security(fail_run, runs, name):
+    rename_failing(fail_run, name)
+    assert issue.classify(issue.load_run(str(fail_run), runs), force_security=False).kind == "security", name
+
+
+def test_known_issue_blocks_filing_a_duplicate(fail_run, capsys, gh):
+    url = "https://github.com/HiEventsDev/hi.events/issues/1223"
+    result = draft_json(capsys, str(fail_run), "--known-issue", url, "--target-version", "v1.9.0-beta")
+    assert any("already reported" in item for item in result["caveats"])
+    top = top_of((fail_run / "issue" / "issue.md").read_text())
+    assert f"**Already reported upstream:** <{url}>" in top
+    assert report(str(fail_run), "--known-issue", url, "--submit", "--repo", "owner/app") == 3
+    assert "already reported" in capsys.readouterr().out
+    assert not any(argv[:2] == ["issue", "create"] for argv in gh.argvs())
+
+
+@pytest.mark.parametrize("flag,value", [("--repo", "owner/app\n"), ("--known-issue", "https://example.test/issues/1\n"),
+                                        ("--attach-url", "https://ci.example.test/a/1\n")])
+def test_trailing_newline_is_rejected(fail_run, capsys, flag, value):
+    args = ["--submit", "--repo", "owner/app"] if flag != "--repo" else ["--submit"]
+    assert report(str(fail_run), flag, value, *args) == 3
+
+
+def test_repo_dot_git_is_the_same_repo(runs, tmp_path, capsys, gh):
+    run_dir, _ = write_kit_run(runs, tmp_path)
+    assert report(str(run_dir), "--submit", "--repo", "owner/app") == 0
+    capsys.readouterr()
+    assert report(str(run_dir), "--submit", "--repo", "owner/app.git") == 3
+    assert sum("POST" in argv for argv in gh.argvs()) == 1
+
+
+def test_moved_run_with_filed_json_is_not_reported_twice(runs, tmp_path, capsys, gh):
+    run_dir, _ = write_kit_run(runs, tmp_path)
+    assert report(str(run_dir), "--submit", "--repo", "owner/app") == 0
+    moved = tmp_path / "elsewhere" / run_dir.name
+    shutil.copytree(run_dir, moved)
+    (runs / "issues.jsonl").unlink()
+    capsys.readouterr()
+    assert report(str(moved), "--submit", "--repo", "owner/app") == 3
+    assert sum("POST" in argv for argv in gh.argvs()) == 1
+
+
+def test_issue_never_points_to_a_video_the_maintainer_cannot_see(fail_run, capsys, monkeypatch):
+    fake_video(monkeypatch)
+    draft_json(capsys, str(fail_run))
+    body = (fail_run / "issue" / "issue.md").read_text()
+    assert (fail_run / "issue" / "proof.mp4").exists()
+    assert "proof.mp4" not in body  # not attached, not embedded: the body must not send a maintainer looking for it
