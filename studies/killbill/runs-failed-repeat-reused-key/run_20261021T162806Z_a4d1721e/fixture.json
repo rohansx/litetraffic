@@ -1,0 +1,24 @@
+{
+  "setup": {
+    "argv": [
+      "python3",
+      "setup.py",
+      "pay"
+    ],
+    "duration_seconds": 0.167,
+    "exit_code": 1,
+    "reason": "fixture setup failed: exit 1",
+    "status": "error",
+    "stderr": "create account failed: HTTP 409 {\"className\":\"org.killbill.billing.account.api.AccountApiException\",\"code\":3000,\"message\":\"Account already exists for key lt162804710f10\",\"causeClassName\":null,\"causeMessage\":null,\"stackTrace\":[]}\n"
+  },
+  "teardown": {
+    "argv": [
+      "sh",
+      "teardown.sh"
+    ],
+    "duration_seconds": 0.007,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  }
+}

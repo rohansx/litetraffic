@@ -1,0 +1,21 @@
+[
+  {
+    "actual": {
+      "/accountBalance": 0.0
+    },
+    "assertion": "invoice_paid_once",
+    "checks": {
+      "/accountBalance": {
+        "actual": 0.0,
+        "matcher": {
+          "eq": 1
+        },
+        "pass": false
+      }
+    },
+    "expected": {
+      "/accountBalance": 1
+    },
+    "status": "fail"
+  }
+]

@@ -1,0 +1,16 @@
+author:	pierre
+association:	member
+edited:	false
+status:	none
+--
+Same remarks as https://github.com/killbill/killbill/issues/333. For CyberSource specifically, see page 59 of  [Credit_Cards_SO_API.pdf](http://apps.cybersource.com/library/documentation/dev_guides/CC_Svcs_SO_API/Credit_Cards_SO_API.pdf).
+
+--
+author:	kevinpostlewaite
+association:	contributor
+edited:	false
+status:	none
+--
+This can be closed.
+
+--

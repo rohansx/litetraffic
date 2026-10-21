@@ -1,0 +1,23 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "engine_exit_code": 0,
+  "engine_finished_at": "2026-10-21T16:31:55.068936+00:00",
+  "engine_started_at": "2026-10-21T16:31:52.969856+00:00",
+  "finished_at": "2026-10-21T16:31:55.273999+00:00",
+  "lifecycle": "finished",
+  "mode": "verify",
+  "resolved_schedule": [
+    {
+      "name": "burst",
+      "rate": 10,
+      "seconds": 1
+    }
+  ],
+  "run_id": "run_20261021T163152Z_f07ea211",
+  "scenario": "killbill-privacy",
+  "scenario_sha256": "cc7a792c652559f0ba4104b8852316315dde7e8bbe5d38a0189634215a6e317a",
+  "schema_version": 1,
+  "seed": 100,
+  "started_at": "2026-10-21T16:31:52.467058+00:00",
+  "target": "http://127.0.0.1:8480"
+}

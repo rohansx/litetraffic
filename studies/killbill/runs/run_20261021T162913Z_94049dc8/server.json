@@ -1,0 +1,18 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 107.28,
+      "baseline_mem_mb": 975.5,
+      "error_lines": 0,
+      "log_lines": 53,
+      "peak_at": "2026-10-21T16:29:15.331269+00:00",
+      "peak_cpu_percent": 107.28,
+      "peak_mem_mb": 975.5,
+      "signatures": [],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

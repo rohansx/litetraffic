@@ -1,0 +1,224 @@
+{
+  "assertions": [
+    {
+      "id": "own_read_works",
+      "samples": 10,
+      "status": "pass"
+    },
+    {
+      "failed": 10,
+      "failures": [
+        {
+          "actual": [
+            {
+              "marker": false,
+              "op": "x_search",
+              "status": 200
+            }
+          ],
+          "detail": null,
+          "expected": "every cross-tenant probe refused and free of the owner's marker",
+          "logical_key": "run_20261021T162800Z_bb8dd513-traffic-0",
+          "sequence": 8
+        },
+        {
+          "actual": [
+            {
+              "marker": false,
+              "op": "x_search",
+              "status": 200
+            }
+          ],
+          "detail": null,
+          "expected": "every cross-tenant probe refused and free of the owner's marker",
+          "logical_key": "run_20261021T162800Z_bb8dd513-traffic-1",
+          "sequence": 11
+        },
+        {
+          "actual": [
+            {
+              "marker": false,
+              "op": "x_search",
+              "status": 200
+            }
+          ],
+          "detail": null,
+          "expected": "every cross-tenant probe refused and free of the owner's marker",
+          "logical_key": "run_20261021T162800Z_bb8dd513-traffic-2",
+          "sequence": 14
+        }
+      ],
+      "id": "no_foreign_data",
+      "samples": 10,
+      "status": "fail"
+    },
+    {
+      "failed": 10,
+      "failures": [
+        {
+          "actual": {
+            "worst_status": 500
+          },
+          "detail": null,
+          "expected": "cross-tenant refusals are 4xx",
+          "logical_key": "run_20261021T162800Z_bb8dd513-traffic-0",
+          "sequence": 9
+        },
+        {
+          "actual": {
+            "worst_status": 500
+          },
+          "detail": null,
+          "expected": "cross-tenant refusals are 4xx",
+          "logical_key": "run_20261021T162800Z_bb8dd513-traffic-1",
+          "sequence": 12
+        },
+        {
+          "actual": {
+            "worst_status": 500
+          },
+          "detail": null,
+          "expected": "cross-tenant refusals are 4xx",
+          "logical_key": "run_20261021T162800Z_bb8dd513-traffic-2",
+          "sequence": 15
+        }
+      ],
+      "id": "clean_response",
+      "samples": 10,
+      "status": "fail"
+    },
+    {
+      "actual": {
+        "/purchasedAmount": 100.0,
+        "/transactions": {
+          "length": 1,
+          "type": "array"
+        }
+      },
+      "expected": {
+        "/purchasedAmount": 100,
+        "/transactions": {
+          "len": 1
+        }
+      },
+      "id": "foreign_write_not_applied",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T16:28:03.287396+00:00",
+  "journeys": {
+    "client": {
+      "stages": [
+        {
+          "name": "refused",
+          "reached": 0
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 10
+        }
+      ],
+      "started": 10,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "own_read": {
+        "failed_rate": 0.0,
+        "p95": 103.987,
+        "samples": 10
+      },
+      "x_account": {
+        "failed_rate": 1.0,
+        "p95": 96.907,
+        "samples": 10
+      },
+      "x_bykey": {
+        "failed_rate": 1.0,
+        "p95": 97.442,
+        "samples": 10
+      },
+      "x_invoices": {
+        "failed_rate": 1.0,
+        "p95": 98.669,
+        "samples": 10
+      },
+      "x_methods": {
+        "failed_rate": 1.0,
+        "p95": 101.633,
+        "samples": 10
+      },
+      "x_payments": {
+        "failed_rate": 1.0,
+        "p95": 98.991,
+        "samples": 10
+      },
+      "x_search": {
+        "failed_rate": 0.0,
+        "p95": 111.224,
+        "samples": 10
+      },
+      "x_write": {
+        "failed_rate": 1.0,
+        "p95": 99.237,
+        "samples": 10
+      }
+    },
+    "elapsed_seconds": 2.857238,
+    "http_req_duration_ms": {
+      "average": 89.999,
+      "max": 118.428,
+      "p50": 88.172,
+      "p95": 102.474,
+      "samples": 80
+    },
+    "http_req_failed_rate": {
+      "failed": 60,
+      "rate": 0.75,
+      "samples": 80
+    },
+    "http_reqs": 80.0,
+    "http_reqs_per_second": 37.392,
+    "iterations": 10.0,
+    "iterations_per_second": 4.674,
+    "observer_requests": 1,
+    "overlap": {
+      "own_read": 2,
+      "x_account": 2,
+      "x_bykey": 2,
+      "x_invoices": 2,
+      "x_methods": 2,
+      "x_payments": 2,
+      "x_search": 2,
+      "x_write": 2
+    },
+    "total_http_reqs": 81.0,
+    "unexpected_http_failure_rate": {
+      "failed": 50,
+      "rate": 0.625,
+      "samples": 80
+    },
+    "vus_max": 10,
+    "write_attempts": 10
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 10,
+  "planned_journeys_per_second": 10.0,
+  "report": "report.html",
+  "run_id": "run_20261021T162800Z_bb8dd513",
+  "schema_version": 1,
+  "seed": 100,
+  "verdict": "fail"
+}

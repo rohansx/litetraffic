@@ -1,0 +1,6 @@
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+own_read_works  pass  10
+no_foreign_data  fail  10
+clean_response  pass  10
+unexpected HTTP failure rate: 0.0% (0/80)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T162852Z_263800cd/report.html

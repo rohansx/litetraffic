@@ -1,0 +1,20 @@
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-0"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-0","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-1"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-1","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-2"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-2","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-3"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-3","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-4"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-4","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-5"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-5","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-6"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-6","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-7"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-7","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-8"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-8","expected":"no 5xx","actual":{"status":201}}
+LT_EVENT {"schema_version":1,"type":"stage","run_id":"run_20261021T162918Z_4890440a","stage":"refund_accepted","logical_key":"run_20261021T162918Z_4890440a-traffic-9"}
+LT_EVENT {"schema_version":1,"type":"assertion","run_id":"run_20261021T162918Z_4890440a","assertion":"clean_response","passed":true,"logical_key":"run_20261021T162918Z_4890440a-traffic-9","expected":"no 5xx","actual":{"status":201}}

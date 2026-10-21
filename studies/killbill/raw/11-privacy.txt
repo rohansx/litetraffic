@@ -1,0 +1,35 @@
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+own_read_works  pass  10
+no_foreign_data  pass  10
+clean_response  fail  10
+foreign_write_not_applied  pass  1
+unexpected HTTP failure rate: 62.5% (50/80)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163152Z_f07ea211/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+own_read_works  pass  10
+no_foreign_data  pass  10
+clean_response  fail  10
+foreign_write_not_applied  pass  1
+unexpected HTTP failure rate: 62.5% (50/80)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163155Z_6d75b8da/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+own_read_works  pass  10
+no_foreign_data  pass  10
+clean_response  fail  10
+foreign_write_not_applied  pass  1
+unexpected HTTP failure rate: 62.5% (50/80)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163158Z_30552d3f/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+own_read_works  pass  10
+no_foreign_data  pass  10
+clean_response  fail  10
+foreign_write_not_applied  pass  1
+unexpected HTTP failure rate: 62.5% (50/80)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163201Z_f17711b0/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+own_read_works  pass  10
+no_foreign_data  pass  10
+clean_response  fail  10
+foreign_write_not_applied  pass  1
+unexpected HTTP failure rate: 62.5% (50/80)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163204Z_fe90ad90/report.html

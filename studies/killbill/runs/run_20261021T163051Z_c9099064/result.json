@@ -1,0 +1,100 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 10,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/purchasedAmount": 100.0,
+        "/transactions": {
+          "length": 1,
+          "type": "array"
+        }
+      },
+      "expected": {
+        "/purchasedAmount": 100,
+        "/transactions": {
+          "len": 2
+        }
+      },
+      "id": "one_payment_per_key",
+      "samples": 1,
+      "status": "fail"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T16:30:53.985484+00:00",
+  "journeys": {
+    "client": {
+      "stages": [
+        {
+          "name": "payment_accepted",
+          "reached": 1
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 9
+        }
+      ],
+      "started": 10,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "purchase": {
+        "failed_rate": 0.9,
+        "p95": 88.386,
+        "samples": 10
+      }
+    },
+    "elapsed_seconds": 2.046042,
+    "http_req_duration_ms": {
+      "average": 83.143,
+      "max": 93.056,
+      "p50": 82.338,
+      "p95": 88.386,
+      "samples": 10
+    },
+    "http_req_failed_rate": {
+      "failed": 9,
+      "rate": 0.9,
+      "samples": 10
+    },
+    "http_reqs": 10.0,
+    "http_reqs_per_second": 6.535,
+    "iterations": 10.0,
+    "iterations_per_second": 6.535,
+    "observer_requests": 1,
+    "overlap": {
+      "purchase": 1
+    },
+    "total_http_reqs": 11.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 10
+    },
+    "vus_max": 10,
+    "write_attempts": 10
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 10,
+  "planned_journeys_per_second": 10.0,
+  "report": "report.html",
+  "run_id": "run_20261021T163051Z_c9099064",
+  "schema_version": 1,
+  "seed": 1,
+  "verdict": "fail"
+}

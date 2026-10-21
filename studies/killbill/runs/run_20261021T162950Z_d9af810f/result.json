@@ -1,0 +1,93 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 10,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/accountBalance": 0.0
+      },
+      "expected": {
+        "/accountBalance": 0
+      },
+      "id": "invoice_paid_once",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T16:29:53.060835+00:00",
+  "journeys": {
+    "client": {
+      "stages": [
+        {
+          "name": "payment_accepted",
+          "reached": 1
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 9
+        }
+      ],
+      "started": 10,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "pay_invoice": {
+        "failed_rate": 0.0,
+        "p95": 107.977,
+        "samples": 10
+      }
+    },
+    "elapsed_seconds": 2.15253,
+    "http_req_duration_ms": {
+      "average": 93.559,
+      "max": 118.425,
+      "p50": 90.745,
+      "p95": 107.977,
+      "samples": 10
+    },
+    "http_req_failed_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 10
+    },
+    "http_reqs": 10.0,
+    "http_reqs_per_second": 6.46,
+    "iterations": 10.0,
+    "iterations_per_second": 6.46,
+    "observer_requests": 1,
+    "overlap": {
+      "pay_invoice": 2
+    },
+    "total_http_reqs": 11.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 10
+    },
+    "vus_max": 10,
+    "write_attempts": 10
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 10,
+  "planned_journeys_per_second": 10.0,
+  "report": "report.html",
+  "run_id": "run_20261021T162950Z_d9af810f",
+  "schema_version": 1,
+  "seed": 100,
+  "verdict": "pass"
+}

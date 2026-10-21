@@ -1,0 +1,31 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 412.42,
+      "baseline_mem_mb": 978.0,
+      "error_lines": 50,
+      "log_lines": 215,
+      "peak_at": "2026-10-21T16:29:49.339984+00:00",
+      "peak_cpu_percent": 412.42,
+      "peak_mem_mb": 978.0,
+      "signatures": [
+        {
+          "count": 40,
+          "example": "{\"@timestamp\":\"2026-10-21T16:29:48.593Z\",\"message\":\"Internal error\",\"logger_name\":\"org.killbill.billing.server.providers.KillbillExceptionListener\",\"thread_name\":\"catalina-exec-7\",\"level\":\"WARN\",\"req.requestURI\":\"/1.0/kb/accounts/50e6a2da-725a-48d9-8ff1-6c4bfaf488c0\",\"kb.tenantRecordId\":\"4\",\"req.met",
+          "first_seen": "2026-10-21T16:29:48.593511163Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        },
+        {
+          "count": 10,
+          "example": "{\"@timestamp\":\"2026-10-21T16:29:49.107Z\",\"message\":\"Internal error\",\"logger_name\":\"org.killbill.billing.server.providers.KillbillExceptionListener\",\"thread_name\":\"catalina-exec-3\",\"level\":\"WARN\",\"req.requestURI\":\"/1.0/kb/accounts/50e6a2da-725a-48d9-8ff1-6c4bfaf488c0/payments\",\"kb.tenantRecordId\":\"4\"",
+          "first_seen": "2026-10-21T16:29:49.107891238Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

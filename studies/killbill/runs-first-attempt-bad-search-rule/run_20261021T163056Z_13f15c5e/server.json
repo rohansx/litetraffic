@@ -1,0 +1,37 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 417.01,
+      "baseline_mem_mb": 985.7,
+      "error_lines": 21,
+      "log_lines": 201,
+      "peak_at": "2026-10-21T16:30:58.292306+00:00",
+      "peak_cpu_percent": 417.01,
+      "peak_mem_mb": 985.7,
+      "signatures": [
+        {
+          "count": 10,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:58.069Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='50f8303b-4dd3-425d-9d91-42a95c60ba13', error='PAYMENT_INVALID_OPERATION', exception='Invalid payment transition PURCHASE from state PURCHASE_SUCCESS'\",\"logger_name\":\"org.killbill.billing.pa",
+          "first_seen": "2026-10-21T16:30:58.069452584Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        },
+        {
+          "count": 10,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:58.069Z\",\"message\":\"Bad request\",\"logger_name\":\"org.killbill.billing.server.providers.KillbillExceptionListener\",\"thread_name\":\"catalina-exec-5\",\"level\":\"WARN\",\"req.requestURI\":\"/1.0/kb/accounts/50f8303b-4dd3-425d-9d91-42a95c60ba13/payments\",\"kb.tenantRecordId\":\"3\",\"k",
+          "first_seen": "2026-10-21T16:30:58.070068959Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        },
+        {
+          "count": 1,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:57.437Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='46f7afe7-8edd-48ea-b051-7b09c38aa7b3', paymentControlPluginNames='__INVOICE_PAYMENT_CONTROL_PLUGIN__', aborted=true, error='PAYMENT_PLUGIN_API_ABORTED', exception='Control plugin aborted ca",
+          "first_seen": "2026-10-21T16:30:57.438396971Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

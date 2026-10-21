@@ -1,0 +1,77 @@
+{
+  "files": [
+    {
+      "bytes": 11040,
+      "path": "console.log",
+      "sha256": "ad3f4fae0625a6e222ecad2b3fc6790349cb930c826a1ec40fb2e8d699dcc519"
+    },
+    {
+      "bytes": 0,
+      "path": "engine.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 820,
+      "path": "engine.stdout.log",
+      "sha256": "3cf71867277b55318aca4929380f9c83e5bae7f74f4b6cc8cfdf7f0c3740cdf5"
+    },
+    {
+      "bytes": 12041,
+      "path": "events/000001.jsonl",
+      "sha256": "da010b16a302b05709f3929721275c6dc36abc31b4a8faf5cab3c0bdb9b1789d"
+    },
+    {
+      "bytes": 343,
+      "path": "fixture.json",
+      "sha256": "81feaaa4edb93936b1819f64a6115c7d47d8a55e4e443e3293f42e781eab59c9"
+    },
+    {
+      "bytes": 324937,
+      "path": "metrics.jsonl",
+      "sha256": "27c00d5af94a7747d8fce537376303657d887ed8a02c55221a834d7bf455b057"
+    },
+    {
+      "bytes": 662,
+      "path": "observation.json",
+      "sha256": "49d33bbe6091118bed2584c933cbb16416c9c45e5b8ba554985cbe02fec1e8f0"
+    },
+    {
+      "bytes": 3801,
+      "path": "report.html",
+      "sha256": "be984145588504508f181a6ef46f2662bb141cc227c9bb9712d582e2f75386c0"
+    },
+    {
+      "bytes": 4693,
+      "path": "result.json",
+      "sha256": "d1be2aacad52d8bc40d93707d07433297a942f7c46f831e66fc53a1aaadd2c90"
+    },
+    {
+      "bytes": 713,
+      "path": "run.json",
+      "sha256": "d79ab1049942dba84f4f408babe47b432d01a47d3b7d34efd74c1b3aea04c9ad"
+    },
+    {
+      "bytes": 3856,
+      "path": "scenario.lock.json",
+      "sha256": "9bc10b76caa273d825314266e10ba516feacf091d88247eb38f3d65461cb6ab1"
+    },
+    {
+      "bytes": 666824,
+      "path": "server/lt-killbill-killbill-1.log",
+      "sha256": "6e16b8faee2037b7d7d383e6812e23de46ae10fea195a948e1394050ac28272f"
+    },
+    {
+      "bytes": 284,
+      "path": "server/stats.jsonl",
+      "sha256": "e9ff645829ad69be59bdaffabe58e41e9a998872e5a56133a56356c1ca23ce68"
+    },
+    {
+      "bytes": 1680,
+      "path": "server.json",
+      "sha256": "3a5db24cb12314a0f25cac667ddee99948777453f4307fa9b02fd1716d091fac"
+    }
+  ],
+  "run_id": "run_20261021T163155Z_6d75b8da",
+  "schema_version": 1,
+  "total_bytes": 1031694
+}

@@ -1,0 +1,25 @@
+I, [2026-10-21T16:20:08.247290 #143]  INFO -- :       Starting download of org.kill-bill.billing.plugin.java:payment-test-plugin:jar:8.0.1 to /tmp/d20261021-143-s57nl9
+I, [2026-10-21T16:20:14.433180 #143]  INFO -- : Successful installation of org.kill-bill.billing.plugin.java:payment-test-plugin:jar:8.0.1 to /var/lib/killbill/bundles/plugins/java/payment-test-plugin/8.0.1
+Artifact has been retrieved and can be found at path: /var/lib/killbill/bundles/plugins/java/payment-test-plugin/8.0.1/payment-test-plugin-8.0.1.jar
+Permission denied - /var/lib/killbill/bundles/plugins/java
+org/jruby/RubyDir.java:660:in `mkdir'
+/opt/kpm-0.12.4-linux-aarch64/lib/ruby/lib/ruby/stdlib/fileutils.rb:243:in `fu_mkdir'
+/opt/kpm-0.12.4-linux-aarch64/lib/ruby/lib/ruby/stdlib/fileutils.rb:221:in `block in mkdir_p'
+org/jruby/RubyArray.java:2071:in `reverse_each'
+/opt/kpm-0.12.4-linux-aarch64/lib/ruby/lib/ruby/stdlib/fileutils.rb:219:in `block in mkdir_p'
+org/jruby/RubyArray.java:1989:in `each'
+/opt/kpm-0.12.4-linux-aarch64/lib/ruby/lib/ruby/stdlib/fileutils.rb:211:in `mkdir_p'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/kpm-0.12.4/lib/kpm/base_artifact.rb:97:in `pull_and_put_in_place'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/kpm-0.12.4/lib/kpm/killbill_plugin_artifact.rb:10:in `pull'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/kpm-0.12.4/lib/kpm/base_installer.rb:127:in `install_plugin'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/kpm-0.12.4/lib/kpm/tasks.rb:194:in `install_java_plugin'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/thor-1.2.2/lib/thor/command.rb:27:in `run'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/thor-1.2.2/lib/thor/invocation.rb:127:in `invoke_command'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/thor-1.2.2/lib/thor.rb:392:in `dispatch'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/thor-1.2.2/lib/thor/base.rb:485:in `start'
+/opt/kpm-0.12.4-linux-aarch64/lib/vendor/jruby/3.1.0/gems/kpm-0.12.4/bin/kpm:8:in `<main>'
+org/jruby/RubyKernel.java:1107:in `load'
+/opt/kpm-latest/lib/vendor/jruby/3.1.0/bin/kpm:25:in `<main>'
+I, [2026-10-21T16:22:04.112993 #217]  INFO -- :       Starting download of org.kill-bill.billing.plugin.java:payment-test-plugin:jar:8.0.1 to /tmp/d20261021-217-ibln50
+I, [2026-10-21T16:22:05.754062 #217]  INFO -- : Successful installation of org.kill-bill.billing.plugin.java:payment-test-plugin:jar:8.0.1 to /var/lib/killbill/bundles/plugins/java/payment-test-plugin/8.0.1
+Artifact has been retrieved and can be found at path: /var/lib/killbill/bundles/plugins/java/payment-test-plugin/8.0.1/payment-test-plugin-8.0.1.jar
