@@ -85,6 +85,7 @@ Unknown fields are rejected. `schema_version` must be `1`.
 | `observer` | yes | Descriptive label for how the effect is observed |
 | `observation` | no | Final read-only HTTP check ([below](#final-observation)) |
 | `observations` | no | List of final checks, each shaped like `observation` ([below](#multiple-observations)); cannot be combined with `observation` |
+| `stage_assertions` | no | List of `{"assertion", "stage", "expected"}` checks on how many journeys reached a declared stage ([below](#stage-count-assertions)) |
 | `allowed_origins` | no | Absolute http(s) origins an observation may read besides the target ([below](#observing-another-origin)) |
 | `allowed_origins_env` | no | Uppercase environment variable holding comma-separated extra origins an `origin_env` may resolve to ([below](#origin-from-the-environment)) |
 | `secret_env` | no | Uppercase environment variable names holding other credentials, such as ready bearer tokens the script reads from `__ENV`; their values are scrubbed like every declared credential ([actor auth](#actor-auth)) |
@@ -198,6 +199,21 @@ if ([200, 201].includes(created.status)) lt.stage("paid");
 ```
 
 Without the helper, log `{"schema_version": 1, "type": "stage", "run_id", "stage", "logical_key"}` as an `LT_EVENT` line; stage events with a malformed name or an empty `logical_key` are ignored and counted as malformed events. A stage event belongs to the journey that declares its name; a name no journey declares is attributed to the journey only when a single journey declares stages. Stage events are evidence, not assertions: see [results](results.md#journey-funnel) for how they are counted and the one case where they affect the verdict.
+
+### Stage count assertions
+
+To assert on how many journeys reached a stage (a stock limit, a quota, "everyone who paid is confirmed"), declare an assertion id in `assertions` and a matching `stage_assertions` entry:
+
+```json
+"assertions": ["accepted_orders_persist", "paid_within_stock"],
+"stage_assertions": [{"assertion": "paid_within_stock", "stage": "paid", "expected": {"lte": "${fixture.stock}"}}]
+```
+
+`stage` must be declared by a journey. `expected` has exactly one of `eq`, `gte` or `lte`, whose operand is a non-negative integer or a `"${EXPR}"` [expression](#plan-aware-expected-values), which here may also use `fixture.KEY` ([fixture values](#fixture-values)) and `planned_journeys`. The assertion ids must be distinct from every observation's. After the run the controller compares the funnel's `reached` count for that stage with the expectation and records the assertion in `result.json` with `expected` (the resolved matcher, e.g. `{"lte": 5}`) and `actual` (the count). The verdict follows the same rules as other assertions:
+
+- `pass`: the engine finished and the count meets the expectation.
+- `fail`: the engine finished and it does not. A ceiling (`lte`, `eq`) already exceeded is also a `fail` when the run was cut short, since counts only grow.
+- `unknown`: anything else, with a `reason`: the engine did not finish (counts are partial), or an expression has no value (for example a fixture key the setup did not print). Unknown evidence makes the run `inconclusive`, never a pass.
 
 Check the business effect, not just the status code — for example, read the ledger back after a retried payment rather than checking that the payment call returned 200.
 
@@ -340,13 +356,31 @@ An object is treated as a matcher only when all its keys are matcher keys; any o
 
 ### Plan-aware expected values
 
-A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is an expression, evaluated before the comparison. `EXPR` may use non-negative integer literals written with ASCII digits `0-9`, `+`, `-` (binary or unary), `*`, parentheses, and only the names `planned_journeys` (the manifest's planned journey count) and `seed` (the run's `--seed`). It is parsed by a small dedicated parser, never Python `eval`. Any other name, operator or number form (for example `/`, `**`, `1.5`, `run_id`) fails manifest validation, so `inspect` rejects it. So does a whole `"${EXPR}"` string longer than 200 characters, or one nesting parentheses and unary minuses more than 32 deep. Strings that only contain `${` elsewhere, and values nested inside literal objects or arrays, stay literal.
+A literal or matcher operand that is a string of exactly the form `"${EXPR}"` is an expression, evaluated before the comparison. `EXPR` may use non-negative integer literals written with ASCII digits `0-9`, `+`, `-` (binary or unary), `*`, parentheses, and only the names `planned_journeys` (the manifest's planned journey count), `seed` (the run's `--seed`) and `fixture.KEY` ([below](#fixture-values)). It is parsed by a small dedicated parser, never Python `eval`. Any other name, operator or number form (for example `/`, `**`, `1.5`, `run_id`) fails manifest validation, so `inspect` rejects it. So does a whole `"${EXPR}"` string longer than 200 characters, or one nesting parentheses and unary minuses more than 32 deep. Strings that only contain `${` elsewhere, and values nested inside literal objects or arrays, stay literal.
 
 ```json
 "expected": {"/balance": "${planned_journeys * 100}", "/orders": {"gte": "${planned_journeys - 1}"}}
 ```
 
-`inspect` shows the resolved values for its `--seed` as `observation_expected`.
+`inspect` shows the resolved values for its `--seed` as `observation_expected`; operands that need a [fixture value](#fixture-values) stay as written there, since no fixture exists yet.
+
+### Fixture values
+
+A final observation can refer to the run's own fixture, so the check follows what setup created instead of a name fixed in the manifest. `${fixture.KEY}` (KEY is `[A-Za-z_][A-Za-z0-9_]*`) is resolved after the engine finishes:
+
+- With a [command fixture](#command-fixtures), KEY is a top-level key of the JSON object `setup` printed last. With [`owned_http`](#run-owned-fixtures), the only key is `id`, the created fixture's ID. `inspect` rejects a reference when the manifest has neither fixture, or when `owned_http` is asked for anything but `id`. A command fixture's keys are only known when it runs, so a missing key is found then.
+- In `path`, each `${fixture.KEY}` is replaced by the value, URL-encoded (so `/` and `?` in a value cannot change the path). The path must still start with `/` before substitution, and a malformed `${fixture.…}` is rejected.
+- In `expected`, an operand that is exactly `"${fixture.KEY}"` takes the value as it is (a string or a number); inside a larger expression, such as `"${fixture.stock - 1}"`, it must be an integer.
+
+```json
+"observation": {
+  "path": "/admin/variants/${fixture.variant_id}",
+  "assertion": "stock_not_oversold",
+  "expected": {"/stockOnHand": "${fixture.stock}"}
+}
+```
+
+A key that is missing or unusable (empty, `.`, `..`, a boolean or a non-integer in an expression) makes the observation `unknown` with reason `observer fixture value unavailable: ...`, naming the key and never its value; no request is sent. `observation.json` records the resolved `expected` and, under `expressions`, what was written; the path is not recorded.
 
 `observation.json` keeps `expected` (with expressions resolved) and `actual`, adds `expressions` (the pointers whose expected value was written as an expression, as written) when any exist, and adds `checks`: for each pointer, the normalized `matcher` (literals become `{"eq": …}`), the recorded `actual` value and `pass`, plus a `reason` such as `gte needs a number, got boolean` when a `gte`/`lte` check fails because the value is not a number. The observation passes only when every check passes.
 
