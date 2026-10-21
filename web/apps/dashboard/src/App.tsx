@@ -8,6 +8,9 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AboutPage } from "@/pages/about";
 import { ComparePage } from "@/pages/compare";
+import { JobPage } from "@/pages/job";
+import { LibraryDetailPage, LibraryPage } from "@/pages/library";
+import { NewTestPage } from "@/pages/new-test";
 import { OverviewPage } from "@/pages/overview";
 import { RunDetailPage } from "@/pages/run-detail";
 import { RunsPage } from "@/pages/runs";
@@ -56,6 +59,10 @@ export function AppRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<OverviewPage />} />
+        <Route path="new" element={<NewTestPage />} />
+        <Route path="library" element={<LibraryPage />} />
+        <Route path="library/:name" element={<LibraryDetailPage />} />
+        <Route path="jobs/:id" element={<JobPage />} />
         <Route path="runs" element={<RunsPage />} />
         <Route path="runs/:id" element={<RunDetailPage />} />
         <Route path="compare" element={<ComparePage />} />

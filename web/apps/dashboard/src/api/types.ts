@@ -32,6 +32,13 @@ export interface Meta {
   explain_cli: string | null;
   runs_dir: string;
   version: string;
+  /** The console: where saved tests live, whether AI drafting works without a key, and the running job (if any). */
+  console: ConsoleMeta;
+}
+export interface ConsoleMeta {
+  library_dir: string;
+  ai: { available: boolean; model: string };
+  busy_job: string | null;
 }
 
 // ---------- GET /api/runs?scenario=&verdict=&seed= (runs.py `list_runs`) ----------
@@ -365,4 +372,125 @@ export interface TrendPoint {
 /** JSON error body: 404 unknown /api path or run, 409 ComparisonError. */
 export interface ApiErrorBody {
   error: string;
+  /** 409 from POST /api/jobs and /api/draft: the job already running. */
+  job_id?: string;
+  /** 400 from library save: the bundle has a setup command the caller must trust first. */
+  needs_trust?: boolean;
+  /** argv of that setup command. */
+  command?: string[];
+}
+
+// ---------- Library: GET/POST/DELETE /api/library ----------
+export interface LibraryEntry {
+  name: string;
+  digest: string;
+  planned_journeys: number | null;
+  assertions: string[];
+  secret_env: string[];
+  has_command: boolean;
+  modified_at: string;
+  /** Set when the saved bundle no longer validates. */
+  error?: string;
+}
+
+/** `litetraffic inspect --json`. */
+export interface Inspect {
+  ok: boolean;
+  name: string;
+  planned_journeys: number;
+  maximum_journey_requests: number;
+  maximum_observation_requests: number;
+  maximum_journey_writes: number;
+  resolved_schedule: { name: string; seconds: number; rate: number; [key: string]: unknown }[];
+  assertions: string[];
+  stages: Record<string, string[]>;
+  actors: unknown[];
+  budgets: {
+    max_seconds: number;
+    max_requests: number;
+    max_write_attempts: number;
+    max_in_flight: number;
+    max_artifact_bytes: number;
+  };
+  fixture: {
+    recipe: string;
+    owned_http: unknown;
+    command: { setup: string[]; teardown: string[] | null; [key: string]: unknown } | null;
+  };
+  secret_env: string[];
+  observations: { assertion: string; path: string; origin_env?: string | null; expected: unknown }[];
+  scenario_sha256: string;
+}
+
+export interface LibraryDetail {
+  name: string;
+  digest: string;
+  files: Record<string, string>;
+  inspect: Inspect | null;
+  error?: string;
+}
+
+export interface LibrarySaveRequest {
+  name: string;
+  files: Record<string, string>;
+  trust_command?: boolean;
+  overwrite?: boolean;
+}
+export interface LibrarySaved {
+  name: string;
+  digest: string;
+  has_command: boolean;
+}
+
+// ---------- Jobs: /api/jobs, /api/draft ----------
+export type JobKind = "run" | "draft";
+export type JobState = "running" | "finished" | "failed" | "cancelled";
+
+export interface DraftResult {
+  valid: boolean;
+  files: Record<string, string>;
+  attempts: number;
+  tokens: { input: number; output: number };
+  error: string | null;
+  name: string;
+}
+
+export interface JobSummary {
+  id: string;
+  kind: JobKind;
+  state: JobState;
+  scenario: string | null;
+  target: string | null;
+  seed: number | null;
+  repeat: number | null;
+  /** Names only: secret values never leave the server. */
+  env_names: string[];
+  started_at: string;
+  finished_at: string | null;
+  exit_code: number | null;
+  verdict: Verdict | null;
+  run_id: string | null;
+}
+export interface Job extends JobSummary {
+  /** Last 300 lines. */
+  log: string[];
+  result: DraftResult | null;
+}
+
+export interface RunRequest {
+  scenario: string;
+  target: string;
+  seed?: number;
+  repeat?: number;
+  env?: Record<string, string>;
+  capture?: string;
+  confirm_target: true;
+}
+export interface DraftRequest {
+  name: string;
+  app_description: string;
+  rules: string;
+  spec_text?: string;
+  spec_url?: string;
+  api_key?: string;
 }

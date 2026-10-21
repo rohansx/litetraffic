@@ -1,0 +1,19 @@
+{
+  "id": "job_20260923T071000Z_dd00ee11",
+  "kind": "draft",
+  "state": "running",
+  "scenario": "drafted-api",
+  "target": null,
+  "seed": null,
+  "repeat": null,
+  "env_names": [],
+  "started_at": "2026-09-23T07:00:00+00:00",
+  "finished_at": null,
+  "exit_code": null,
+  "verdict": null,
+  "run_id": null,
+  "log": [
+    "attempt 1: asking the model for a scenario"
+  ],
+  "result": null
+}

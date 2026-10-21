@@ -1,0 +1,41 @@
+[
+  {
+    "name": "my-api-tenant-isolation",
+    "digest": "ce3476c30f32277e3dff44a9ed026a6386c7a4369f0d3b28274e3dd8760712f8",
+    "planned_journeys": 10,
+    "assertions": [
+      "own_access",
+      "cross_tenant_read_blocked",
+      "cross_tenant_write_blocked",
+      "victim_unchanged",
+      "no_foreign_data_in_own_responses"
+    ],
+    "secret_env": [
+      "TENANT_A_TOKEN",
+      "TENANT_B_TOKEN"
+    ],
+    "has_command": false,
+    "modified_at": "2026-09-23T06:40:00+00:00"
+  },
+  {
+    "name": "checkout-smoke",
+    "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+    "planned_journeys": 6,
+    "assertions": [
+      "order_total_matches"
+    ],
+    "secret_env": [],
+    "has_command": true,
+    "modified_at": "2026-09-22T11:00:00+00:00"
+  },
+  {
+    "name": "broken-bundle",
+    "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "planned_journeys": null,
+    "assertions": [],
+    "secret_env": [],
+    "has_command": false,
+    "modified_at": "2026-09-21T09:00:00+00:00",
+    "error": "manifest.json: unknown field 'rate'"
+  }
+]
