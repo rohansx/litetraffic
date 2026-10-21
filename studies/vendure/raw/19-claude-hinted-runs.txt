@@ -1,0 +1,4 @@
+seed 41: verdict=fail; paid stage=[7]; checks={'stock_ledger_not_oversold': ('pass', [5, 5]), 'paid_orders_not_oversold': ('fail', [7])}
+seed 42: verdict=fail; paid stage=[7]; checks={'stock_ledger_not_oversold': ('pass', [5, 5]), 'paid_orders_not_oversold': ('fail', [14])}
+seed 43: verdict=fail; paid stage=[7]; checks={'stock_ledger_not_oversold': ('pass', [5, 5]), 'paid_orders_not_oversold': ('fail', [7])}
+seed 42 RERUN after fixing price collision: verdict=fail; paid stage=[7]; checks={'stock_ledger_not_oversold': ('pass', [5, 5]), 'paid_orders_not_oversold': ('fail', [7])}

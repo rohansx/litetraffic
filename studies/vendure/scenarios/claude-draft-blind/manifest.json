@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "name": "vendure-stock-checkout",
+  "script": "journeys.js",
+  "actors": [
+    {"class": "shopper", "count": 20, "auth_recipe": "anonymous-session-token"}
+  ],
+  "secret_env": ["LT_VENDURE_AUTH"],
+  "fixtures": {
+    "recipe": "fresh-variant-5-units",
+    "command": {
+      "setup": ["node", "setup.mjs"],
+      "teardown": ["sh", "teardown.sh"],
+      "setup_timeout_seconds": 40,
+      "teardown_timeout_seconds": 10
+    }
+  },
+  "journeys": [
+    {
+      "name": "checkout",
+      "max_requests": 6,
+      "max_writes": 6,
+      "stages": ["carted", "payment_ready", "paid"],
+      "expected_statuses": {
+        "add_item": [200],
+        "set_customer": [200],
+        "set_shipping_address": [200],
+        "set_shipping_method": [200],
+        "arrange_payment": [200],
+        "pay": [200]
+      }
+    }
+  ],
+  "schedule": {"unit": "journeys_per_second", "phases": [{"name": "burst", "seconds": 1, "rate": 20}]},
+  "assertions": ["clean_response", "charge_matches_rules", "variant_not_oversold"],
+  "observer": "vendure-admin-stock",
+  "observations": [
+    {
+      "path": "/admin-api?query=%7BproductVariants(options%3A%7Bsort%3A%7BcreatedAt%3ADESC%7D%2Ctake%3A1%7D)%7Bitems%7Bid%20stockOnHand%20stockAllocated%7D%7D%7D",
+      "assertion": "variant_not_oversold",
+      "headers_env": {"Authorization": "LT_VENDURE_AUTH"},
+      "expected": {
+        "/data/productVariants/items/0/stockAllocated": {"lte": 5},
+        "/data/productVariants/items/0/stockOnHand": {"gte": 0}
+      }
+    }
+  ],
+  "budgets": {
+    "max_seconds": 150,
+    "max_requests": 220,
+    "max_write_attempts": 140,
+    "max_in_flight": 20,
+    "max_artifact_bytes": 67108864
+  }
+}

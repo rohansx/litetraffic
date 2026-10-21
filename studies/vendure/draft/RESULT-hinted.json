@@ -1,0 +1,8 @@
+{
+ "valid_on_attempt": 2,
+ "dir": "attempt-hinted-2",
+ "tokens": {
+  "input": 115404,
+  "output": 16671
+ }
+}

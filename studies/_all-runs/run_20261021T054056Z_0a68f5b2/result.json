@@ -1,0 +1,100 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "id": "charge_matches_rules",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/count": 5
+      },
+      "expected": {
+        "/count": {
+          "lte": 5
+        }
+      },
+      "id": "quota_not_oversold",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T05:40:58.641630+00:00",
+  "journeys": {
+    "buy": {
+      "stages": [
+        {
+          "name": "ordered",
+          "reached": 5
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 15
+        }
+      ],
+      "started": 20,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "place_order": {
+        "failed_rate": 0.75,
+        "p95": 130.261,
+        "samples": 20
+      }
+    },
+    "elapsed_seconds": 2.548093,
+    "http_req_duration_ms": {
+      "average": 50.455,
+      "max": 138.074,
+      "p50": 25.053,
+      "p95": 130.261,
+      "samples": 20
+    },
+    "http_req_failed_rate": {
+      "failed": 15,
+      "rate": 0.75,
+      "samples": 20
+    },
+    "http_reqs": 20.0,
+    "http_reqs_per_second": 13.942,
+    "iterations": 20.0,
+    "iterations_per_second": 13.942,
+    "observer_requests": 1,
+    "overlap": {
+      "place_order": 3
+    },
+    "total_http_reqs": 21.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 20
+    },
+    "vus_max": 20,
+    "write_attempts": 20
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 20,
+  "planned_journeys_per_second": 20.0,
+  "report": "report.html",
+  "run_id": "run_20261021T054056Z_0a68f5b2",
+  "schema_version": 1,
+  "seed": 14,
+  "verdict": "pass"
+}

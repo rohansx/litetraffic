@@ -1,0 +1,17 @@
+name: vendure-stock-checkout
+script: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/vendure/draft/attempt-blind-2/journeys.js
+scenario sha256: d19e4732a91a93468f24289440bd44b9f42b885bcb1702c411379a0ba216bab5
+planned journeys: 20
+max journey requests: 120
+max observation requests: 1
+max journey writes: 120
+phase: burst  1s at 20/s
+assertion: clean_response
+assertion: charge_matches_rules
+assertion: variant_not_oversold
+stages checkout: carted -> payment_ready -> paid
+fixture setup: node setup.mjs
+fixture teardown: sh teardown.sh
+fixture command file: setup.mjs
+fixture command file: teardown.sh
+observation variant_not_oversold expected: {"/data/productVariants/items/0/stockAllocated": {"lte": 5}, "/data/productVariants/items/0/stockOnHand": {"gte": 0}}

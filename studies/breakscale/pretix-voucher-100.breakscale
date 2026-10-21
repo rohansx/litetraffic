@@ -1,0 +1,89 @@
+{
+  "app": "breakscale",
+  "version": 1,
+  "savedAt": "2026-10-21T05:53:55.714Z",
+  "name": "pretix voucher: 100 buyers (LiteTraffic PASS)",
+  "topology": {
+    "nodes": [
+      {
+        "id": "users",
+        "kind": "client",
+        "label": "LiteTraffic load",
+        "x": 40,
+        "y": 40,
+        "config": {
+          "instances": 1,
+          "replicaCount": 3,
+          "replicationLagMs": 50,
+          "readFraction": 0.9,
+          "shardCount": 4,
+          "shardCapacity": 4,
+          "hotKeyFraction": 0,
+          "hitRate": 0,
+          "errorRate": 0,
+          "timeoutMs": 60000,
+          "retries": 0,
+          "rps": 100.0,
+          "capacity": 1,
+          "serviceMs": 0,
+          "serviceCv": 0,
+          "queueLimit": 0,
+          "traffic": "steady"
+        }
+      },
+      {
+        "id": "app",
+        "kind": "service",
+        "label": "pretix-voucher-heavy",
+        "x": 304,
+        "y": 40,
+        "config": {
+          "instances": 1,
+          "replicaCount": 3,
+          "replicationLagMs": 50,
+          "readFraction": 0.9,
+          "shardCount": 4,
+          "shardCapacity": 4,
+          "hotKeyFraction": 0,
+          "hitRate": 0,
+          "errorRate": 0.0,
+          "timeoutMs": 0,
+          "retries": 0,
+          "rps": 0,
+          "capacity": 38,
+          "serviceMs": 344.774,
+          "serviceCv": 0.337,
+          "queueLimit": 64
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "users->app",
+        "from": "users",
+        "to": "app",
+        "weight": 1
+      }
+    ],
+    "annotations": [
+      {
+        "id": "measured-0",
+        "kind": "note",
+        "text": "Measured in the run\n- users rps 100 = 100 journeys/s scheduled x 1 requests per journey (run.json resolved_schedule, http_reqs / iterations)\n- app end-to-end p50 326.738 = sample-weighted p50 of 1 operation(s) at 100 rps; seen from the client, so it includes queueing, the network and any database call\n- app overlap 38 = most requests of one operation in flight at once (metrics.overlap); a lower bound on the app's real concurrency, set by the run's own VUs and arrival pattern\n- app capacity 38 = the overlap above, which is more than Breakscale's default\n- app errorRate 0 = the run's unexpected HTTP failure rate",
+        "x": 40,
+        "y": 200,
+        "width": 440,
+        "size": "sm"
+      },
+      {
+        "id": "assumed-0",
+        "kind": "note",
+        "text": "Assumed\n- by_operation and request_window_seconds re-read from the run's metrics.jsonl: its result.json was written before they were recorded\n- users traffic steady: the run's phases (burst) are flattened to their average rate\n- users timeoutMs 60000: k6's default request timeout; a journey can set its own\n- users retries 0: LiteTraffic adds none; a journey script could\n- app end-to-end mean 344.774 = p50 x sqrt(1 + cv^2), the mean of a lognormal fit to each operation's p95/p50, weighted by samples; Breakscale's serviceMs is a mean\n- app serviceCv 0.337: a lognormal fit to each operation's p95/p50, weighted by samples; the spread between operations is not included\n- app errorRate was measured at the run's own load, so it may include failures caused by that load\n- app instances 1: the replica count is not visible from outside\n- app queueLimit 64: Breakscale default; the real backlog is unknown\n- app timeoutMs 0 and retries 0: Breakscale defaults (no timeout or retry toward the db)\n- no db node: server capture shows no database container, so database time stays inside app serviceMs\n- app serviceMs 344.774 = the end-to-end mean; an upper bound on the app's own time, because it includes queueing, the network and the database call\n- replicaCount, replicationLagMs, shardCount, shardCapacity and hotKeyFraction (and the client's unused service fields) keep Breakscale's defaults; these node kinds do not use them",
+        "x": 520,
+        "y": 200,
+        "width": 440,
+        "size": "sm"
+      }
+    ]
+  }
+}

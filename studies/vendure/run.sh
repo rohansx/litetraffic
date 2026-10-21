@@ -13,7 +13,7 @@ TOK=$(curl -s -i -X POST http://localhost:3000/admin-api -H 'Content-Type: appli
 export LT_VENDURE_AUTH="Bearer $TOK"
 sc=$1; shift
 # price (cents, multiple of 5 so 20% tax is exact) and the resulting order total with 5.00 shipping
-LT_PRICE=$(python3 -c "import time;print(100000+int(time.time())%800000//5*5)")
+LT_PRICE=$(python3 -c "import time;print(100000+(int(time.time())%160000)*5)")
 export LT_PRICE
 TOTAL=$(python3 -c "import os;print(int(os.environ['LT_PRICE'])*6//5+500)")
 STAGE=$(mktemp -d)/$sc; cp -R "$HERE/scenarios/$sc" "$STAGE"
@@ -23,5 +23,5 @@ q='{orders(options:{filter:{totalWithTax:{eq:%s},state:{in:["PaymentAuthorized",
 print("/admin-api?query="+urllib.parse.quote(q,safe=""))
 PY
 )
-sed -i.bak "s|__PAID_ORDERS_PATH__|$PATH_Q|" "$STAGE/manifest.json" && rm "$STAGE/manifest.json.bak"
+sed -i.bak -e "s|/__PAID_ORDERS_PATH__|$PATH_Q|" -e "s|__PAID_ORDERS_PATH__|$PATH_Q|" "$STAGE/manifest.json" && rm "$STAGE/manifest.json.bak"
 exec $LT verify "$STAGE" --target http://localhost:3000 --output-dir "$HERE/runs" "$@"

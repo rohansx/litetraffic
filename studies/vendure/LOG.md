@@ -43,3 +43,25 @@ Added an independent check that asks Vendure how many paid orders exist at this 
 
 ## Not tested
 V2 coupon limits (no way to count coupon uses across shoppers with the checks available), V5 privacy between registered customers.
+
+## Step 10: can Claude draft the scenario itself? (`draft/`, raw `raw/16-19`)
+Setup: `draft/draft.py` gives Claude (model `claude-sonnet-5-5`) only public material: Vendure's published GraphQL schema (downloaded by introspection, 84 KB), LiteTraffic's scenario docs, one working scenario for a different app (pretix) as a format example, and the shop owner's three rules in plain words. It must write `manifest.json` and `journeys.js`. LiteTraffic's `inspect` validates each draft; any error goes back to Claude to fix (max 3 repairs). Everything Claude was sent and answered is saved in `draft/attempt-*`. The fixture script (`setup.mjs`) was mine, supplied as a described contract.
+
+**Round A, no hints.**
+- Attempt 1 was cut off (ran out of output space); attempt 2 passed `inspect`. Tokens in total: 112,842 in, 18,705 out.
+- Claude worked out the whole 7-step checkout from the schema correctly. But for rule 1 it chose to check the stock ledger (`stockAllocated <= 5`), the same trap I fell into.
+- Run 3 times against Vendure: **PASS, PASS, PASS**, while 7 of 20 shoppers paid for 5 units each time. A scenario drafted by AI alone would have said the shop is fine. (`raw/17-claude-draft-runs.txt`)
+
+**Round B, with one sentence of human insight** ("judge by what customers experienced; count paid orders").
+- Valid on attempt 2 (115,404 in, 16,671 out). Claude added the paid-order check correctly and kept the ledger check.
+- Run 3 times: **FAIL x3**, ledger check pass, paid-orders check fail. (`raw/19-claude-hinted-runs.txt`)
+- Honest reading: AI does the plumbing well; the insight about what to check has to come from a person who understands the business. The tool should make that review step easy.
+
+## Corrections made while doing this (kept for honesty)
+- The runner picked prices that repeated for runs started within 5 seconds, so two runs' orders were counted together once (a reading of 14 instead of 7, seed 42). Fixed and re-run: 7. Earlier numbers were unaffected: in each of those runs the paid count equalled the shoppers LiteTraffic saw pay.
+- My placeholder for the per-run check path was not valid for `inspect` as first written; Claude's repair was reasonable, and I changed the runner to accept it.
+
+## What was NOT done
+- No browser screenshots of the dashboard (the Chrome extension was not connected). The dashboard runs: `litetraffic dashboard --runs-dir studies/_all-runs`.
+- Breakscale links are generated (`../breakscale/share-links.json`) but not opened; I did not verify the site opens them.
+- E2B was not needed: both apps ran fine in local Docker.

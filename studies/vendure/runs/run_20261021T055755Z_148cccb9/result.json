@@ -1,0 +1,150 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "id": "charge_matches_rules",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/data/productVariants/items/0/stockAllocated": 5,
+        "/data/productVariants/items/0/stockOnHand": 5
+      },
+      "expected": {
+        "/data/productVariants/items/0/stockAllocated": {
+          "lte": 5
+        },
+        "/data/productVariants/items/0/stockOnHand": {
+          "gte": 0
+        }
+      },
+      "id": "variant_not_oversold",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T05:57:56.697260+00:00",
+  "journeys": {
+    "checkout": {
+      "stages": [
+        {
+          "name": "carted",
+          "reached": 10
+        },
+        {
+          "name": "payment_ready",
+          "reached": 7
+        },
+        {
+          "name": "paid",
+          "reached": 7
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 10
+        },
+        {
+          "after": "carted",
+          "count": 3
+        },
+        {
+          "after": "payment_ready",
+          "count": 0
+        }
+      ],
+      "started": 20,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "add_item": {
+        "failed_rate": 0.0,
+        "p95": 78.632,
+        "samples": 20
+      },
+      "arrange_payment": {
+        "failed_rate": 0.0,
+        "p95": 81.186,
+        "samples": 10
+      },
+      "pay": {
+        "failed_rate": 0.0,
+        "p95": 94.989,
+        "samples": 7
+      },
+      "set_customer": {
+        "failed_rate": 0.0,
+        "p95": 25.431,
+        "samples": 10
+      },
+      "set_shipping_address": {
+        "failed_rate": 0.0,
+        "p95": 37.238,
+        "samples": 10
+      },
+      "set_shipping_method": {
+        "failed_rate": 0.0,
+        "p95": 58.23,
+        "samples": 10
+      }
+    },
+    "elapsed_seconds": 1.661944,
+    "http_req_duration_ms": {
+      "average": 51.813,
+      "max": 96.589,
+      "p50": 51.877,
+      "p95": 87.112,
+      "samples": 67
+    },
+    "http_req_failed_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 67
+    },
+    "http_reqs": 67.0,
+    "http_reqs_per_second": 45.731,
+    "iterations": 20.0,
+    "iterations_per_second": 13.651,
+    "observer_requests": 1,
+    "overlap": {
+      "add_item": 2,
+      "arrange_payment": 2,
+      "pay": 2,
+      "set_customer": 1,
+      "set_shipping_address": 1,
+      "set_shipping_method": 2
+    },
+    "total_http_reqs": 68.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 67
+    },
+    "vus_max": 20,
+    "write_attempts": 67
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 20,
+  "planned_journeys_per_second": 20.0,
+  "report": "report.html",
+  "run_id": "run_20261021T055755Z_148cccb9",
+  "schema_version": 1,
+  "seed": 33,
+  "verdict": "pass"
+}
