@@ -68,9 +68,15 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+# A console started in the background (nohup, a service manager) inherits SIGINT as ignored, and Python then never turns Ctrl-C
+# into KeyboardInterrupt: Cancel would be ignored and the run would finish. Restore it before anything else runs.
+SIGINT_BOOT = "import signal; signal.signal(signal.SIGINT, signal.default_int_handler); "
+
+
 def verify_argv(scenario: Path, args: list[str]) -> list[str]:
     """The command that runs a scenario; tests replace it with a stand-in that needs no k6."""
-    return [sys.executable, "-m", "litetraffic", "verify", str(scenario), *args]
+    code = SIGINT_BOOT + "import sys; from litetraffic.cli import entrypoint; sys.argv[0] = 'litetraffic'; entrypoint()"
+    return [sys.executable, "-c", code, "verify", str(scenario), *args]
 
 
 def anthropic_client(api_key: str):
@@ -435,10 +441,10 @@ class Console:
             verdict = payload.get("verdict")
         else:
             verdict = None
-        if job.cancel_requested or code == 130:
+        if code == 130 or (job.cancel_requested and code not in (0, 1, 2, 3)):
             state = "cancelled"
         elif code in (0, 1, 2) or (code == 3 and verdict == "error"):
-            state = "finished"
+            state = "finished"  # including a cancel that arrived after the run had already ended
         else:
             state = "failed"
         if verdict not in ("pass", "fail", "inconclusive", "error"):

@@ -457,3 +457,24 @@ def test_the_server_key_is_used_when_the_request_has_none(served, claude, monkey
 def test_the_authoring_guide_shipped_with_the_package_matches_the_docs():
     shipped = (ROOT / "src" / "litetraffic" / "authoring" / "scenarios.md").read_text()
     assert shipped == (ROOT / "docs" / "scenarios.md").read_text()
+
+
+def test_cancel_works_even_when_the_console_was_started_with_sigint_ignored():
+    import signal
+    import subprocess
+
+    child = subprocess.Popen(
+        [sys.executable, "-c", console.SIGINT_BOOT + "import time; print('up', flush=True); time.sleep(30)"],
+        stdout=subprocess.PIPE, text=True, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN),
+    )  # fmt: skip
+    assert child.stdout.readline().strip() == "up"
+    child.send_signal(signal.SIGINT)
+    assert child.wait(timeout=5) != 0
+
+
+def test_a_cancel_that_arrives_after_the_run_ended_reports_the_real_verdict(served):
+    save(served)
+    started = call(served, "POST", "/api/jobs", run_body(), "job-run")[1]
+    job = wait_job(served, started["id"])
+    assert call(served, "POST", f"/api/jobs/{started['id']}/cancel", {}, "job-cancel") == (200, {"state": "finished"})
+    assert job["state"] == "finished" and job["verdict"] == "pass"
