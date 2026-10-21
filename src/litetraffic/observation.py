@@ -12,6 +12,7 @@ import httpx
 
 from litetraffic.auth import redact_value
 from litetraffic.models import FinalObservation, as_matcher, resolve_expected
+from litetraffic.observation_config import resolve_path
 from litetraffic.target import normalize_origin
 
 MAX_ACTUAL_BYTES = 2048
@@ -101,7 +102,7 @@ def bounded_request(
 
 TRUNCATED = "...[truncated]"
 # Reasons given before any request is sent; every other outcome sent exactly one GET.
-PRE_REQUEST = ("observer bearer token", "observer header env", "observer origin env", "observer allowed_origins_env")
+PRE_REQUEST = ("observer bearer token", "observer fixture value", "observer header env", "observer origin env", "observer allowed_origins_env")
 
 
 def _pointer(document: object, path: str) -> object:
@@ -225,7 +226,7 @@ def _observe_once(
     run_id: str,
     transport: httpx.BaseTransport | None = None,
     fixture_id: str | None = None,
-    variables: dict[str, int] | None = None,
+    variables: Mapping[str, object] | None = None,
     environ: Mapping[str, str] | None = None,
     allowed_origins: Sequence[str] = (),
     allowed_origins_env: str | None = None,
@@ -254,15 +255,22 @@ def _observe_once(
             return {"assertion": config.assertion, "status": "unknown", "reason": f"observer header env {env} missing"}
         headers[header] = value
 
+    try:  # plan values and the run's fixture values (`fixture.KEY`) are known before the read
+        path = resolve_path(config.path, variables or {})
+        expected_values = resolve_expected(config.expected, variables or {})
+    except ValueError as exc:  # names the key, never its value
+        if not config.fixture_keys:
+            raise  # a plan variable that was not passed is a caller bug
+        return {"assertion": config.assertion, "status": "unknown", "reason": f"observer fixture value unavailable: {exc}"}
+
     try:
-        status, content = bounded_request("GET", origin + config.path, headers, transport)
+        status, content = bounded_request("GET", origin + path, headers, transport)
         if status != 200:
             return {"assertion": config.assertion, "status": "unknown", "reason": f"observer HTTP {status}"}
         document = json.loads(content)
     except (httpx.HTTPError, ValueError, DeadlineExceeded) as exc:
         return {"assertion": config.assertion, "status": "unknown", "reason": f"observer unavailable: {failure(exc)}"}
 
-    expected_values = resolve_expected(config.expected, variables or {})
     actual, missing, checks = {}, [], {}
     for pointer, expected in expected_values.items():
         try:
