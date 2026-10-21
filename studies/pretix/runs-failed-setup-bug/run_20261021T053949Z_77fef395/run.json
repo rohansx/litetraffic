@@ -1,0 +1,21 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "engine_exit_code": null,
+  "finished_at": "2026-10-21T05:39:49.527970+00:00",
+  "lifecycle": "crashed",
+  "mode": "verify",
+  "resolved_schedule": [
+    {
+      "name": "burst",
+      "rate": 10,
+      "seconds": 1
+    }
+  ],
+  "run_id": "run_20261021T053949Z_77fef395",
+  "scenario": "pretix-voucher",
+  "scenario_sha256": "5b019bcb41543e974eebe08bd6b221a736e35d138906eadcd0a01738d91e501e",
+  "schema_version": 1,
+  "seed": 1,
+  "started_at": "2026-10-21T05:39:49.232500+00:00",
+  "target": "http://localhost:8345"
+}

@@ -1,0 +1,2 @@
+verdict: PASS  lifecycle: finished  runs: 5/5  consistent: yes  <- quota x5
+verdict: PASS  lifecycle: finished  runs: 5/5  consistent: yes  <- voucher x5

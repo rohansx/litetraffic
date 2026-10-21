@@ -1,0 +1,17 @@
+name: pretix-quota
+script: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/pretix/scenarios/quota/journeys.js
+scenario sha256: 458800fb2d19d7cd6efe28129cd153c22008ddc048448f6a2350f88bfaafc27d
+planned journeys: 20
+max journey requests: 20
+max observation requests: 1
+max journey writes: 20
+phase: burst  1s at 20/s
+assertion: clean_response
+assertion: charge_matches_rules
+assertion: quota_not_oversold
+stages buy: ordered
+fixture setup: sh setup.sh quota
+fixture teardown: sh teardown.sh
+fixture command file: setup.sh
+fixture command file: teardown.sh
+observation quota_not_oversold expected: {"/count": {"lte": 5}}

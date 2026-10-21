@@ -1,0 +1,11 @@
+== enable plugin on organizer, then event
+{"name":"Study Org","slug":"study","public_url":"http://localhost:8345/study/","plugins":["pretix.plugins.banktransfer"]} HTTP 200
+"plugins":["pretix.plugins.banktransfer"]
+HTTP 200
+== one order
+{"code":"ESA7C","event":"concert","status":"n","testmode":false,"secret":"41dqtn7innzuibkf","email":"a@example.com","phone":null,"locale":"en","datetime":"2026-10-21T05:37:31.979564Z","expires":"2026-11-04T23:59:59Z","payment_date":null,"payment_provider":"banktransfer","fees":[],"total":"10.00","tax_rounding_mode":"line","comment":"","custom_followup_at":null,"invoice_address":null,"positions":[{"id":2,"order":"ESA7C","positionid":1,"item":1,"variation":null,"price":"10.00","attendee_name":"A","attendee_name_parts":{"_legacy":"A"},"company":null,"street":null,"zipcode":null,"city":null,"country":null,"state":null,"discount":null,"attendee_email":null,"voucher":1,"tax_rate":"0.00","tax_value
+HTTP 201
+== voucher
+"redeemed":1
+== quota
+{"paid_orders":0,"pending_orders":1,"exited_orders":0,"blocking_vouchers":0,"cart_positions":0,"waiting_list":1,"available_number":4,"available":true,"total_size":5}

@@ -1,0 +1,5 @@
+ Container lt-pretix-db-1 Started 
+ Container lt-pretix-db-1 Waiting 
+ Container lt-pretix-db-1 Healthy 
+ Container lt-pretix-pretix-1 Starting 
+ Container lt-pretix-pretix-1 Started 

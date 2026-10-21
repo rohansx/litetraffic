@@ -1,0 +1,12 @@
+[
+  {
+    "assertion": "voucher_counter_within_limit",
+    "reason": "engine did not finish",
+    "status": "unknown"
+  },
+  {
+    "assertion": "voucher_orders_within_limit",
+    "reason": "engine did not finish",
+    "status": "unknown"
+  }
+]

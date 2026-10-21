@@ -1,0 +1,76 @@
+2026-10-21T05:41:14.806903100Z [2026-10-21 05:41:14,806: INFO/ForkPoolWorker-7] Task pretix.api.webhooks.notify_webhooks[30a3a5cd-6d9b-454d-8904-da431621ef58] succeeded in 0.01604050799505785s: None
+2026-10-21T05:41:14.948075443Z [2026-10-21 05:41:14,947: INFO/MainProcess] Task pretix.base.services.notifications.notify[54b41ec0-1840-4b42-9edd-61fdd0d11c69] received
+2026-10-21T05:41:14.948095360Z [2026-10-21 05:41:14,947: INFO/MainProcess] Task 54b41ec0-1840-4b42-9edd-61fdd0d11c69 has trace 0c2a02fe-e1c0-42c2-9fce-e40d3d9defc8
+2026-10-21T05:41:14.950057080Z [2026-10-21 05:41:14,949: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[d1b66691-5859-4037-8071-3d96c6bbfcaf] received
+2026-10-21T05:41:14.950070996Z [2026-10-21 05:41:14,949: INFO/MainProcess] Task d1b66691-5859-4037-8071-3d96c6bbfcaf has trace 0c2a02fe-e1c0-42c2-9fce-e40d3d9defc8
+2026-10-21T05:41:14.965745210Z [2026-10-21 05:41:14,965: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[d1b66691-5859-4037-8071-3d96c6bbfcaf] succeeded in 0.014877085006446578s: None
+2026-10-21T05:41:14.968663852Z [2026-10-21 05:41:14,968: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[54b41ec0-1840-4b42-9edd-61fdd0d11c69] succeeded in 0.01983407100487966s: None
+2026-10-21T05:41:14.994380790Z [2026-10-21 05:41:14,993: INFO/MainProcess] Task pretix.base.services.notifications.notify[c6aec541-7ac8-45bf-acae-447bedae4828] received
+2026-10-21T05:41:14.994406956Z [2026-10-21 05:41:14,993: INFO/MainProcess] Task c6aec541-7ac8-45bf-acae-447bedae4828 has trace 8e43fb89-8533-41bd-9a96-babc3a41b498
+2026-10-21T05:41:14.994971043Z [2026-10-21 05:41:14,994: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[110780a0-d9b8-4e4f-b10a-1d2eca15c5e2] received
+2026-10-21T05:41:14.995108294Z [2026-10-21 05:41:14,994: INFO/MainProcess] Task 110780a0-d9b8-4e4f-b10a-1d2eca15c5e2 has trace 8e43fb89-8533-41bd-9a96-babc3a41b498
+2026-10-21T05:41:15.015946370Z [2026-10-21 05:41:15,014: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[110780a0-d9b8-4e4f-b10a-1d2eca15c5e2] succeeded in 0.016728677990613505s: None
+2026-10-21T05:41:15.015972371Z [2026-10-21 05:41:15,015: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[c6aec541-7ac8-45bf-acae-447bedae4828] succeeded in 0.020159446998150088s: None
+2026-10-21T05:41:15.044226906Z [2026-10-21 05:41:15,043: INFO/MainProcess] Task pretix.base.services.notifications.notify[16d18af5-395d-41e9-99fa-7eb22b00650a] received
+2026-10-21T05:41:15.044242989Z [2026-10-21 05:41:15,043: INFO/MainProcess] Task 16d18af5-395d-41e9-99fa-7eb22b00650a has trace 4bc10b48-da11-4b21-8d52-f003de3a9d37
+2026-10-21T05:41:15.044852451Z [2026-10-21 05:41:15,044: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[179c5ba3-70fa-4117-9d5b-30470fbbd316] received
+2026-10-21T05:41:15.044962493Z [2026-10-21 05:41:15,044: INFO/MainProcess] Task 179c5ba3-70fa-4117-9d5b-30470fbbd316 has trace 4bc10b48-da11-4b21-8d52-f003de3a9d37
+2026-10-21T05:41:15.061438587Z [2026-10-21 05:41:15,061: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[179c5ba3-70fa-4117-9d5b-30470fbbd316] succeeded in 0.015299878010409884s: None
+2026-10-21T05:41:15.064820981Z [2026-10-21 05:41:15,063: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[16d18af5-395d-41e9-99fa-7eb22b00650a] succeeded in 0.01943015200959053s: None
+2026-10-21T05:41:15.094589734Z [2026-10-21 05:41:15,091: INFO/MainProcess] Task pretix.base.services.notifications.notify[a035a179-f1fe-4e78-b924-66ab7271453e] received
+2026-10-21T05:41:15.094611817Z [2026-10-21 05:41:15,092: INFO/MainProcess] Task a035a179-f1fe-4e78-b924-66ab7271453e has trace 9e2e9744-4cff-4824-a25c-370c1cdc22b1
+2026-10-21T05:41:15.094613525Z [2026-10-21 05:41:15,093: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[7aac849d-6db1-4d93-af66-9ffcf8d79fa0] received
+2026-10-21T05:41:15.094615067Z [2026-10-21 05:41:15,093: INFO/MainProcess] Task 7aac849d-6db1-4d93-af66-9ffcf8d79fa0 has trace 9e2e9744-4cff-4824-a25c-370c1cdc22b1
+2026-10-21T05:41:15.110495782Z [2026-10-21 05:41:15,110: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[7aac849d-6db1-4d93-af66-9ffcf8d79fa0] succeeded in 0.016072675003670156s: None
+2026-10-21T05:41:15.117377071Z [2026-10-21 05:41:15,112: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[a035a179-f1fe-4e78-b924-66ab7271453e] succeeded in 0.01939198499894701s: None
+2026-10-21T05:41:15.142367713Z [2026-10-21 05:41:15,141: INFO/MainProcess] Task pretix.base.services.notifications.notify[e3c3f310-90f7-4f57-988d-90244b02464f] received
+2026-10-21T05:41:15.142388046Z [2026-10-21 05:41:15,141: INFO/MainProcess] Task e3c3f310-90f7-4f57-988d-90244b02464f has trace 025ac583-47d0-4a70-92f8-d0e929c42fc7
+2026-10-21T05:41:15.142832382Z [2026-10-21 05:41:15,142: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[359bc87e-0c9e-4dcd-8a6c-40b225616156] received
+2026-10-21T05:41:15.142851841Z [2026-10-21 05:41:15,142: INFO/MainProcess] Task 359bc87e-0c9e-4dcd-8a6c-40b225616156 has trace 025ac583-47d0-4a70-92f8-d0e929c42fc7
+2026-10-21T05:41:15.159568852Z [2026-10-21 05:41:15,159: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[359bc87e-0c9e-4dcd-8a6c-40b225616156] succeeded in 0.015591546005452983s: None
+2026-10-21T05:41:15.163520958Z [2026-10-21 05:41:15,162: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[e3c3f310-90f7-4f57-988d-90244b02464f] succeeded in 0.01978140400024131s: None
+2026-10-21T05:41:15.172446467Z INFO 2026-10-21 05:41:15,172 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.172973887Z WARNING 2026-10-21 05:41:15,172 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.172982178Z WARNING 2026-10-21 05:41:15,172 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.219129357Z INFO 2026-10-21 05:41:15,218 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.219777611Z WARNING 2026-10-21 05:41:15,219 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.219786069Z WARNING 2026-10-21 05:41:15,219 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.270352731Z INFO 2026-10-21 05:41:15,269 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.270843942Z WARNING 2026-10-21 05:41:15,270 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.271305737Z WARNING 2026-10-21 05:41:15,270 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.323120114Z INFO 2026-10-21 05:41:15,322 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.323581158Z WARNING 2026-10-21 05:41:15,323 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.324148870Z WARNING 2026-10-21 05:41:15,323 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.369990797Z INFO 2026-10-21 05:41:15,369 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.370366507Z WARNING 2026-10-21 05:41:15,370 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.370407508Z WARNING 2026-10-21 05:41:15,370 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.420140165Z INFO 2026-10-21 05:41:15,419 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.420802919Z WARNING 2026-10-21 05:41:15,420 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.420810460Z WARNING 2026-10-21 05:41:15,420 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.468184771Z INFO 2026-10-21 05:41:15,467 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.468808024Z WARNING 2026-10-21 05:41:15,468 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.469282277Z WARNING 2026-10-21 05:41:15,468 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.518689391Z INFO 2026-10-21 05:41:15,518 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.519047101Z WARNING 2026-10-21 05:41:15,518 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.519175935Z WARNING 2026-10-21 05:41:15,518 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.573643078Z INFO 2026-10-21 05:41:15,572 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.573662120Z WARNING 2026-10-21 05:41:15,573 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.573663911Z WARNING 2026-10-21 05:41:15,573 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.621867185Z INFO 2026-10-21 05:41:15,620 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.621885727Z WARNING 2026-10-21 05:41:15,621 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.621887518Z WARNING 2026-10-21 05:41:15,621 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.670172251Z INFO 2026-10-21 05:41:15,669 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.670332210Z WARNING 2026-10-21 05:41:15,670 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.670342543Z WARNING 2026-10-21 05:41:15,670 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.718625859Z INFO 2026-10-21 05:41:15,717 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.718642443Z WARNING 2026-10-21 05:41:15,718 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.718644151Z WARNING 2026-10-21 05:41:15,718 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.770619821Z INFO 2026-10-21 05:41:15,769 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.770635821Z WARNING 2026-10-21 05:41:15,770 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.770637654Z WARNING 2026-10-21 05:41:15,770 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.819075304Z INFO 2026-10-21 05:41:15,818 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.819091304Z WARNING 2026-10-21 05:41:15,818 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.819093054Z WARNING 2026-10-21 05:41:15,818 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.872754192Z INFO 2026-10-21 05:41:15,872 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:15.873460280Z WARNING 2026-10-21 05:41:15,873 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:15.874025950Z WARNING 2026-10-21 05:41:15,873 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/

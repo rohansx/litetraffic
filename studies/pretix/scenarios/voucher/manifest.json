@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "name": "pretix-voucher",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "buyer",
+      "count": 10,
+      "auth_recipe": "api-token"
+    }
+  ],
+  "secret_env": [
+    "LT_PRETIX_AUTH"
+  ],
+  "fixtures": {
+    "recipe": "fresh-voucher-fixture",
+    "command": {
+      "setup": [
+        "sh",
+        "setup.sh",
+        "voucher"
+      ],
+      "teardown": [
+        "sh",
+        "teardown.sh"
+      ],
+      "setup_timeout_seconds": 40,
+      "teardown_timeout_seconds": 30
+    }
+  },
+  "journeys": [
+    {
+      "name": "buy",
+      "max_requests": 1,
+      "max_writes": 1,
+      "stages": [
+        "ordered"
+      ],
+      "expected_statuses": {
+        "place_order": [
+          201,
+          400,
+          409
+        ]
+      }
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {
+        "name": "burst",
+        "seconds": 1,
+        "rate": 10
+      }
+    ]
+  },
+  "assertions": [
+    "clean_response",
+    "charge_matches_rules",
+    "voucher_counter_within_limit",
+    "voucher_orders_within_limit"
+  ],
+  "observer": "pretix-records",
+  "observations": [
+    {
+      "path": "/api/v1/organizers/study/events/lab/vouchers/",
+      "assertion": "voucher_counter_within_limit",
+      "headers_env": {
+        "Authorization": "LT_PRETIX_AUTH"
+      },
+      "expected": {
+        "/results/0/redeemed": {
+          "lte": 1
+        },
+        "/results/0/max_usages": 1
+      }
+    },
+    {
+      "path": "/api/v1/organizers/study/events/lab/orderpositions/",
+      "assertion": "voucher_orders_within_limit",
+      "headers_env": {
+        "Authorization": "LT_PRETIX_AUTH"
+      },
+      "expected": {
+        "/count": {
+          "lte": 1
+        }
+      }
+    }
+  ],
+  "budgets": {
+    "max_seconds": 150,
+    "max_requests": 200,
+    "max_write_attempts": 100,
+    "max_in_flight": 10,
+    "max_artifact_bytes": 67108864
+  }
+}
