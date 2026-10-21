@@ -612,6 +612,13 @@ def _draft_system() -> str:
         "- Judge each rule by the business effect a real customer would experience (what was recorded, charged, sold, exposed), not by an internal counter "
         "that merely looks consistent. When the app offers a read endpoint for the authoritative effect, add a final observation (GET only) that checks it, "
         "in addition to checking the responses.\n"
+        "- Before writing any code, plan each rule. Open journeys.js with a comment block that numbers every rule the owner gave and states (1) the real "
+        "business effect that would prove it holds or is broken, and (2) how that effect is observed: a journey assertion on a response, a final observation "
+        "reading the authoritative state, or a stage_assertions count of journeys that reached an outcome. A counter the app keeps about itself (a stock "
+        "ledger, an allocation field) is not the effect customers experienced: observe the outcome instead (orders paid, rows stored, data returned), and if the "
+        "given API cannot show it, say so in that block rather than checking a proxy.\n"
+        "- Next to every check in journeys.js, name what it proves with a short comment of the form "
+        "`// rule N, effect checked: <the business effect>`.\n"
         "- Secrets are never written into the files: refer to environment variables by name (secret_env, headers_env, __ENV.NAME).\n"
         "- Keep the load small and the budgets honest; this runs against a real app.\n\n"
         "LITETRAFFIC SCENARIO DOCUMENTATION\n" + GUIDE.read_text(encoding="utf-8")
@@ -622,7 +629,9 @@ def _draft_task(name: str, description: str, rules: str, spec: str) -> str:
     return (
         f"Write a scenario named {name!r}.\n\nTHE APP (from its owner):\n{description or '(not described)'}\n\n"
         f"RULES THAT MUST HOLD (plain language, from its owner):\n{rules}\n\n"
-        f"The target base URL is available to journeys as __ENV.LT_TARGET.\n\nAPI SPEC OR NOTES:\n{spec or '(none given: use only what the owner described)'}\n"
+        f"The target base URL is available to journeys as __ENV.LT_TARGET.\n\nAPI SPEC OR NOTES:\n{spec or '(none given: use only what the owner described)'}\n\n"
+        "Start by listing, for each rule, the real business effect that would prove it and how it is observed (as the opening comment of journeys.js), "
+        "then write the code. Reply with only the two fenced blocks.\n"
     )
 
 
@@ -632,6 +641,8 @@ def _check_draft(text: str) -> tuple[dict[str, str], str | None]:
     if not (manifest and script):
         return {}, "reply did not contain one ```json block and one ```javascript block"
     files = {"manifest.json": manifest.group(1), "journeys.js": script.group(1)}
+    if not re.search(r"//.*effect checked:", files["journeys.js"], re.I):
+        return files, "journeys.js must name, in a comment per rule, the business effect each check proves: // rule N, effect checked: <effect>"
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp, "bundle")
         _write_bundle(root, files)
