@@ -1,0 +1,19 @@
+version = '3.8.0'
+dist-tags.latest = '3.8.0'
+Usage: create <project-directory> [options]
+
+Options:
+  -V, --version           output the version number
+  --log-level <logLevel>  Log level, either 'silent', 'info', or 'verbose'
+                          (default: "info")
+  --verbose               Alias for --log-level verbose (default: false)
+  --use-npm               Force npm, overriding auto-detection of the package
+                          manager that invoked the CLI
+  --ci                    Runs without prompts for use in CI scenarios (default:
+                          false)
+  --storefront <starter>  Storefront to include with --ci: tanstack, nextjs
+  --with-storefront       Include the Next.js storefront with --ci. Deprecated:
+                          use --storefront nextjs (default: false)
+  --db <database>         Database to use with --ci: 'sqlite' or 'postgres'
+                          (postgres is started via Docker) (default: "sqlite")
+  -h, --help              display help for command

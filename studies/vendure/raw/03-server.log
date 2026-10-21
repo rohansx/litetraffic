@@ -1,0 +1,54 @@
+
+> shop@0.1.0 dev:server
+> vendure dev server
+
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m Bootstrapping Vendure Server (pid: 4668)... 
+[33mwarn[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m [33mInsecure CORS configuration: `apiOptions.cors` reflects any `Origin` header (`origin: true`) and also allows credentials (`credentials: true`), so any website can make cross-origin requests to the Shop and Admin APIs. Set `apiOptions.cors.origin` to an explicit list of the origins you serve, e.g. `{ origin: ['https://storefront.example.com'], credentials: true }`. This is expected in local development. Do not deploy with it.[39m 
+[33mwarn[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m [33mLogin CSRF is possible: `apiOptions.csrfPrevention` is off and sessions use cookies, so a cross-site HTML form can POST a `login` mutation and set a session cookie in a visitor's browser. Set `apiOptions.csrfPrevention: true`. Check first that every client which uploads files to your API, or queries it over GET, sends the `Apollo-Require-Preflight` header.[39m 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[AssetServerPlugin][39m Creating asset server middleware 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[EmailPlugin][39m Creating dev mailbox middleware 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[RoutesResolver][39m HealthController {/health}: 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[RouterExplorer][39m Mapped {/health, GET} route 
+[33mwarn[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m [33mDefault superadmin password is configured. This is INSECURE and must not be used in production. Set `authOptions.superadminCredentials` in your VendureConfig — typically wired from environment variables, e.g. `{ identifier: process.env.SUPERADMIN_USERNAME, password: process.env.SUPERADMIN_PASSWORD }`.[39m 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[GraphQLModule][39m Mapped {/shop-api, POST} route 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[GraphQLModule][39m Mapped {/admin-api, POST} route 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[NestApplication][39m Nest application successfully started 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m ==================================================== 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m   Vendure server (v3.8.0) now running on port 3000 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m ---------------------------------------------------- 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m Shop API:       http://localhost:3000/shop-api 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m Admin API:      http://localhost:3000/admin-api 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m Dashboard UI:   http://localhost:3000/dashboard 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m GraphiQL Admin: http://localhost:3000/graphiql/admin 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m GraphiQL Shop:  http://localhost:3000/graphiql/shop 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m Asset server:   http://localhost:3000/assets 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m Dev mailbox:    http://localhost:3000/mailbox 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m ==================================================== 
+[34minfo[39m [90m10/21/26, 11:16 AM -[39m [36m[Vendure Server][39m Anonymous telemetry is disabled. 
+(node:4668) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[33mwarn[39m [90m10/21/26, 11:18 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order FV3YYC4YU3J3ZH2X: ProductVariant 89 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:18 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order 1EBT96F9P3QNQ6DW: ProductVariant 89 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:18 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order KVMNALLGCREDPQB4: ProductVariant 89 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order UVRWJR6FZAER52VH: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order 2WEC5EVNRRDEPSVW: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order GYJY3L51B545ZZ4R: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order 5C2B32GARY6ZSJF4: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order CQ75HSB74P5U2FDF: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order EU16YBLF7845LXQZ: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order ZLV2BY8UPKX3PXA9: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order RGEDGE3X2JMTYNN9: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order UPJPGA24WFXZ1SQM: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order UF3V6S7PGW5GX7J7: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:20 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order WG3SYE4169FPHAPE: ProductVariant 90 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:21 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order WEV5KXCY5ZSDL4H7: ProductVariant 92 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:21 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order 93WKNMJBCA998XG1: ProductVariant 92 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:21 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order W23ER6QETC26Q8AE: ProductVariant 92 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:21 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order V726X9F9VRWUXVR9: ProductVariant 92 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:21 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order 7DJ5E7MHTQ7HRZLG: ProductVariant 92 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:21 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order TAXAP1JT9RSEMQ3E: ProductVariant 92 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:21 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order BCCFTCGRZWB6MJJ9: ProductVariant 92 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:22 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order BEUUA319TDSE63B6: ProductVariant 94 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:22 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order 7JVDZ3KRZDYZQQ8V: ProductVariant 95 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:22 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order L2ZAX7GU998L57AF: ProductVariant 96 requested 1, allocated 0[39m 
+[33mwarn[39m [90m10/21/26, 11:22 AM -[39m [36m[StockMovementService][39m [33mStock shortfall on Order YLWU1ABYE6T5RSR4: ProductVariant 97 requested 1, allocated 0[39m 

@@ -1,0 +1,23 @@
+{
+  "setup": {
+    "argv": [
+      "node",
+      "setup.mjs"
+    ],
+    "duration_seconds": 0.096,
+    "exit_code": 1,
+    "reason": "fixture setup failed: exit 1",
+    "status": "error",
+    "stderr": "file:///private/var/folders/0m/gjc0mjb166jg6qhk3wnbh8zh0000gp/T/tmp.LnXy571XyL/stock/setup.mjs:3\nPrints one JSON line.\n       ^^^\n\nSyntaxError: Unexpected identifier 'one'\n    at compileSourceTextModule (node:internal/modules/esm/utils:355:16)\n    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:90:18)\n    at #translate (node:internal/modules/esm/loader:441:20)\n    at afterLoad (node:internal/modules/esm/loader:509:29)\n    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)\n    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)\n    at afterResolve (node:internal/modules/esm/loader:614:52)\n    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:620:12)\n    at node:internal/modules/esm/loader:639:32\n    at TracingChannel.tracePromise (node:diagnostics_channel:538:22)\n\nNode.js v26.7.0\n"
+  },
+  "teardown": {
+    "argv": [
+      "sh",
+      "teardown.sh"
+    ],
+    "duration_seconds": 0.013,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  }
+}

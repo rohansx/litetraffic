@@ -1,0 +1,18 @@
+name: vendure-stock
+script: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/vendure/scenarios/stock/journeys.js
+scenario sha256: 432c09c1c06d6d767c51065b02694cdc3a6deaaaec536d72c21a4341a8ffe0f8
+planned journeys: 20
+max journey requests: 160
+max observation requests: 1
+max journey writes: 120
+phase: burst  1s at 20/s
+assertion: clean_response
+assertion: charge_matches_rules
+assertion: orders_are_private
+assertion: stock_not_oversold
+stages checkout: in_cart -> paid
+fixture setup: node setup.mjs
+fixture teardown: sh teardown.sh
+fixture command file: setup.mjs
+fixture command file: teardown.sh
+observation stock_not_oversold expected: {"/data/productVariants/items/0/stockOnHand": 5, "/data/productVariants/items/0/stockAllocated": {"lte": 5}}

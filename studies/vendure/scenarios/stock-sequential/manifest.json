@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "name": "vendure-stock-sequential",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "shopper",
+      "count": 10,
+      "auth_recipe": "anonymous-session"
+    }
+  ],
+  "secret_env": [
+    "LT_VENDURE_AUTH"
+  ],
+  "fixtures": {
+    "recipe": "fresh-limited-stock-variant",
+    "command": {
+      "setup": [
+        "node",
+        "setup.mjs"
+      ],
+      "teardown": [
+        "sh",
+        "teardown.sh"
+      ],
+      "setup_timeout_seconds": 40,
+      "teardown_timeout_seconds": 10
+    }
+  },
+  "journeys": [
+    {
+      "name": "checkout",
+      "max_requests": 7,
+      "max_writes": 6,
+      "stages": [
+        "in_cart",
+        "paid"
+      ],
+      "expected_statuses": {
+        "add_item": [
+          200
+        ],
+        "set_customer": [
+          200
+        ],
+        "set_address": [
+          200
+        ],
+        "set_shipping": [
+          200
+        ],
+        "to_payment": [
+          200
+        ],
+        "pay": [
+          200
+        ]
+      }
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {
+        "name": "one_at_a_time",
+        "seconds": 10,
+        "rate": 1
+      }
+    ]
+  },
+  "assertions": [
+    "clean_response",
+    "charge_matches_rules",
+    "stock_ledger_consistent",
+    "paid_orders_within_stock"
+  ],
+  "observer": "vendure-stock-ledger",
+  "budgets": {
+    "max_seconds": 200,
+    "max_requests": 220,
+    "max_write_attempts": 140,
+    "max_in_flight": 3,
+    "max_artifact_bytes": 67108864
+  },
+  "observations": [
+    {
+      "path": "/admin-api?query=%7BproductVariants(options%3A%7Bsort%3A%7Bid%3ADESC%7D%2Ctake%3A1%7D)%7Bitems%7BstockOnHand%20stockAllocated%7D%7D%7D",
+      "assertion": "stock_ledger_consistent",
+      "headers_env": {
+        "Authorization": "LT_VENDURE_AUTH"
+      },
+      "expected": {
+        "/data/productVariants/items/0/stockOnHand": 5,
+        "/data/productVariants/items/0/stockAllocated": {
+          "lte": 5
+        }
+      }
+    },
+    {
+      "path": "__PAID_ORDERS_PATH__",
+      "assertion": "paid_orders_within_stock",
+      "headers_env": {
+        "Authorization": "LT_VENDURE_AUTH"
+      },
+      "expected": {
+        "/data/orders/totalItems": {
+          "lte": 5
+        }
+      }
+    }
+  ]
+}
