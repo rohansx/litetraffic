@@ -387,7 +387,7 @@ def reply(files):
 
 
 def draft_body(**changes):
-    return {"name": "shop", "app_description": "an online shop", "rules": "never oversell stock", "spec_text": "openapi: 3.0.0", "api_key": "sk-ant-test-key-123456"} | changes
+    return {"name": "shop", "app_description": "an online shop", "rules": "never oversell stock", "spec_text": "openapi: 3.0.0", "api_key": "fake-draft-key-for-tests"} | changes
 
 
 @pytest.fixture
@@ -412,11 +412,11 @@ def test_a_draft_job_repairs_its_own_invalid_bundle_and_returns_files(served, cl
     assert result["valid"] is True and result["attempts"] == 2 and result["tokens"] == {"input": 2000, "output": 400}
     assert set(result["files"]) == {"manifest.json", "journeys.js"} and result["name"] == "shop" and result["error"] is None
     assert any("attempt 1" in line for line in job["log"]) and any("valid" in line for line in job["log"])
-    assert claude["api_key"] == "sk-ant-test-key-123456"
+    assert claude["api_key"] == "fake-draft-key-for-tests"
     first = claude["client"].calls[0]
     prompt = json.dumps(first["messages"]) + json.dumps(first.get("system"))
     assert "never oversell stock" in prompt and "openapi: 3.0.0" in prompt and "inspect" not in first["messages"][-1]["content"][:0]
-    assert "sk-ant-test-key" not in json.dumps(job)
+    assert "fake-draft-key" not in json.dumps(job)
     assert call(served, "GET", "/api/library") == (200, [])  # drafts are reviewed and saved by the human, never auto-saved
 
 
@@ -447,11 +447,11 @@ def test_draft_inputs_are_checked(served, claude, monkeypatch):
 
 
 def test_the_server_key_is_used_when_the_request_has_none(served, claude, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-env-123456")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-env-key-for-tests")
     claude["client"] = FakeClaude([reply(CHECKOUT)])
     assert call(served, "GET", "/api/meta")[1]["console"]["ai"]["available"] is True
     wait_job(served, call(served, "POST", "/api/draft", draft_body(api_key=None), "draft-start")[1]["id"])
-    assert claude["api_key"] == "sk-ant-from-env-123456"
+    assert claude["api_key"] == "fake-env-key-for-tests"
 
 
 def test_the_authoring_guide_shipped_with_the_package_matches_the_docs():

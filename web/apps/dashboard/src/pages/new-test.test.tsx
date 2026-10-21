@@ -129,7 +129,7 @@ test("AI draft: asks for a key only when none is configured, polls the job, show
   const key = await screen.findByLabelText("Anthropic API key");
   expect(key).toHaveAttribute("type", "password");
   expect(submit).toBeDisabled();
-  await user.type(key, "sk-ant-test");
+  await user.type(key, "test-key-not-real");
   await user.click(submit);
 
   expect(await screen.findByRole("log", { name: "Draft progress" })).toHaveTextContent("attempt 1: asking the model for a scenario");
@@ -146,7 +146,7 @@ test("AI draft: asks for a key only when none is configured, polls the job, show
     name: "drafted-api",
     app_description: "A multi-tenant invoicing API.",
     rules: "A tenant never reads another tenant's invoices.",
-    api_key: "sk-ant-test",
+    api_key: "test-key-not-real",
   });
   await user.click(screen.getByRole("button", { name: "Save to library" }));
   expect(await screen.findByRole("form", { name: "Aim the test" })).toBeInTheDocument();
