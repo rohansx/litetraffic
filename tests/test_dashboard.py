@@ -204,7 +204,7 @@ def test_every_response_has_security_headers(server, path):
     assert headers["Referrer-Policy"] == "no-referrer"
 
 
-@pytest.mark.parametrize(("method", "expected"), [("POST", 403), ("PUT", 501), ("DELETE", 501)])
+@pytest.mark.parametrize(("method", "expected"), [("POST", 403), ("PUT", 501), ("PATCH", 501)])
 def test_unsupported_methods_are_rejected_with_security_headers(server, method, expected):
     status, headers, body = raw(server, "/api/runs", method=method)
 
@@ -257,7 +257,9 @@ def test_meta_reports_runs_dir_and_version(server, runs_dir):
     status, body = get_json(server, "/api/meta")
 
     assert status == 200
+    console = body.pop("console")
     assert body == {"explain_cli": explain.explain_provider(), "runs_dir": str(runs_dir.resolve()), "version": __version__}
+    assert set(console) == {"library_dir", "ai", "busy_job"}
 
 
 def test_api_runs_lists_every_kind_newest_first(server):

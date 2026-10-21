@@ -16,7 +16,7 @@ test("renders the app shell with sidebar navigation", async () => {
   stubFetch(200, []);
   render(<App />);
   expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
-  for (const name of ["Overview", "Runs", "Scenarios", "Compare", "About"]) {
+  for (const name of ["Overview", "New test", "Library", "Runs", "Scenarios", "Compare", "About"]) {
     expect(screen.getAllByRole("link", { name }).length).toBeGreaterThan(0);
   }
 });

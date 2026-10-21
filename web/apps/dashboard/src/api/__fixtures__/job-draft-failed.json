@@ -1,0 +1,32 @@
+{
+  "id": "job_20260923T071000Z_dd00ee11",
+  "kind": "draft",
+  "state": "failed",
+  "scenario": "drafted-api",
+  "target": null,
+  "seed": null,
+  "repeat": null,
+  "env_names": [],
+  "started_at": "2026-09-23T07:00:00+00:00",
+  "finished_at": "2026-09-23T07:10:20+00:00",
+  "exit_code": 1,
+  "verdict": null,
+  "run_id": null,
+  "log": [
+    "attempt 1: asking the model for a scenario",
+    "attempt 3: invalid"
+  ],
+  "result": {
+    "valid": false,
+    "files": {
+      "manifest.json": "{}"
+    },
+    "attempts": 3,
+    "tokens": {
+      "input": 9000,
+      "output": 2000
+    },
+    "error": "manifest.json: schedule is required",
+    "name": "drafted-api"
+  }
+}
