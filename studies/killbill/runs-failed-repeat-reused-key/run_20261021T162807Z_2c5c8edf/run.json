@@ -1,0 +1,21 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "engine_exit_code": null,
+  "finished_at": "2026-10-21T16:28:07.260777+00:00",
+  "lifecycle": "crashed",
+  "mode": "verify",
+  "resolved_schedule": [
+    {
+      "name": "burst",
+      "rate": 10,
+      "seconds": 1
+    }
+  ],
+  "run_id": "run_20261021T162807Z_2c5c8edf",
+  "scenario": "killbill-pay",
+  "scenario_sha256": "763cdfb54dc6f11d62f4f2264e584092879def60932bb0e9af58ddbb3e1a8ce8",
+  "schema_version": 1,
+  "seed": 104,
+  "started_at": "2026-10-21T16:28:07.076854+00:00",
+  "target": "http://127.0.0.1:8480"
+}

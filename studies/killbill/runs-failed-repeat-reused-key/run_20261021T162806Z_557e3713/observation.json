@@ -1,0 +1,7 @@
+[
+  {
+    "assertion": "invoice_paid_once",
+    "reason": "engine did not finish",
+    "status": "unknown"
+  }
+]

@@ -1,0 +1,3 @@
+seed 31: LiteTraffic verdict on Claude's draft = pass; shoppers who reached each stage: carted=13, payment_ready=7, paid=7  (stock was 5)
+seed 32: LiteTraffic verdict on Claude's draft = pass; shoppers who reached each stage: carted=10, payment_ready=7, paid=7  (stock was 5)
+seed 33: LiteTraffic verdict on Claude's draft = pass; shoppers who reached each stage: carted=10, payment_ready=7, paid=7  (stock was 5)

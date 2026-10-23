@@ -1,0 +1,12 @@
+concurrent seed 11: verdict: FAIL
+  verdict=fail shoppers_paid=12 refused=8 paid_orders_seen_by_vendure=12 ledger_allocated=5/5
+concurrent seed 12: verdict: PASS
+  verdict=pass shoppers_paid=5 refused=15 paid_orders_seen_by_vendure=5 ledger_allocated=5/5
+concurrent seed 13: verdict: FAIL
+  verdict=fail shoppers_paid=6 refused=14 paid_orders_seen_by_vendure=6 ledger_allocated=5/5
+concurrent seed 14: verdict: FAIL
+  verdict=fail shoppers_paid=6 refused=14 paid_orders_seen_by_vendure=6 ledger_allocated=5/5
+concurrent seed 15: verdict: FAIL
+  verdict=fail shoppers_paid=6 refused=14 paid_orders_seen_by_vendure=6 ledger_allocated=5/5
+burst with NO cart hold, seed 21: verdict: FAIL
+  verdict=fail shoppers_paid=6 refused=14 paid_orders_seen_by_vendure=6 ledger_allocated=5/5

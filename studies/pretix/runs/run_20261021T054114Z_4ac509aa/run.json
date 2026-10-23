@@ -1,0 +1,23 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "engine_exit_code": 0,
+  "engine_finished_at": "2026-10-21T05:41:16.263738+00:00",
+  "engine_started_at": "2026-10-21T05:41:14.823840+00:00",
+  "finished_at": "2026-10-21T05:41:17.341497+00:00",
+  "lifecycle": "finished",
+  "mode": "verify",
+  "resolved_schedule": [
+    {
+      "name": "burst",
+      "rate": 20,
+      "seconds": 1
+    }
+  ],
+  "run_id": "run_20261021T054114Z_4ac509aa",
+  "scenario": "canary-quota",
+  "scenario_sha256": "9c06b5910ed8cbac73b8a3ea9c25b4dddd757ff9756670d568f4333c391df6c3",
+  "schema_version": 1,
+  "seed": 2,
+  "started_at": "2026-10-21T05:41:14.544822+00:00",
+  "target": "http://localhost:8345"
+}

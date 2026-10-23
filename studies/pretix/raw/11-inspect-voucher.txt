@@ -1,0 +1,19 @@
+name: pretix-voucher
+script: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/pretix/scenarios/voucher/journeys.js
+scenario sha256: 5b019bcb41543e974eebe08bd6b221a736e35d138906eadcd0a01738d91e501e
+planned journeys: 10
+max journey requests: 10
+max observation requests: 2
+max journey writes: 10
+phase: burst  1s at 10/s
+assertion: clean_response
+assertion: charge_matches_rules
+assertion: voucher_counter_within_limit
+assertion: voucher_orders_within_limit
+stages buy: ordered
+fixture setup: sh setup.sh voucher
+fixture teardown: sh teardown.sh
+fixture command file: setup.sh
+fixture command file: teardown.sh
+observation voucher_counter_within_limit expected: {"/results/0/redeemed": {"lte": 1}, "/results/0/max_usages": 1}
+observation voucher_orders_within_limit expected: {"/count": {"lte": 1}}

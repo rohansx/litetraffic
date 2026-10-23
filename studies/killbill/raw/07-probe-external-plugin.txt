@@ -1,0 +1,18 @@
+--- purchase 100, then ONE refund of 150
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/ef66809e-d860-42a7-9a1c-b3bd9f0828bd/
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/ef66809e-d860-42a7-9a1c-b3bd9f0828bd/
+"purchasedAmount":100.00
+"refundedAmount":150.00
+--- auth 100, capture 100, refund 60, refund 60
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/419c55a0-14f6-4a05-a094-2a0625b13157/
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/419c55a0-14f6-4a05-a094-2a0625b13157/
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/419c55a0-14f6-4a05-a094-2a0625b13157/
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/419c55a0-14f6-4a05-a094-2a0625b13157/
+"capturedAmount":100.00
+"refundedAmount":120.00

@@ -1,0 +1,187 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "id": "charge_matches_rules",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/data/productVariants/items/0/stockAllocated": 5,
+        "/data/productVariants/items/0/stockOnHand": 5
+      },
+      "expected": {
+        "/data/productVariants/items/0/stockAllocated": {
+          "lte": 5
+        },
+        "/data/productVariants/items/0/stockOnHand": {
+          "gte": 0
+        }
+      },
+      "id": "stock_ledger_not_oversold",
+      "samples": 1,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/data/orders/totalItems": 7
+      },
+      "expected": {
+        "/data/orders/totalItems": {
+          "lte": 5
+        }
+      },
+      "id": "paid_orders_not_oversold",
+      "samples": 1,
+      "status": "fail"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T06:00:34.622487+00:00",
+  "journeys": {
+    "checkout": {
+      "stages": [
+        {
+          "name": "in_cart",
+          "reached": 11
+        },
+        {
+          "name": "customer_set",
+          "reached": 11
+        },
+        {
+          "name": "address_set",
+          "reached": 11
+        },
+        {
+          "name": "shipping_set",
+          "reached": 11
+        },
+        {
+          "name": "arranging_payment",
+          "reached": 7
+        },
+        {
+          "name": "paid",
+          "reached": 7
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 9
+        },
+        {
+          "after": "in_cart",
+          "count": 0
+        },
+        {
+          "after": "customer_set",
+          "count": 0
+        },
+        {
+          "after": "address_set",
+          "count": 0
+        },
+        {
+          "after": "shipping_set",
+          "count": 4
+        },
+        {
+          "after": "arranging_payment",
+          "count": 0
+        }
+      ],
+      "started": 20,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "add_item": {
+        "failed_rate": 0.0,
+        "p95": 84.505,
+        "samples": 20
+      },
+      "pay": {
+        "failed_rate": 0.0,
+        "p95": 120.361,
+        "samples": 7
+      },
+      "set_address": {
+        "failed_rate": 0.0,
+        "p95": 44.073,
+        "samples": 11
+      },
+      "set_customer": {
+        "failed_rate": 0.0,
+        "p95": 24.373,
+        "samples": 11
+      },
+      "set_shipping": {
+        "failed_rate": 0.0,
+        "p95": 60.288,
+        "samples": 11
+      },
+      "to_arranging_payment": {
+        "failed_rate": 0.0,
+        "p95": 81.587,
+        "samples": 11
+      }
+    },
+    "elapsed_seconds": 1.707589,
+    "http_req_duration_ms": {
+      "average": 52.071,
+      "max": 127.464,
+      "p50": 45.109,
+      "p95": 92.619,
+      "samples": 71
+    },
+    "http_req_failed_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 71
+    },
+    "http_reqs": 71.0,
+    "http_reqs_per_second": 47.979,
+    "iterations": 20.0,
+    "iterations_per_second": 13.515,
+    "observer_requests": 2,
+    "overlap": {
+      "add_item": 2,
+      "pay": 3,
+      "set_address": 1,
+      "set_customer": 1,
+      "set_shipping": 2,
+      "to_arranging_payment": 2
+    },
+    "total_http_reqs": 73.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 71
+    },
+    "vus_max": 20,
+    "write_attempts": 71
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 20,
+  "planned_journeys_per_second": 20.0,
+  "report": "report.html",
+  "run_id": "run_20261021T060032Z_74028bde",
+  "schema_version": 1,
+  "seed": 42,
+  "verdict": "fail"
+}

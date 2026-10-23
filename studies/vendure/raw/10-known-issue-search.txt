@@ -1,0 +1,11 @@
+== issues/PRs: stock shortfall
+== issues/PRs: oversell
+#4152 [open] Design: Order Concurrency Improvements 2026-09-02
+#3508 [closed] Concurrent Checkout Causes Stock Oversell When Only One Item Is Available 2026-08-19
+== issues/PRs: overselling race
+== docs mention
+shop/node_modules/@vendure/core/dist/config/catalog/default-stock-location-strategy.d.ts:69: * {@link StockShortfallEvent} reports the shortfall. The customer has already paid at that point,
+shop/node_modules/@vendure/core/dist/event-bus/events/stock-shortfall-event.d.ts:14:export interface StockShortfall {
+shop/node_modules/@vendure/core/dist/event-bus/events/stock-shortfall-event.d.ts:35:export declare class StockShortfallEvent extends VendureEvent {
+shop/node_modules/@vendure/core/dist/event-bus/events/stock-shortfall-event.d.ts:38:    shortfalls: StockShortfall[];
+shop/node_modules/@vendure/core/dist/event-bus/events/stock-shortfall-event.d.ts:39:    constructor(ctx: RequestContext, order: Order, shortfalls: StockShortfall[]);

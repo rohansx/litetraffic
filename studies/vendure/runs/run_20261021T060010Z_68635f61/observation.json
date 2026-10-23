@@ -1,0 +1,55 @@
+[
+  {
+    "actual": {
+      "/data/productVariants/items/0/stockAllocated": 5,
+      "/data/productVariants/items/0/stockOnHand": 5
+    },
+    "assertion": "stock_ledger_not_oversold",
+    "checks": {
+      "/data/productVariants/items/0/stockAllocated": {
+        "actual": 5,
+        "matcher": {
+          "lte": 5
+        },
+        "pass": true
+      },
+      "/data/productVariants/items/0/stockOnHand": {
+        "actual": 5,
+        "matcher": {
+          "gte": 0
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "/data/productVariants/items/0/stockAllocated": {
+        "lte": 5
+      },
+      "/data/productVariants/items/0/stockOnHand": {
+        "gte": 0
+      }
+    },
+    "status": "pass"
+  },
+  {
+    "actual": {
+      "/data/orders/totalItems": 7
+    },
+    "assertion": "paid_orders_not_oversold",
+    "checks": {
+      "/data/orders/totalItems": {
+        "actual": 7,
+        "matcher": {
+          "lte": 5
+        },
+        "pass": false
+      }
+    },
+    "expected": {
+      "/data/orders/totalItems": {
+        "lte": 5
+      }
+    },
+    "status": "fail"
+  }
+]

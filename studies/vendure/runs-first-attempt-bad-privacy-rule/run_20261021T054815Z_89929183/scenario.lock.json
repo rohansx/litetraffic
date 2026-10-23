@@ -1,0 +1,110 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "files": {
+    "journeys.js": "82f14f000f6733238370d29553a31b944e69c64b3b5d5e2894ddf6a2d6095fc2",
+    "litetraffic/runtime.js": "979b15b7f0de93e99787947bedeb54a512781d61dbc76948689915d9c6b567b3",
+    "setup.mjs": "c87632aa7f4cf3f41505aa85412ce6c5bd0c8fd7b6faf41db614865f7c3b25cc",
+    "teardown.sh": "5f0eb5e5312c90635976b8d27fd08ff82c685f7f10159c68b734b1a423ec9850"
+  },
+  "manifest": {
+    "actors": [
+      {
+        "auth_recipe": "anonymous-session",
+        "class": "shopper",
+        "count": 20
+      }
+    ],
+    "assertions": [
+      "clean_response",
+      "charge_matches_rules",
+      "orders_are_private",
+      "stock_not_oversold"
+    ],
+    "budgets": {
+      "max_artifact_bytes": 67108864,
+      "max_in_flight": 20,
+      "max_requests": 220,
+      "max_seconds": 150,
+      "max_write_attempts": 140
+    },
+    "fixtures": {
+      "command": {
+        "setup": [
+          "node",
+          "setup.mjs"
+        ],
+        "setup_timeout_seconds": 40,
+        "teardown": [
+          "sh",
+          "teardown.sh"
+        ],
+        "teardown_timeout_seconds": 10
+      },
+      "recipe": "fresh-limited-stock-variant"
+    },
+    "journeys": [
+      {
+        "expected_statuses": {
+          "add_item": [
+            200
+          ],
+          "pay": [
+            200
+          ],
+          "peek_other_order": [
+            200
+          ],
+          "set_address": [
+            200
+          ],
+          "set_customer": [
+            200
+          ],
+          "set_shipping": [
+            200
+          ],
+          "to_payment": [
+            200
+          ]
+        },
+        "max_requests": 8,
+        "max_writes": 6,
+        "name": "checkout",
+        "stages": [
+          "in_cart",
+          "paid"
+        ]
+      }
+    ],
+    "name": "vendure-stock",
+    "observation": {
+      "assertion": "stock_not_oversold",
+      "expected": {
+        "/data/productVariants/items/0/stockAllocated": {
+          "lte": 5
+        },
+        "/data/productVariants/items/0/stockOnHand": 5
+      },
+      "headers_env": {
+        "Authorization": "LT_VENDURE_AUTH"
+      },
+      "path": "/admin-api?query=%7BproductVariants(options%3A%7Bsort%3A%7Bid%3ADESC%7D%2Ctake%3A1%7D)%7Bitems%7BstockOnHand%20stockAllocated%7D%7D%7D"
+    },
+    "observer": "vendure-stock-ledger",
+    "schedule": {
+      "phases": [
+        {
+          "name": "burst",
+          "rate": 20,
+          "seconds": 1
+        }
+      ],
+      "unit": "journeys_per_second"
+    },
+    "schema_version": 1,
+    "script": "journeys.js",
+    "secret_env": [
+      "LT_VENDURE_AUTH"
+    ]
+  }
+}

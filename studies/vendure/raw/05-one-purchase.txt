@@ -1,0 +1,44 @@
+
+### admin login  [admin-api] HTTP 200
+mutation { login(username:"superadmin", password:"superadmin"){ ... on CurrentUser{ id } ... on ErrorResult{ m
+=> {"data":{"login":{"id":"1"}}}
+
+### read stock settings  [admin-api] HTTP 200
+{ productVariants(options:{take:3}){ items{ id name sku stockOnHand trackInventory outOfStockThreshold } } }
+=> {"data":{"productVariants":{"items":[{"id":"1","name":"Laptop 13 inch 8GB","sku":"L2201308","stockOnHand":100,"trackInventory":"INHERIT","outOfStockThreshold":0},{"id":"2","name":"Laptop 15 inch 8GB","sku":"L2201508","stockOnHand":100,"trackInventory":"INHERIT","outOfStockThreshold":0},{"id":"3","name":"Laptop 13 inch 16GB","sku":"L2201316","stockOnHand":100,"trackInventory":"INHERIT","outOfStockThreshold":0}]}}}
+
+### buyer: add 1 laptop to cart  [shop-api] HTTP 200
+mutation { addItemToOrder(productVariantId:"1", quantity:1){ ... on Order{ id code state totalWithTax } ... on
+=> {"data":{"addItemToOrder":{"id":"1","code":"RSWK2BC5C8LAH684","state":"AddingItems","totalWithTax":155880}}}
+
+### buyer: set customer  [shop-api] HTTP 200
+mutation { setCustomerForOrder(input:{emailAddress:"probe@example.com", firstName:"P", lastName:"B"}){ ... on 
+=> {"data":{"setCustomerForOrder":{"id":"1"}}}
+
+### buyer: shipping address  [shop-api] HTTP 200
+mutation { setOrderShippingAddress(input:{fullName:"P B", streetLine1:"1 Test St", city:"Town", postalCode:"12
+=> {"data":{"setOrderShippingAddress":{"id":"1"}}}
+
+### buyer: list shipping methods  [shop-api] HTTP 200
+{ eligibleShippingMethods{ id code price } }
+=> {"data":{"eligibleShippingMethods":[{"id":"1","code":"standard-shipping","price":500},{"id":"2","code":"express-shipping","price":1000}]}}
+
+### buyer: choose shipping  [shop-api] HTTP 200
+mutation { setOrderShippingMethod(shippingMethodId:["1"]){ ... on Order{ id } ... on ErrorResult{ errorCode me
+=> {"data":{"setOrderShippingMethod":{"id":"1"}}}
+
+### buyer: move to payment  [shop-api] HTTP 200
+mutation { transitionOrderToState(state:"ArrangingPayment"){ ... on Order{ id state } ... on OrderStateTransit
+=> {"data":{"transitionOrderToState":{"id":"1","state":"ArrangingPayment"}}}
+
+### buyer: list payment methods  [shop-api] HTTP 200
+{ eligiblePaymentMethods{ id code isEligible } }
+=> {"data":{"eligiblePaymentMethods":[{"id":"1","code":"standard-payment","isEligible":true}]}}
+
+### buyer: pay  [shop-api] HTTP 200
+mutation { addPaymentToOrder(input:{method:"standard-payment", metadata:{}}){ ... on Order{ id code state tota
+=> {"data":{"addPaymentToOrder":{"id":"1","code":"RSWK2BC5C8LAH684","state":"PaymentAuthorized","totalWithTax":156380}}}
+
+### read stock after  [admin-api] HTTP 200
+{ productVariants(options:{take:1}){ items{ id stockOnHand stockAllocated } } }
+=> {"data":{"productVariants":{"items":[{"id":"1","stockOnHand":100,"stockAllocated":1}]}}}

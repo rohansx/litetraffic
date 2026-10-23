@@ -1,0 +1,53 @@
+[
+  {
+    "actual": {
+      "/results/0/max_usages": 1,
+      "/results/0/redeemed": 1
+    },
+    "assertion": "voucher_counter_within_limit",
+    "checks": {
+      "/results/0/max_usages": {
+        "actual": 1,
+        "matcher": {
+          "eq": 1
+        },
+        "pass": true
+      },
+      "/results/0/redeemed": {
+        "actual": 1,
+        "matcher": {
+          "lte": 1
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "/results/0/max_usages": 1,
+      "/results/0/redeemed": {
+        "lte": 1
+      }
+    },
+    "status": "pass"
+  },
+  {
+    "actual": {
+      "/count": 1
+    },
+    "assertion": "voucher_orders_within_limit",
+    "checks": {
+      "/count": {
+        "actual": 1,
+        "matcher": {
+          "lte": 1
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "/count": {
+        "lte": 1
+      }
+    },
+    "status": "pass"
+  }
+]

@@ -1,0 +1,6 @@
+{
+ "model": "claude-sonnet-5-5",
+ "input_tokens": 55660,
+ "output_tokens": 12000,
+ "stop_reason": "max_tokens"
+}

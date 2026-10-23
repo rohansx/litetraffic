@@ -1,0 +1,23 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "engine_exit_code": 0,
+  "engine_finished_at": "2026-10-21T05:57:53.324717+00:00",
+  "engine_started_at": "2026-10-21T05:57:51.901720+00:00",
+  "finished_at": "2026-10-21T05:57:53.381755+00:00",
+  "lifecycle": "finished",
+  "mode": "verify",
+  "resolved_schedule": [
+    {
+      "name": "burst",
+      "rate": 20,
+      "seconds": 1
+    }
+  ],
+  "run_id": "run_20261021T055751Z_31817667",
+  "scenario": "vendure-stock-checkout",
+  "scenario_sha256": "d19e4732a91a93468f24289440bd44b9f42b885bcb1702c411379a0ba216bab5",
+  "schema_version": 1,
+  "seed": 32,
+  "started_at": "2026-10-21T05:57:51.757904+00:00",
+  "target": "http://localhost:3000"
+}

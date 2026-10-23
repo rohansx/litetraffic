@@ -1,0 +1,6 @@
+HTTP/1.1 401 
+Set-Cookie: rememberMe=deleteMe; Path=/; Max-Age=0; Expires=Tue, 20-Oct-2026 16:18:49 GMT; SameSite=lax
+WWW-Authenticate: BASIC realm="application"
+Content-Length: 0
+Date: Wed, 21 Oct 2026 16:18:49 GMT
+

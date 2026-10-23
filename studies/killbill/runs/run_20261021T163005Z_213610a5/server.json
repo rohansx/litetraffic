@@ -1,0 +1,25 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 85.88,
+      "baseline_mem_mb": 982.3,
+      "error_lines": 9,
+      "log_lines": 31,
+      "peak_at": "2026-10-21T16:30:06.899788+00:00",
+      "peak_cpu_percent": 85.88,
+      "peak_mem_mb": 982.3,
+      "signatures": [
+        {
+          "count": 9,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:06.171Z\",\"message\":\"Bad request\",\"logger_name\":\"org.killbill.billing.server.providers.KillbillExceptionListener\",\"thread_name\":\"catalina-exec-2\",\"level\":\"WARN\",\"req.requestURI\":\"/1.0/kb/invoices/e0e393af-f63a-478f-bf2c-74e1db9f240e\",\"kb.tenantRecordId\":\"3\",\"kb.userTok",
+          "first_seen": "2026-10-21T16:30:06.172057607Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

@@ -1,0 +1,27 @@
+# pretix 2026.8.0 (current stable), local only. Ports bind to 127.0.0.1.
+name: lt-pretix
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pretix
+      POSTGRES_PASSWORD: pretix-local-only
+      POSTGRES_DB: pretix
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "pretix"]
+      interval: 2s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+  pretix:
+    image: pretix/standalone@sha256:aad860a49a1e3307e7bfb9ae3b2dc44714269d4706a2d04ac841299405758717
+    platform: linux/amd64
+    command: all
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_started}
+    ports: ["127.0.0.1:8345:80"]
+    environment:
+      NUM_WORKERS: "4"
+    volumes:
+      - ./pretix.cfg:/etc/pretix/pretix.cfg:ro

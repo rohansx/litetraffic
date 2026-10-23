@@ -1,0 +1,21 @@
+[
+  {
+    "actual": {
+      "/accountBalance": 0.0
+    },
+    "assertion": "line_adjusted_once",
+    "checks": {
+      "/accountBalance": {
+        "actual": 0.0,
+        "matcher": {
+          "eq": 0
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "/accountBalance": 0
+    },
+    "status": "pass"
+  }
+]

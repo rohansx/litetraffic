@@ -1,0 +1,22 @@
+{
+  "setup": {
+    "argv": [
+      "node",
+      "setup.mjs"
+    ],
+    "duration_seconds": 0.552,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  },
+  "teardown": {
+    "argv": [
+      "sh",
+      "teardown.sh"
+    ],
+    "duration_seconds": 0.013,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  }
+}

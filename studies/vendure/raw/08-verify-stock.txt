@@ -1,0 +1,8 @@
+verdict: FAIL  lifecycle: finished  journeys: 20/20
+clean_response  pass  20
+charge_matches_rules  pass  20
+orders_are_private  fail  20
+stock_not_oversold  pass  1
+unexpected HTTP failure rate: 0.0% (0/128)
+report: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/vendure/runs/run_20261021T054815Z_89929183/report.html
+exit=1

@@ -1,0 +1,52 @@
+{
+  "files": [
+    {
+      "bytes": 28,
+      "path": "engine.stderr.log",
+      "sha256": "a629afe095283fdfe6e23272a539c58a48ae03a9a857eec7f4c6d7acf889efd8"
+    },
+    {
+      "bytes": 0,
+      "path": "engine.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 0,
+      "path": "events/000001.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 638,
+      "path": "fixture.json",
+      "sha256": "6c205221ce9c7fca478fbf6ac75543f809af43e25d9843d5bd310e95acc5200d"
+    },
+    {
+      "bytes": 121,
+      "path": "observation.json",
+      "sha256": "8f3dfe30e52b79d2a1c91f9f552d450e49815d15f49be737ec3a72797b10a773"
+    },
+    {
+      "bytes": 2399,
+      "path": "report.html",
+      "sha256": "fd583b4ca2dc61a6a65ae8ca3bedf68d664ad9d8825ca7097c1136f4ba491bd3"
+    },
+    {
+      "bytes": 1613,
+      "path": "result.json",
+      "sha256": "2d110e0f5af45070f0b1cf00e16f1a0848e7fcb67e4effcf4993f93f0d7bfca8"
+    },
+    {
+      "bytes": 596,
+      "path": "run.json",
+      "sha256": "5d495b1906835b7505c471a4bad19b966aa1dce8dab16ef5ae023b1629460e2c"
+    },
+    {
+      "bytes": 3856,
+      "path": "scenario.lock.json",
+      "sha256": "4261cd7230dbc9b808e15b841cc355481676d0fc9bbf6ce65f01c61c0a80574e"
+    }
+  ],
+  "run_id": "run_20261021T162803Z_0f133abd",
+  "schema_version": 1,
+  "total_bytes": 9251
+}

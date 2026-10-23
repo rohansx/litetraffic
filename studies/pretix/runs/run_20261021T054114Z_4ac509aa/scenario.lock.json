@@ -1,0 +1,94 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "files": {
+    "journeys.js": "69900209376d8faa3125e231503282bc58f4c0cf7fa7d0ee19f6e476a4cfa8fe",
+    "litetraffic/runtime.js": "979b15b7f0de93e99787947bedeb54a512781d61dbc76948689915d9c6b567b3",
+    "setup.sh": "9017dfcf6f6b407e57d60a9d758907b96fff1e9501c3b24fefdc72bec7bdb793",
+    "teardown.sh": "095e3c87228443b3c3f94b6ffd9076878c864926e4141708378d515254dfd109"
+  },
+  "manifest": {
+    "actors": [
+      {
+        "auth_recipe": "api-token",
+        "class": "buyer",
+        "count": 20
+      }
+    ],
+    "assertions": [
+      "clean_response",
+      "charge_matches_rules",
+      "quota_not_oversold"
+    ],
+    "budgets": {
+      "max_artifact_bytes": 67108864,
+      "max_in_flight": 20,
+      "max_requests": 200,
+      "max_seconds": 150,
+      "max_write_attempts": 100
+    },
+    "fixtures": {
+      "command": {
+        "setup": [
+          "sh",
+          "setup.sh",
+          "quota"
+        ],
+        "setup_timeout_seconds": 40,
+        "teardown": [
+          "sh",
+          "teardown.sh"
+        ],
+        "teardown_timeout_seconds": 30
+      },
+      "recipe": "fresh-quota-fixture"
+    },
+    "journeys": [
+      {
+        "expected_statuses": {
+          "place_order": [
+            201,
+            400,
+            409
+          ]
+        },
+        "max_requests": 1,
+        "max_writes": 1,
+        "name": "buy",
+        "stages": [
+          "ordered"
+        ]
+      }
+    ],
+    "name": "canary-quota",
+    "observations": [
+      {
+        "assertion": "quota_not_oversold",
+        "expected": {
+          "/count": {
+            "lte": 4
+          }
+        },
+        "headers_env": {
+          "Authorization": "LT_PRETIX_AUTH"
+        },
+        "path": "/api/v1/organizers/study/events/lab/orderpositions/"
+      }
+    ],
+    "observer": "pretix-records",
+    "schedule": {
+      "phases": [
+        {
+          "name": "burst",
+          "rate": 20,
+          "seconds": 1
+        }
+      ],
+      "unit": "journeys_per_second"
+    },
+    "schema_version": 1,
+    "script": "journeys.js",
+    "secret_env": [
+      "LT_PRETIX_AUTH"
+    ]
+  }
+}

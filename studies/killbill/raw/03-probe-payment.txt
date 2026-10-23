@@ -1,0 +1,19 @@
+account 370cde87-81a3-44ec-b9ee-b2d08a9ff8ca
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/paymentMethods/047862bf-3404-4b63-b911-620c4d85efbe
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/6a1f67d3-0d3c-48ea-85a2-e34cecfda557/
+payment 6a1f67d3-0d3c-48ea-85a2-e34cecfda557
+HTTP/1.1 200 
+{"accountId":"370cde87-81a3-44ec-b9ee-b2d08a9ff8ca","paymentId":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","paymentNumber":"1","paymentExternalKey":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","authAmount":0,"capturedAmount":0,"purchasedAmount":100.00,"refundedAmount":0,"creditedAmount":0,"currency":"USD","paymentMethodId":"047862bf-3404-4b63-b911-620c4d85efbe","transactions":[{"transactionId":"06acc675-3f14-4be6-9301-eed4f3cd7746","transactionExternalKey":"06acc675-3f14-4be6-9301-eed4f3cd7746","paymentId":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","paymentExternalKey":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","transactionType":"PURCHASE","amount":100.00,"currency":"USD","effectiveDate":"2026-10-21T16:19:44.000Z","processedAmount":100.00,"processedCurrency":"USD","status":"SUCCESS","gatewayErrorCode":null,"gatewayErrorMsg":null,"firstPaymentReferenceId":null,"secondPaymentReferenceId":null,"properties":null,"auditLogs":[]}],"paymentAttempts":null,"auditLogs":[]}
+--- refund 60
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/6a1f67d3-0d3c-48ea-85a2-e34cecfda557/
+--- refund 60 again (should be refused: 120 > 100)
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/6a1f67d3-0d3c-48ea-85a2-e34cecfda557/
+HTTP/1.1 200 
+{"accountId":"370cde87-81a3-44ec-b9ee-b2d08a9ff8ca","paymentId":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","paymentNumber":"1","paymentExternalKey":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","authAmount":0,"capturedAmount":0,"purchasedAmount":100.00,"refundedAmount":120.00,"creditedAmount":0,"currency":"USD","paymentMethodId":"047862bf-3404-4b63-b911-620c4d85efbe","transactions":[{"transactionId":"06acc675-3f14-4be6-9301-eed4f3cd7746","transactionExternalKey":"06acc675-3f14-4be6-9301-eed4f3cd7746","paymentId":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","paymentExternalKey":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","transactionType":"PURCHASE","amount":100.00,"currency":"USD","effectiveDate":"2026-10-21T16:19:44.000Z","processedAmount":100.00,"processedCurrency":"USD","status":"SUCCESS","gatewayErrorCode":null,"gatewayErrorMsg":null,"firstPaymentReferenceId":null,"secondPaymentReferenceId":null,"properties":null,"auditLogs":[]},{"transactionId":"06ad44b4-a14a-4d78-8b28-19056d625046","transactionExternalKey":"06ad44b4-a14a-4d78-8b28-19056d625046","paymentId":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","paymentExternalKey":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","transactionType":"REFUND","amount":60.00,"currency":"USD","effectiveDate":"2026-10-21T16:19:44.000Z","processedAmount":60.00,"processedCurrency":"USD","status":"SUCCESS","gatewayErrorCode":null,"gatewayErrorMsg":null,"firstPaymentReferenceId":null,"secondPaymentReferenceId":null,"properties":null,"auditLogs":[]},{"transactionId":"5f303fc4-f9b5-4e69-9ea6-d82ce71b4ddd","transactionExternalKey":"5f303fc4-f9b5-4e69-9ea6-d82ce71b4ddd","paymentId":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","paymentExternalKey":"6a1f67d3-0d3c-48ea-85a2-e34cecfda557","transactionType":"REFUND","amount":60.00,"currency":"USD","effectiveDate":"2026-10-21T16:19:44.000Z","processedAmount":60.00,"processedCurrency":"USD","status":"SUCCESS","gatewayErrorCode":null,"gatewayErrorMsg":null,"firstPaymentReferenceId":null,"secondPaymentReferenceId":null,"properties":null,"auditLogs":[]}],"paymentAttempts":null,"auditLogs":[]}
+--- tenant B reads tenant A account
+HTTP/1.1 500 
+{"className":"java.lang.IllegalStateException","code":null,"message":"Object id=370cde87-81a3-44ec-b9ee-b2d08a9ff8ca type=ACCOUNT doesn't belong to tenant id=e1a0e222-9464-4248-afff-fb724577843b","causeClassName":null,"causeMessage":null,"stackTrace":[]}

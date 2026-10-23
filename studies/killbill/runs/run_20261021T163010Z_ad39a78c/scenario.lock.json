@@ -1,0 +1,103 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "files": {
+    "journeys.js": "fa48c2da783a3ed8d61a2782e714d3710658e4bdc269e7b9805b598a70a1038d",
+    "litetraffic/runtime.js": "979b15b7f0de93e99787947bedeb54a512781d61dbc76948689915d9c6b567b3",
+    "setup.py": "53f6c38a162090dc14f774e54f3b5b2b1ba4cfe29587bc7be3593dce6f55b31f",
+    "teardown.sh": "4315218829ebc12f62d101691d0a8cb7121d1ca19d560464249a93151c01ee0d"
+  },
+  "manifest": {
+    "actors": [
+      {
+        "auth_recipe": "api-key-and-secret",
+        "class": "client",
+        "count": 10
+      }
+    ],
+    "assertions": [
+      "clean_response",
+      "line_adjusted_once"
+    ],
+    "budgets": {
+      "max_artifact_bytes": 67108864,
+      "max_in_flight": 10,
+      "max_requests": 400,
+      "max_seconds": 150,
+      "max_write_attempts": 200
+    },
+    "fixtures": {
+      "command": {
+        "setup": [
+          "python3",
+          "setup.py",
+          "adjust"
+        ],
+        "setup_timeout_seconds": 40,
+        "teardown": [
+          "sh",
+          "teardown.sh"
+        ],
+        "teardown_timeout_seconds": 10
+      },
+      "recipe": "fresh-account-per-run"
+    },
+    "journeys": [
+      {
+        "expected_statuses": {
+          "adjust": [
+            200,
+            201,
+            204,
+            400,
+            401,
+            403,
+            404,
+            409,
+            422
+          ]
+        },
+        "max_requests": 1,
+        "max_writes": 1,
+        "name": "client",
+        "stages": [
+          "adjustment_accepted"
+        ]
+      }
+    ],
+    "name": "killbill-adjust",
+    "observations": [
+      {
+        "assertion": "line_adjusted_once",
+        "expected": {
+          "/accountBalance": 0
+        },
+        "headers_env": {
+          "Authorization": "LT_KB_AUTH",
+          "X-Killbill-ApiKey": "LT_KB_KEY",
+          "X-Killbill-ApiSecret": "LT_KB_SECRET"
+        },
+        "path": "/1.0/kb/accounts?externalKey=lt163010604f28&accountWithBalance=true"
+      }
+    ],
+    "observer": "killbill-records",
+    "schedule": {
+      "phases": [
+        {
+          "name": "burst",
+          "rate": 10,
+          "seconds": 1
+        }
+      ],
+      "unit": "journeys_per_second"
+    },
+    "schema_version": 1,
+    "script": "journeys.js",
+    "secret_env": [
+      "LT_KB_AUTH",
+      "LT_KB_KEY",
+      "LT_KB_SECRET",
+      "LT_KB_KEY_B",
+      "LT_KB_SECRET_B"
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 3.0,
+      "baseline_mem_mb": 983.1,
+      "error_lines": 10,
+      "log_lines": 59,
+      "peak_at": "2026-10-21T16:30:30.963199+00:00",
+      "peak_cpu_percent": 16.47,
+      "peak_mem_mb": 983.6,
+      "signatures": [
+        {
+          "count": 9,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:29.017Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='76ac1be7-9d19-4bc1-999e-e166cc384787', paymentControlPluginNames='__INVOICE_PAYMENT_CONTROL_PLUGIN__', aborted=true, error='PAYMENT_PLUGIN_API_ABORTED', exception='Control plugin aborted ca",
+          "first_seen": "2026-10-21T16:30:29.017744983Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        },
+        {
+          "count": 1,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:29.665Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='76ac1be7-9d19-4bc1-999e-e166cc384787', paymentControlPluginNames='__INVOICE_PAYMENT_CONTROL_PLUGIN__', aborted=true, error='PAYMENT_PLUGIN_API_ABORTED', exception='Control plugin aborted ca",
+          "first_seen": "2026-10-21T16:30:29.666815445Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

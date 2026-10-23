@@ -1,0 +1,22 @@
+fix(core): Prevent stock oversell under concurrent checkout [MERGED] merged 2026-08-12T15:53:35Z
+Fixes #1738
+
+## Problem
+
+Stock can be oversold under concurrency. The saleable-stock **check** (`AddingItems → ArrangingPayment`) and stock **allocation** (`ArrangingPayment → PaymentSettled/Authorized`) run in **different transitions / transactions** with unlocked reads. Between them, other orders can deplete stock; the later allocation then oversells — or, with the default multi-location strategy, silently under-allocates a paid order. Additionally, `StockLevelService` writes were non-atomic read-modify-write with no clamp, allowing lost updates and negative stock values.
+
+## Changes
+
+### Atomic, clamped stock writes
+`StockLevelService.updateStockOnHandForLocation` / `updateStockAllocatedForLocation` now perform the read-modify-write under a pessimistic row lock and clamp `stockAllocated` at ≥ 0 (and never create a `StockLevel` with a negative value). This removes the lost-update race and prevents negative stock.
+
+### Locked re-check at allocation
+`StockMovementService.createAllocationsForOrderLines` acquires a `pessimistic_write` lock on the variant's `StockLevel` rows before computing allocation, so concurrent settlements can no longer consume the same units. The default location strategy already caps allocation to availability; the lock makes that re-check race-free (the locking read is also the freshness re-check, MySQL REPEATABLE-READ-safe).
+
+### `StockShortfallEvent` (new)
+When allocation cannot fully satisfy a line because stock was depleted since checkout, allocation is capped to what is available and a new `StockShortfallEvent` (order + per-line `requested`/`allocated`) is published. Because the payment may already be captured (async gateways), allocation is **not** hard-failed — plugins react to the event (refund, backorder, notify).
+
+## Notes
+- Allocation timing unchanged; no new config option; backward compatible.
+- SQLite is single-writer and not a concurrency-safe production driver — the lock is a documented no-op there (a concurrent write surfaces as `SQLITE_BUSY`, not a silent lost update).
+- Known edge (noted in code): a brand-new variant with no `StockLevel` row yet is not covered by the row lock; concurrent inserts would collide on the uniqu

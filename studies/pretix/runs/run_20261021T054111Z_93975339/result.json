@@ -1,0 +1,115 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 100,
+      "status": "pass"
+    },
+    {
+      "id": "charge_matches_rules",
+      "samples": 100,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/results/0/max_usages": 1,
+        "/results/0/redeemed": 1
+      },
+      "expected": {
+        "/results/0/max_usages": 1,
+        "/results/0/redeemed": {
+          "lte": 1
+        }
+      },
+      "id": "voucher_counter_within_limit",
+      "samples": 1,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/count": 1
+      },
+      "expected": {
+        "/count": {
+          "lte": 1
+        }
+      },
+      "id": "voucher_orders_within_limit",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T05:41:14.353019+00:00",
+  "journeys": {
+    "buy": {
+      "stages": [
+        {
+          "name": "ordered",
+          "reached": 1
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 99
+        }
+      ],
+      "started": 100,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "place_order": {
+        "failed_rate": 0.99,
+        "p95": 560.236,
+        "samples": 100
+      }
+    },
+    "elapsed_seconds": 2.640553,
+    "http_req_duration_ms": {
+      "average": 327.755,
+      "max": 581.852,
+      "p50": 326.738,
+      "p95": 560.236,
+      "samples": 100
+    },
+    "http_req_failed_rate": {
+      "failed": 99,
+      "rate": 0.99,
+      "samples": 100
+    },
+    "http_reqs": 100.0,
+    "http_reqs_per_second": 49.496,
+    "iterations": 100.0,
+    "iterations_per_second": 49.496,
+    "observer_requests": 2,
+    "overlap": {
+      "place_order": 38
+    },
+    "total_http_reqs": 102.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 100
+    },
+    "vus_max": 100,
+    "write_attempts": 100
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 100,
+  "planned_journeys_per_second": 100.0,
+  "report": "report.html",
+  "run_id": "run_20261021T054111Z_93975339",
+  "schema_version": 1,
+  "seed": 2,
+  "verdict": "pass"
+}

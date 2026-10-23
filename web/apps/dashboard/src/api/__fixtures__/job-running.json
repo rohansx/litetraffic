@@ -1,0 +1,23 @@
+{
+  "id": "job_20260923T070000Z_ab12cd34",
+  "kind": "run",
+  "state": "running",
+  "scenario": "my-api-tenant-isolation",
+  "target": "http://127.0.0.1:8000",
+  "seed": 0,
+  "repeat": 1,
+  "env_names": [
+    "TENANT_A_TOKEN",
+    "TENANT_B_TOKEN"
+  ],
+  "started_at": "2026-09-23T07:00:00+00:00",
+  "finished_at": null,
+  "exit_code": null,
+  "verdict": null,
+  "run_id": null,
+  "log": [
+    "preparing scenario",
+    "warmup: 1 journeys/s for 1 s"
+  ],
+  "result": null
+}

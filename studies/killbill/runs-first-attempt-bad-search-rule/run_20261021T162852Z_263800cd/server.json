@@ -1,0 +1,31 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 449.5,
+      "baseline_mem_mb": 959.0,
+      "error_lines": 20,
+      "log_lines": 193,
+      "peak_at": "2026-10-21T16:28:53.931497+00:00",
+      "peak_cpu_percent": 449.5,
+      "peak_mem_mb": 959.0,
+      "signatures": [
+        {
+          "count": 10,
+          "example": "{\"@timestamp\":\"2026-10-21T16:28:53.778Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='3c5a4473-75a7-40b8-9016-92e823ab78a1', error='PAYMENT_INVALID_OPERATION', exception='Invalid payment transition PURCHASE from state PURCHASE_SUCCESS'\",\"logger_name\":\"org.killbill.billing.pa",
+          "first_seen": "2026-10-21T16:28:53.779320309Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        },
+        {
+          "count": 10,
+          "example": "{\"@timestamp\":\"2026-10-21T16:28:53.780Z\",\"message\":\"Bad request\",\"logger_name\":\"org.killbill.billing.server.providers.KillbillExceptionListener\",\"thread_name\":\"catalina-exec-5\",\"level\":\"WARN\",\"req.requestURI\":\"/1.0/kb/accounts/3c5a4473-75a7-40b8-9016-92e823ab78a1/payments\",\"kb.tenantRecordId\":\"3\",\"k",
+          "first_seen": "2026-10-21T16:28:53.780309935Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

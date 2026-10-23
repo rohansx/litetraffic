@@ -1,0 +1,50 @@
+run_20261021T162733Z_993413c7 refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162754Z_5d885a9a refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162757Z_d15eb32e one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T162804Z_a43c5eee invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T162807Z_35161315 line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T162810Z_f93fdbb9 one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T162822Z_8c10006d invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T162833Z_ee5dc9f9 line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T162845Z_b58f2cda refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162847Z_1deddc7a one_payment_per_key fail {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'fail'}
+run_20261021T162849Z_61e80a31 invoice_paid_once fail {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'fail'}
+run_20261021T162911Z_798dc518 refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162913Z_94049dc8 refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162916Z_aec05230 refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162918Z_4890440a refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162921Z_ce0e9f03 refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T162923Z_84545404 one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T162926Z_ffe1a4a1 one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T162928Z_d2d42165 one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T162930Z_cad9b182 one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T162933Z_2dac4e8e one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T162950Z_d9af810f invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T162953Z_7600c343 invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T162955Z_920eed10 invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T162958Z_3528dc55 invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T163000Z_0e591792 invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T163003Z_71327bac line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T163005Z_213610a5 line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T163007Z_def20044 line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T163010Z_ad39a78c line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T163012Z_2227660e line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T163015Z_073e4389 one_payment_per_key pass {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'pass'}
+run_20261021T163026Z_ecfc3d97 invoice_paid_once pass {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'pass'}
+run_20261021T163038Z_b43a62f8 line_adjusted_once pass {'adjustment_accepted': 1} {'clean_response': 'pass', 'line_adjusted_once': 'pass'}
+run_20261021T163049Z_1c6793a0 refunds_within_paid fail {'refund_accepted': 10} {'clean_response': 'pass', 'refunds_within_paid': 'fail'}
+run_20261021T163051Z_c9099064 one_payment_per_key fail {'payment_accepted': 1} {'clean_response': 'pass', 'one_payment_per_key': 'fail'}
+run_20261021T163054Z_c7914e20 invoice_paid_once fail {'payment_accepted': 1} {'clean_response': 'pass', 'invoice_paid_once': 'fail'}
+run_20261021T163152Z_f07ea211 foreign_write_not_applied fail {'refused': 10} {'own_read_works': 'pass', 'no_foreign_data': 'pass', 'clean_response': 'fail', 'foreign_write_not_applied': 'pass'}
+run_20261021T163155Z_6d75b8da foreign_write_not_applied fail {'refused': 10} {'own_read_works': 'pass', 'no_foreign_data': 'pass', 'clean_response': 'fail', 'foreign_write_not_applied': 'pass'}
+run_20261021T163158Z_30552d3f foreign_write_not_applied fail {'refused': 10} {'own_read_works': 'pass', 'no_foreign_data': 'pass', 'clean_response': 'fail', 'foreign_write_not_applied': 'pass'}
+run_20261021T163201Z_f17711b0 foreign_write_not_applied fail {'refused': 10} {'own_read_works': 'pass', 'no_foreign_data': 'pass', 'clean_response': 'fail', 'foreign_write_not_applied': 'pass'}
+run_20261021T163204Z_fe90ad90 foreign_write_not_applied fail {'refused': 10} {'own_read_works': 'pass', 'no_foreign_data': 'pass', 'clean_response': 'fail', 'foreign_write_not_applied': 'pass'}
+run_20261021T163207Z_64bbf576 privacy-canary fail {'refused': 0} {'own_read_works': 'pass', 'no_foreign_data': 'fail', 'clean_response': 'pass'}
+
+refunds_within_paid Counter({'fail': 9}) accepted per run: [10, 10, 10, 10, 10, 10, 10, 10, 10]
+one_payment_per_key Counter({'pass': 8, 'fail': 2}) accepted per run: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+invoice_paid_once Counter({'pass': 8, 'fail': 2}) accepted per run: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+line_adjusted_once Counter({'pass': 8}) accepted per run: [1, 1, 1, 1, 1, 1, 1, 1]
+foreign_write_not_applied Counter({'fail': 5}) accepted per run: [10, 10, 10, 10, 10]
+privacy-canary Counter({'fail': 1}) accepted per run: [0]

@@ -1,0 +1,34 @@
+2026-10-21T05:40:15.407296586Z [2026-10-21 05:40:15,396: INFO/ForkPoolWorker-7] Task pretix.api.webhooks.notify_webhooks[a2418dc4-6613-4029-9403-60abb901bff0] succeeded in 0.03717216900258791s: None
+2026-10-21T05:40:15.952604349Z [2026-10-21 05:40:15,950: INFO/MainProcess] Task pretix.base.services.notifications.notify[c14a2cd4-ba0a-43c3-8c5a-7bbd90bd4831] received
+2026-10-21T05:40:15.952689891Z [2026-10-21 05:40:15,950: INFO/MainProcess] Task c14a2cd4-ba0a-43c3-8c5a-7bbd90bd4831 has trace 12609abb-5f64-445e-b9b9-f6d4ceab2e88
+2026-10-21T05:40:15.952694932Z [2026-10-21 05:40:15,951: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[84034945-3490-4fdf-b953-9583a070804f] received
+2026-10-21T05:40:15.952698808Z [2026-10-21 05:40:15,951: INFO/MainProcess] Task 84034945-3490-4fdf-b953-9583a070804f has trace 12609abb-5f64-445e-b9b9-f6d4ceab2e88
+2026-10-21T05:40:15.985543244Z [2026-10-21 05:40:15,982: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[84034945-3490-4fdf-b953-9583a070804f] succeeded in 0.029589835001388565s: None
+2026-10-21T05:40:15.990969650Z [2026-10-21 05:40:15,990: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[c14a2cd4-ba0a-43c3-8c5a-7bbd90bd4831] succeeded in 0.03742946199781727s: None
+2026-10-21T05:40:16.001401709Z INFO 2026-10-21 05:40:16,000 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.001797420Z WARNING 2026-10-21 05:40:16,001 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.001875962Z WARNING 2026-10-21 05:40:16,001 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.118176414Z INFO 2026-10-21 05:40:16,117 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.119006835Z WARNING 2026-10-21 05:40:16,118 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.119048668Z WARNING 2026-10-21 05:40:16,118 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.163908298Z INFO 2026-10-21 05:40:16,162 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.166385104Z WARNING 2026-10-21 05:40:16,165 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.166413146Z WARNING 2026-10-21 05:40:16,165 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.287245915Z INFO 2026-10-21 05:40:16,286 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.287643959Z WARNING 2026-10-21 05:40:16,287 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.287650126Z WARNING 2026-10-21 05:40:16,287 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.407761557Z INFO 2026-10-21 05:40:16,401 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.407788974Z WARNING 2026-10-21 05:40:16,401 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.407790974Z WARNING 2026-10-21 05:40:16,401 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.468746487Z INFO 2026-10-21 05:40:16,463 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.468786029Z WARNING 2026-10-21 05:40:16,464 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.468790696Z WARNING 2026-10-21 05:40:16,464 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.570898442Z INFO 2026-10-21 05:40:16,569 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.570913025Z WARNING 2026-10-21 05:40:16,569 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.570914859Z WARNING 2026-10-21 05:40:16,569 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.641878136Z INFO 2026-10-21 05:40:16,641 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.642519057Z WARNING 2026-10-21 05:40:16,641 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.642532765Z WARNING 2026-10-21 05:40:16,641 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.765907757Z INFO 2026-10-21 05:40:16,762 pretix.api.exception exception API Exception [400]: {"positions":[{"voucher":["The voucher has already been used the maximum number of times."]}]}
+2026-10-21T05:40:16.765947299Z WARNING 2026-10-21 05:40:16,763 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:40:16.765965924Z WARNING 2026-10-21 05:40:16,763 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/

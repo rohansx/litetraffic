@@ -1,0 +1,187 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "id": "charge_matches_rules",
+      "samples": 20,
+      "status": "pass"
+    },
+    {
+      "failed": 20,
+      "failures": [
+        {
+          "actual": {
+            "orderByCode": {
+              "code": "MREMAC56P24ZXS8M"
+            }
+          },
+          "detail": null,
+          "expected": "victim order not readable",
+          "logical_key": "run_20261021T054815Z_89929183-traffic-0",
+          "sequence": 4
+        },
+        {
+          "actual": {
+            "orderByCode": {
+              "code": "MREMAC56P24ZXS8M"
+            }
+          },
+          "detail": null,
+          "expected": "victim order not readable",
+          "logical_key": "run_20261021T054815Z_89929183-traffic-1",
+          "sequence": 5
+        },
+        {
+          "actual": {
+            "orderByCode": {
+              "code": "MREMAC56P24ZXS8M"
+            }
+          },
+          "detail": null,
+          "expected": "victim order not readable",
+          "logical_key": "run_20261021T054815Z_89929183-traffic-2",
+          "sequence": 8
+        }
+      ],
+      "id": "orders_are_private",
+      "samples": 20,
+      "status": "fail"
+    },
+    {
+      "actual": {
+        "/data/productVariants/items/0/stockAllocated": 5,
+        "/data/productVariants/items/0/stockOnHand": 5
+      },
+      "expected": {
+        "/data/productVariants/items/0/stockAllocated": {
+          "lte": 5
+        },
+        "/data/productVariants/items/0/stockOnHand": 5
+      },
+      "id": "stock_not_oversold",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T05:48:19.576810+00:00",
+  "journeys": {
+    "checkout": {
+      "stages": [
+        {
+          "name": "in_cart",
+          "reached": 20
+        },
+        {
+          "name": "paid",
+          "reached": 8
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 0
+        },
+        {
+          "after": "in_cart",
+          "count": 12
+        }
+      ],
+      "started": 20,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "add_item": {
+        "failed_rate": 0.0,
+        "p95": 86.851,
+        "samples": 20
+      },
+      "pay": {
+        "failed_rate": 0.0,
+        "p95": 113.05,
+        "samples": 8
+      },
+      "peek_other_order": {
+        "failed_rate": 0.0,
+        "p95": 7.015,
+        "samples": 20
+      },
+      "set_address": {
+        "failed_rate": 0.0,
+        "p95": 30.006,
+        "samples": 20
+      },
+      "set_customer": {
+        "failed_rate": 0.0,
+        "p95": 23.562,
+        "samples": 20
+      },
+      "set_shipping": {
+        "failed_rate": 0.0,
+        "p95": 47.776,
+        "samples": 20
+      },
+      "to_payment": {
+        "failed_rate": 0.0,
+        "p95": 79.897,
+        "samples": 20
+      }
+    },
+    "elapsed_seconds": 4.275948,
+    "http_req_duration_ms": {
+      "average": 38.279,
+      "max": 116.285,
+      "p50": 29.566,
+      "p95": 87.27,
+      "samples": 128
+    },
+    "http_req_failed_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 128
+    },
+    "http_reqs": 128.0,
+    "http_reqs_per_second": 34.991,
+    "iterations": 20.0,
+    "iterations_per_second": 5.467,
+    "observer_requests": 1,
+    "overlap": {
+      "add_item": 2,
+      "pay": 3,
+      "peek_other_order": 1,
+      "set_address": 1,
+      "set_customer": 1,
+      "set_shipping": 2,
+      "to_payment": 3
+    },
+    "total_http_reqs": 129.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 128
+    },
+    "vus_max": 20,
+    "write_attempts": 128
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 20,
+  "planned_journeys_per_second": 20.0,
+  "report": "report.html",
+  "run_id": "run_20261021T054815Z_89929183",
+  "schema_version": 1,
+  "seed": 1,
+  "verdict": "fail"
+}

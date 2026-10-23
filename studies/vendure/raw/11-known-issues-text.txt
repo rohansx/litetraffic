@@ -1,0 +1,97 @@
+=========== #3508
+Concurrent Checkout Causes Stock Oversell When Only One Item Is Available [CLOSED] created 2025-04-27 closed 2026-08-19T14:37:59Z
+LABELS: type: bug 🐛,@vendure/core,status: research needed 🔍,T3: Systemic
+**Describe the bug**
+When two orders are placed at the same time for a product that has only one unit in stock, both orders are accepted, causing the stock quantity to become negative.
+There is no queueing or locking mechanism to prevent concurrent checkouts from overselling the available stock.
+
+**Environment details:**
+
+@vendure/core version: 3.2.2
+
+Node.js version: 20.18.3
+
+Database: Postgres
+
+**To Reproduce**
+
+Add a product with only 1 item in stock.
+
+Place two orders for the product at exactly the same time (e.g., by two users or automated requests).
+
+Both orders are accepted.
+
+Stock quantity becomes negative.
+
+Expected behavior
+Only one order should succeed.
+The system should either:
+
+Implement a locking mechanism, or
+
+Create a queue to prevent concurrent orders from overselling,
+and return an error for the second order attempt if the stock is insufficient.
+
+Additional context
+This issue could cause significant inventory inaccuracies and customer dissatisfaction.
+Proper concurrency handling for stock validation is critical for correct e-commerce operation.
+
+**Recommended Solutions**
+In large-scale e-commerce systems, this type of stock conflict is typically handled using one or more of the following strategies:
+
+Pessimistic locking at the database level to block concurrent writes until the first transaction completes.
+
+Optimistic locking where the system checks a version or timestamp before finalizing the stock update, rejecting conflicting transactions.
+
+Stock reservat
+--- last comments:
+* 2025-09-07: @dlhck if this can be checked also i think it is related to #3510  it is high priority. we should have something like lock stock for some time or queue to handle lock priorities 
+related # https://docs.saleor.io/developer/stock/stock-reservation
+
+* 2025-09-09: @martijnvdbrug any feedback?
+* 2026-07-08: close by PR https://github.com/vendurehq/vendure/pull/4930
+=========== #4152
+Design: Order Concurrency Improvements [OPEN] created 2026-01-23 closed -
+LABELS: @vendure/core,design 📐,T3: Systemic
+Note: the following issue was created by Claude Code after some investigation into the topic. I had it create this issue so as to not lose this research, some of which may be useful to future improvements.
+
+## Summary
+
+Multiple race conditions in order handling share a common root cause: **Vendure lacks a unified concurrency control strategy for Orders**. This issue proposes a foundational approach to address all order-related race conditions rather than fixing them individually.
+
+## Related Issues & PRs
+
+- vendurehq/vendure#3398 - Race condition when performing parallel order actions (lost updates)
+- vendurehq/vendure#2187 - addItemToOrder race condition (missing items)
+- vendurehq/community-plugins#11 - Stripe Plugin race condition during checkout with limited stock
+- vendurehq/vendure#4071 - PR applying pessimistic locking to OrderService methods
+
+## The Problem
+
+The codebase uses a read-modify-write pattern without coordination between concurrent requests:
+
+1. Fetch entity
+2. Modify in memory  
+3. Save back
+
+This manifests as different bugs depending on where the race occurs:
+
+| Problem | Pattern | Location |
+|---------|---------|----------|
+| Multiple active orders per customer | Check-then-act | `ActiveOrderService.getOrderFromContext()` |
+| Lost updates (addresses, customer info) | Read-modify-write | `OrderService` setters |
+| Missing order items | Read-modify-write | `OrderService.addItemsToOrder()` |
+| Stock overselling | Check-then-commit | Payment flow |
+
+### Repr
+--- last comments:
+* 2026-09-02: ## Design decision: order concurrency control
+
+Picking this up. @grolmus asked on #4071 which direction to take, and @RubenDarioGuerreroNeira asked
+the same question directly. Neither got an answer, so that is the first thing to settle here.
+
+**Decision: serialize writes per order with a database row lock, taken once per request at two entry
+points. Do not add a version column. Fix the two races a row lock cannot reach with targeted
+changes.**
+
+This overturns the approach proposed in the issue d

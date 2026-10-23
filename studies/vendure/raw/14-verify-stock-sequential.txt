@@ -1,0 +1,7 @@
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+charge_matches_rules  pass  10
+stock_ledger_consistent  pass  1
+paid_orders_within_stock  pass  1
+unexpected HTTP failure rate: 0.0% (0/35)
+report: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/vendure/runs/run_20261021T055119Z_a2451dcc/report.html

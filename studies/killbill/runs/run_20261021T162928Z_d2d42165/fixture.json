@@ -1,0 +1,23 @@
+{
+  "setup": {
+    "argv": [
+      "python3",
+      "setup.py",
+      "dup"
+    ],
+    "duration_seconds": 0.257,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  },
+  "teardown": {
+    "argv": [
+      "sh",
+      "teardown.sh"
+    ],
+    "duration_seconds": 0.007,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  }
+}

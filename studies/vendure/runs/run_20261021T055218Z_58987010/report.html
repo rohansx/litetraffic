@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiteTraffic — vendure-stock</title>
+<style>
+body{font:16px system-ui,sans-serif;max-width:960px;margin:40px auto;padding:0 20px;color:#17211b;background:#f7f8fa}
+h1{color:#0e6b3c} .card{background:white;border:1px solid #dfe5e1;border-radius:12px;padding:20px;margin:16px 0}
+.verdict{font-size:2rem;font-weight:750} table{width:100%;border-collapse:collapse} th,td{padding:10px;text-align:left;border-bottom:1px solid #e5e7eb}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px} dt{font-weight:700}
+</style></head><body>
+<h1>vendure-stock</h1>
+<section class="card"><div class="verdict">FAIL</div>
+<dl><dt>Lifecycle</dt><dd>finished</dd><dt>Run</dt><dd>run_20261021T055218Z_58987010</dd>
+<dt>Seed</dt><dd>21</dd><dt>Target</dt><dd>http://localhost:3000</dd>
+<dt>Engine</dt><dd>k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)</dd>
+<dt>Journeys</dt><dd>20 / 20</dd>
+<dt>HTTP requests</dt><dd>70</dd>
+<dt>HTTP avg</dt><dd>57.26 ms</dd><dt>HTTP p50</dt><dd>47.504 ms</dd><dt>HTTP p95</dt><dd>118.908 ms</dd><dt>HTTP max</dt><dd>133.023 ms</dd><dt>Latency samples</dt><dd>70</dd><dt>HTTP failure rate</dt><dd>0.0%</dd><dt>Unexpected HTTP failure rate</dt><dd>0.0%</dd>
+<dt>HTTP throughput</dt><dd>48.707 req/s</dd></dl></section>
+<section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody><tr><td>clean_response</td><td>PASS</td><td>20</td></tr><tr><td>charge_matches_rules</td><td>PASS</td><td>20</td></tr><tr><td>stock_ledger_consistent</td><td>PASS</td><td>1</td></tr><tr><td>paid_orders_within_stock</td><td>FAIL</td><td>1</td></tr></tbody></table></section>
+<section class="card"><h2>Concurrency</h2><table><thead><tr><th>Operation</th><th>Peak requests in flight</th></tr></thead><tbody><tr><td>add_item</td><td>3</td></tr><tr><td>pay</td><td>3</td></tr><tr><td>set_address</td><td>3</td></tr><tr><td>set_customer</td><td>2</td></tr><tr><td>set_shipping</td><td>3</td></tr><tr><td>to_payment</td><td>3</td></tr></tbody></table></section>
+<section class="card"><h2>Failing samples</h2><h3>paid_orders_within_stock</h3><table><thead><tr><th>Sample</th><th>Logical key</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead><tbody><tr><td></td><td></td><td>{&quot;/data/orders/totalItems&quot;: {&quot;lte&quot;: 5}}</td><td>{&quot;/data/orders/totalItems&quot;: 6}</td><td></td></tr></tbody></table></section>
+<section class="card"><h2>Limitations</h2><ul><li>None</li></ul></section>
+<section class="card"><h2>Notes</h2><ul><li>per-arrival lateness not measured</li><li>workload is synthetic (no traces supplied)</li></ul></section>
+</body></html>

@@ -1,0 +1,5 @@
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+invoice_paid_once  pass  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T162822Z_8c10006d/report.html

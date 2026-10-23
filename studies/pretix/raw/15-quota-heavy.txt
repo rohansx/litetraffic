@@ -1,0 +1,6 @@
+verdict: PASS  lifecycle: finished  journeys: 100/100
+clean_response  pass  100
+charge_matches_rules  pass  100
+quota_not_oversold  pass  1
+unexpected HTTP failure rate: 0.0% (0/100)
+report: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/pretix/runs/run_20261021T054109Z_9a743a62/report.html

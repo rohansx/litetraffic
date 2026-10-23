@@ -1,0 +1,38 @@
+[
+  {
+    "actual": {
+      "/purchasedAmount": 100.0,
+      "/transactions": {
+        "length": 1,
+        "type": "array"
+      }
+    },
+    "assertion": "one_payment_per_key",
+    "checks": {
+      "/purchasedAmount": {
+        "actual": 100.0,
+        "matcher": {
+          "eq": 100
+        },
+        "pass": true
+      },
+      "/transactions": {
+        "actual": {
+          "length": 1,
+          "type": "array"
+        },
+        "matcher": {
+          "len": 2
+        },
+        "pass": false
+      }
+    },
+    "expected": {
+      "/purchasedAmount": 100,
+      "/transactions": {
+        "len": 2
+      }
+    },
+    "status": "fail"
+  }
+]

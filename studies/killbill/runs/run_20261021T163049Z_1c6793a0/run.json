@@ -1,0 +1,23 @@
+{
+  "engine": "k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)",
+  "engine_exit_code": 0,
+  "engine_finished_at": "2026-10-21T16:30:51.491974+00:00",
+  "engine_started_at": "2026-10-21T16:30:49.944644+00:00",
+  "finished_at": "2026-10-21T16:30:51.649042+00:00",
+  "lifecycle": "finished",
+  "mode": "verify",
+  "resolved_schedule": [
+    {
+      "name": "burst",
+      "rate": 10,
+      "seconds": 1
+    }
+  ],
+  "run_id": "run_20261021T163049Z_1c6793a0",
+  "scenario": "killbill-refund-canary",
+  "scenario_sha256": "c73ab7e35dbc80c2a6dad4a2ce275ee0da6d548dd6de596de890777c61784799",
+  "schema_version": 1,
+  "seed": 1,
+  "started_at": "2026-10-21T16:30:49.435934+00:00",
+  "target": "http://127.0.0.1:8480"
+}

@@ -1,0 +1,8 @@
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+charge_matches_rules  pass  10
+voucher_counter_within_limit  pass  1
+voucher_orders_within_limit  pass  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/pretix/runs/run_20261021T054014Z_8cec9552/report.html
+exit=0

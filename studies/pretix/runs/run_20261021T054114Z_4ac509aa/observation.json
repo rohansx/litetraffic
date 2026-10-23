@@ -1,0 +1,23 @@
+[
+  {
+    "actual": {
+      "/count": 5
+    },
+    "assertion": "quota_not_oversold",
+    "checks": {
+      "/count": {
+        "actual": 5,
+        "matcher": {
+          "lte": 4
+        },
+        "pass": false
+      }
+    },
+    "expected": {
+      "/count": {
+        "lte": 4
+      }
+    },
+    "status": "fail"
+  }
+]

@@ -1,0 +1,7 @@
+account in tenant A: 46be782a-e54b-4718-ad0a-e976a8101d5d
+--- tenant B asks for it:
+{"className":"java.lang.IllegalStateException","code":null,"message":"Object id=46be782a-e54b-4718-ad0a-e976a8101d5d type=ACCOUNT doesn't belong to tenant id=ff1661b8-5eb1-41e5-a6b0-1af593c2de13","causeClassName":null,"causeMessage":null,"stackTrace":[]}
+HTTP 500
+--- tenant B asks for an id that exists nowhere:
+{"className":"org.killbill.billing.util.callcontext.InternalCallContextFactory$ObjectDoesNotExist","code":null,"message":"Object id=11111111-2222-3333-4444-555555555555 type=ACCOUNT doesn't exist!","causeClassName":null,"causeMessage":null,"stackTrace":[]}
+HTTP 404

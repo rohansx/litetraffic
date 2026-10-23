@@ -1,0 +1,31 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 84.92,
+      "baseline_mem_mb": 969.4,
+      "error_lines": 18,
+      "log_lines": 61,
+      "peak_at": "2026-10-21T16:29:25.301298+00:00",
+      "peak_cpu_percent": 84.92,
+      "peak_mem_mb": 969.4,
+      "signatures": [
+        {
+          "count": 9,
+          "example": "{\"@timestamp\":\"2026-10-21T16:29:24.576Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='7736a941-5ae8-4ec8-84ca-e0e0ae072226', error='PAYMENT_ACTIVE_TRANSACTION_KEY_EXISTS', exception='Successful transaction with external key lt162923a5cb7f-t already exists'\",\"logger_name\":\"or",
+          "first_seen": "2026-10-21T16:29:24.577315872Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        },
+        {
+          "count": 9,
+          "example": "{\"@timestamp\":\"2026-10-21T16:29:24.577Z\",\"message\":\"Bad request\",\"logger_name\":\"org.killbill.billing.server.providers.KillbillExceptionListener\",\"thread_name\":\"catalina-exec-10\",\"level\":\"WARN\",\"req.requestURI\":\"/1.0/kb/accounts/7736a941-5ae8-4ec8-84ca-e0e0ae072226/payments\",\"kb.tenantRecordId\":\"3\",\"",
+          "first_seen": "2026-10-21T16:29:24.577826331Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}
