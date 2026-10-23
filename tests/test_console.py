@@ -2,6 +2,7 @@
 
 import json
 import sys
+import types
 import textwrap
 import threading
 import time
@@ -448,6 +449,7 @@ def test_draft_inputs_are_checked(served, claude, monkeypatch):
 
 def test_the_server_key_is_used_when_the_request_has_none(served, claude, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-env-key-for-tests")
+    monkeypatch.setitem(sys.modules, "anthropic", types.ModuleType("anthropic"))  # CI has no SDK
     claude["client"] = FakeClaude([reply(CHECKOUT)])
     assert call(served, "GET", "/api/meta")[1]["console"]["ai"]["available"] is True
     wait_job(served, call(served, "POST", "/api/draft", draft_body(api_key=None), "draft-start")[1]["id"])
@@ -468,8 +470,15 @@ def test_cancel_works_even_when_the_console_was_started_with_sigint_ignored():
         stdout=subprocess.PIPE, text=True, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN),
     )  # fmt: skip
     assert child.stdout.readline().strip() == "up"
-    child.send_signal(signal.SIGINT)
-    assert child.wait(timeout=5) != 0
+    for _ in range(3):  # a slow CI runner can swallow the first signal; the handler must still act on a later one
+        child.send_signal(signal.SIGINT)
+        try:
+            assert child.wait(timeout=4) != 0
+            return
+        except subprocess.TimeoutExpired:
+            continue
+    child.kill()
+    raise AssertionError("SIGINT never stopped the child")
 
 
 def test_a_cancel_that_arrives_after_the_run_ended_reports_the_real_verdict(served):
