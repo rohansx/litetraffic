@@ -383,8 +383,17 @@ class FakeClaude:
         return type("Reply", (), {"content": [block], "usage": usage, "stop_reason": "end_turn"})
 
 
-def reply(files):
-    return f"```json\n{files['manifest.json']}\n```\n```javascript\n{files['journeys.js']}\n```"
+PLAN = (
+    "// Rule 1: never oversell stock.\n"
+    "//   Effect: the number of orders that were paid never exceeds the stock.\n"
+    "//   Observed by: a final observation of the stock endpoint and a stage count of paid journeys.\n"
+    "// rule 1, effect checked: paid orders never exceed stock\n"
+)
+
+
+def reply(files, plan=PLAN):
+    """What Claude is told to send: journeys.js opens with the per-rule plan comments."""
+    return f"```json\n{files['manifest.json']}\n```\n```javascript\n{plan}{files['journeys.js']}\n```"
 
 
 def draft_body(**changes):
@@ -419,6 +428,26 @@ def test_a_draft_job_repairs_its_own_invalid_bundle_and_returns_files(served, cl
     assert "never oversell stock" in prompt and "openapi: 3.0.0" in prompt and "inspect" not in first["messages"][-1]["content"][:0]
     assert "fake-draft-key" not in json.dumps(job)
     assert call(served, "GET", "/api/library") == (200, [])  # drafts are reviewed and saved by the human, never auto-saved
+
+
+def test_the_draft_prompt_forces_the_effect_first_lesson(served, claude):
+    claude["client"] = FakeClaude([reply(CHECKOUT)])
+    wait_job(served, call(served, "POST", "/api/draft", draft_body(), "draft-start")[1]["id"])
+    call_ = claude["client"].calls[0]
+    system, task = call_["system"], call_["messages"][0]["content"]
+    assert "Before writing any code" in system and "business effect" in system and "how that effect is observed" in system
+    assert "effect checked:" in system and "not the effect customers experienced" in system
+    assert "for each rule, the real business effect" in task and task.rstrip().endswith("Reply with only the two fenced blocks.")
+
+
+def test_a_draft_without_the_per_rule_effect_comments_is_sent_back_and_the_repair_keeps_them(served, claude):
+    claude["client"] = FakeClaude([reply(CHECKOUT, plan=""), reply(CHECKOUT)])
+    job = wait_job(served, call(served, "POST", "/api/draft", draft_body(), "draft-start")[1]["id"])
+    result = job["result"]
+    assert result["valid"] is True and result["attempts"] == 2
+    assert "effect checked:" in result["files"]["journeys.js"] and "Observed by:" in result["files"]["journeys.js"]
+    repair = claude["client"].calls[1]["messages"][-1]["content"]
+    assert "effect checked" in repair and "same two fenced blocks" in repair
 
 
 def test_a_draft_that_never_validates_reports_the_last_error_and_files(served, claude):

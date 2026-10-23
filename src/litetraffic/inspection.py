@@ -40,10 +40,11 @@ def inspect_payload(bundle: ScenarioBundle, seed: int = 0) -> dict:
         "allowed_origins_env": manifest.allowed_origins_env,  # names only, like secret_env
         # observation_path/observation_expected describe the first observation; `observations` lists every one.
         "observation_path": observation and observation.path,
-        "observation_expected": observation and resolve_expected(observation.expected, plan),
+        "observation_expected": observation and resolve_expected(observation.expected, plan, defer_fixture=True),
         "observations": [
-            {"assertion": item.assertion, "path": item.path, "origin_env": item.origin_env, "expected": resolve_expected(item.expected, plan)}
+            {"assertion": item.assertion, "path": item.path, "origin_env": item.origin_env, "expected": resolve_expected(item.expected, plan, defer_fixture=True)}
             for item in observations
         ],
+        "stage_assertions": [item.model_dump() for item in manifest.stage_assertions],
     }
     return payload

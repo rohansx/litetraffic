@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from litetraffic.expression import evaluate, is_expression
+
 
 def _owner(stage: str, staged: dict[str, list[str]]) -> str | None:
     owners = [name for name, stages in staged.items() if stage in stages]
@@ -48,6 +50,36 @@ def journey_funnels(journeys, events: list[dict], iterations: object) -> tuple[d
     if unattributed:
         limitations.append(f"stage events match no single journey: {', '.join(sorted(unattributed))}")
     return funnels, limitations
+
+
+def stage_assertion_results(checks, funnels: dict, variables: dict, finished: bool) -> list[dict]:
+    """One observation-shaped record per stage assertion: how many journeys reached the stage vs the expectation.
+
+    Counts only grow, so an exceeded ceiling (`lte`, `eq`) is a definite failure even when the engine did not finish;
+    every other outcome of an unfinished run is unknown, never a pass."""
+    reached = {stage["name"]: stage["reached"] for funnel in funnels.values() for stage in funnel["stages"]}
+    records = []
+    for check in checks:
+        (op, operand), = check.expected.items()
+        record = {"assertion": check.assertion, "status": "unknown"}
+        try:
+            expected = evaluate(operand, variables) if is_expression(operand) else operand
+        except ValueError as exc:
+            records.append(record | {"reason": f"stage count expectation unavailable: {exc}"})
+            continue
+        actual = reached.get(check.stage)
+        if actual is None:
+            records.append(record | {"reason": f"no journey reported stage {check.stage}"})
+            continue
+        holds = {"eq": actual == expected, "gte": actual >= expected, "lte": actual <= expected}[op]
+        exceeded = actual > expected and op in {"eq", "lte"}
+        record |= {"expected": {op: expected}, "actual": actual}
+        if finished or exceeded:
+            record["status"] = "pass" if holds and finished else "fail"
+        else:
+            record["reason"] = "engine did not finish: stage counts are partial"
+        records.append(record)
+    return records
 
 
 def unfinished_journeys(funnels: dict) -> list[str]:

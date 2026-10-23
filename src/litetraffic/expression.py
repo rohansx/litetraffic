@@ -1,4 +1,5 @@
-"""Plan-aware `${...}` values in observation expectations: ASCII integers, + - *, parentheses, two names.
+"""Plan-aware `${...}` values in observation expectations: ASCII integers, + - *, parentheses, two names
+and `fixture.KEY` (an integer from the run's own fixture).
 
 Bounded: at most MAX_LENGTH characters and MAX_DEPTH nested parentheses/unary minuses, so hostile
 manifests fail validation with ValueError instead of RecursionError.
@@ -10,16 +11,22 @@ import re
 from collections.abc import Mapping
 
 NAMES = ("planned_journeys", "seed")
+FIXTURE_NAME = re.compile(r"fixture\.[A-Za-z_][A-Za-z0-9_]*")
 MAX_LENGTH = 200
 MAX_DEPTH = 32
-_TOKEN = re.compile(r"\s*(?:([0-9]+)|([A-Za-z_][A-Za-z0-9_]*)|(\S))")
+_TOKEN = re.compile(r"\s*(?:([0-9]+)|([A-Za-z_][A-Za-z0-9_.]*)|(\S))")
 
 
 def is_expression(value: object) -> bool:
     return isinstance(value, str) and value.startswith("${") and value.endswith("}")
 
 
-def evaluate(text: str, variables: Mapping[str, int]) -> int:
+def fixture_keys(text: str) -> set[str]:
+    """The fixture KEYs an expression refers to."""
+    return {name[len("fixture.") :] for name in FIXTURE_NAME.findall(text)}
+
+
+def evaluate(text: str, variables: Mapping[str, object]) -> int:
     """Recursive-descent evaluation; never uses eval. Raises ValueError naming the problem."""
     if len(text) > MAX_LENGTH:
         raise ValueError(f"expression {text[:40]!r}... is longer than {MAX_LENGTH} characters")
@@ -43,11 +50,14 @@ def evaluate(text: str, variables: Mapping[str, int]) -> int:
         if number:
             return int(number)
         if name:
-            if name not in NAMES:
-                raise ValueError(f"expression {text!r} uses unknown name {name!r}; allowed: {', '.join(NAMES)}")
+            if name not in NAMES and not FIXTURE_NAME.fullmatch(name):
+                raise ValueError(f"expression {text!r} uses unknown name {name!r}; allowed: {', '.join(NAMES)}, fixture.KEY")
             if name not in variables:
                 raise ValueError(f"expression {text!r} has no value for {name!r}; pass the plan variables")
-            return variables[name]
+            value = variables[name]
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"expression {text!r}: {name!r} is not an integer")
+            return value
         if symbol == "-":
             return -factor(depth + 1)
         if symbol == "(":
