@@ -116,6 +116,8 @@ export interface RateSummary {
   transport?: number;
 }
 export interface OperationMetrics {
+  /** null when the operation recorded no durations; absent in runs written before it was recorded (evidence.py). */
+  p50?: number | null;
   /** null when the operation recorded no durations (evidence.py). */
   p95: number | null;
   failed_rate: number | null;

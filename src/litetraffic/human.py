@@ -17,6 +17,12 @@ def _journeys(result: dict) -> str:
     return f"journeys: {delivered}/{_number(result.get('planned_journeys'))}"
 
 
+def format_export(result: dict) -> list[str]:
+    lines = [f"wrote: {result['out']}"]
+    lines += [f"measured: {line}" for line in result["measured"]]
+    return lines + [f"assumed: {line}" for line in result["assumed"]]
+
+
 def format_verify(result: dict, output_dir: Path) -> list[str]:
     if result.get("mode") == "repeat":
         lines = [
