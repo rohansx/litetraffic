@@ -1,6 +1,7 @@
-"""Local dashboard: a JSON API over a runs directory plus the built SPA, on 127.0.0.1 with the stdlib.
+"""Local dashboard and console: a JSON API over a runs directory plus the built SPA, on 127.0.0.1 with the stdlib.
 
-It only reads runs, except that POST /api/runs/<id>/explain caches an AI write-up as explanation.json in that run.
+Runs are only read, except that POST /api/runs/<id>/explain caches an AI write-up as explanation.json in that run. The console
+endpoints (console.py) save scenarios to a library directory and start one background run or AI draft at a time.
 """
 
 from __future__ import annotations
@@ -10,11 +11,13 @@ import math
 import mimetypes
 import os
 import threading
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from litetraffic import __version__
+from litetraffic.console import Console, ConsoleError, ai_available, draft_model
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.explain import ExplainError, explain, explain_provider, load_cached, summarize
 from litetraffic.runs import _real_file, list_runs, read_json
@@ -24,6 +27,7 @@ HOST = "127.0.0.1"
 UI_DIR = Path(__file__).parent / "dashboard_ui"
 _LOOPBACK_NAMES = ("127.0.0.1", "localhost", "[::1]")
 ACTION_HEADER = "X-LiteTraffic-Action"
+MAX_BODY_BYTES = 4 * 1024 * 1024
 _EXPLAIN_LOCK = threading.Lock()  # ponytail: one CLI call at a time; per-run locks if that ever queues
 FILTERS = ("scenario", "verdict", "seed")
 _ARTIFACT_TYPES = {".html": "text/html", ".json": "application/json"}  # anything else is shown as plain text
@@ -126,7 +130,7 @@ def _json(value: object) -> bytes:
         return json.dumps(json.loads(json.dumps(value), parse_constant=lambda _: None), sort_keys=True).encode()
 
 
-def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
+def _handler(runs_dir: Path, ui_dir: Path, console: Console) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: bytes, content_type: str, csp: str = CSP, cache: str = "no-cache") -> None:
             self.send_response(status)
@@ -169,7 +173,16 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
         def _route_api(self, parts: list[str], query: str) -> None:
             values = parse_qs(query)
             if parts == ["meta"]:
-                return self._api(200, {"explain_cli": explain_provider(), "runs_dir": str(runs_dir.resolve()), "version": __version__})
+                config = {"library_dir": str(console.library.root.resolve()), "ai": {"available": ai_available(), "model": draft_model()}, "busy_job": console.busy_job()}
+                return self._api(200, {"explain_cli": explain_provider(), "runs_dir": str(runs_dir.resolve()), "version": __version__, "console": config})
+            if parts == ["library"]:
+                return self._api(200, console.library.list())
+            if len(parts) == 2 and parts[0] == "library":
+                return self._console(lambda: console.library.get(parts[1]))
+            if parts == ["jobs"]:
+                return self._api(200, console.jobs())
+            if len(parts) == 2 and parts[0] == "jobs":
+                return self._console(lambda: console.job(parts[1]).detail())
             if parts == ["runs"]:
                 return self._api(200, _entries(runs_dir, query))
             if parts == ["scenarios"]:
@@ -205,25 +218,80 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
             # Every other path is a client-side route.
             self._send(200, index.read_bytes(), "text/html; charset=utf-8")
 
-        def do_POST(self) -> None:  # noqa: N802 - http.server naming
+        def _console(self, action, status: int = 200) -> None:
+            try:
+                return self._api(status, action())
+            except ConsoleError as exc:
+                return self._api(exc.status, {"error": str(exc), **exc.extra})
+
+        def _guard(self, actions: set[str]) -> list[str] | None:
+            """Host, custom header and Origin checks for anything that changes state; the path parts, or None after answering."""
             host = self._loopback_host()
             if not host:
-                return self._send(421, b"Misdirected request\n", "text/plain; charset=utf-8")
-            # A custom header forces a CORS preflight this server never approves, so other sites cannot POST here.
+                self._send(421, b"Misdirected request\n", "text/plain; charset=utf-8")
+                return None
+            # A custom header forces a CORS preflight this server never approves, so other sites cannot write here.
             origin = self.headers.get("Origin")
-            if self.headers.get(ACTION_HEADER) != "explain" or (origin is not None and origin.lower() != f"http://{host}"):
-                return self._api(403, {"error": "forbidden"})
-            parts = [unquote(part) for part in urlsplit(self.path).path.split("/")[1:]]
-            if len(parts) != 4 or parts[:2] != ["api", "runs"] or parts[3] != "explain" or not (run := _run_dir(runs_dir, parts[2])):
+            if self.headers.get(ACTION_HEADER) not in actions or (origin is not None and origin.lower() != f"http://{host}"):
+                self._api(403, {"error": "forbidden"})
+                return None
+            return [unquote(part) for part in urlsplit(self.path).path.split("/")[1:]]
+
+        def _body(self) -> dict | None:
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = -1
+            if not 0 <= length <= MAX_BODY_BYTES:
+                self._api(422, {"error": f"request body must be JSON of at most {MAX_BODY_BYTES} bytes"})
+                return None
+            try:
+                body = json.loads(self.rfile.read(length) or b"{}")
+            except ValueError:
+                body = None
+            if not isinstance(body, dict):
+                self._api(422, {"error": "request body must be a JSON object"})
+                return None
+            return body
+
+        def do_POST(self) -> None:  # noqa: N802 - http.server naming
+            parts = self._guard({"explain", "library-save", "library-kit", "job-run", "job-cancel", "draft-start"})
+            if parts is None:
+                return
+            action = self.headers.get(ACTION_HEADER)
+            if action == "explain":
+                if len(parts) != 4 or parts[:2] != ["api", "runs"] or parts[3] != "explain" or not (run := _run_dir(runs_dir, parts[2])):
+                    return self._not_found()
+                detail = _detail(run)
+                if detail["result"] is None:
+                    return self._api(409, {"error": "This run has no result to explain yet."})
+                with _EXPLAIN_LOCK:
+                    try:
+                        return self._api(200, explain(run, detail))
+                    except ExplainError as exc:
+                        return self._api(exc.status, {"error": str(exc)})
+            routes = {
+                ("library-save", ("api", "library")): lambda b: (201, lambda: console.library.save(b.get("name"), b.get("files"), b.get("trust_command") is True, b.get("overwrite") is True)),
+                ("library-kit", ("api", "library", "kit")): lambda b: (201, lambda: console.library.from_kit(b.get("name"), b.get("config"))),
+                ("job-run", ("api", "jobs")): lambda b: (202, lambda: console.start_run(b)),
+                ("draft-start", ("api", "draft")): lambda b: (202, lambda: console.start_draft(b)),
+            }
+            if len(parts) == 4 and action == "job-cancel" and parts[:2] == ["api", "jobs"] and parts[3] == "cancel":
+                return self._console(lambda: console.cancel(parts[2]))
+            if (route := routes.get((action, tuple(parts)))) is None:
                 return self._not_found()
-            detail = _detail(run)
-            if detail["result"] is None:
-                return self._api(409, {"error": "This run has no result to explain yet."})
-            with _EXPLAIN_LOCK:
-                try:
-                    return self._api(200, explain(run, detail))
-                except ExplainError as exc:
-                    return self._api(exc.status, {"error": str(exc)})
+            if (body := self._body()) is None:
+                return
+            status, call = route(body)
+            self._console(call, status)
+
+        def do_DELETE(self) -> None:  # noqa: N802 - http.server naming
+            parts = self._guard({"library-delete"})
+            if parts is None:
+                return
+            if len(parts) != 3 or parts[:2] != ["api", "library"]:
+                return self._not_found()
+            self._console(lambda: console.library.delete(parts[2]))
 
         do_HEAD = do_GET  # noqa: N815 - same routes and headers; _send skips the body
 
@@ -233,13 +301,29 @@ def _handler(runs_dir: Path, ui_dir: Path) -> type[BaseHTTPRequestHandler]:
     return Handler
 
 
-def make_server(runs_dir: Path, port: int, ui_dir: Path = UI_DIR) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((HOST, port), _handler(Path(runs_dir), Path(ui_dir)))
+class _Server(ThreadingHTTPServer):
+    console: Console | None = None  # unset when binding the port failed
+
+    def server_close(self) -> None:
+        if self.console is not None:
+            self.console.shutdown()  # a run started from the browser never outlives the console
+        super().server_close()
 
 
-def serve(runs_dir: Path, port: int) -> int:
-    server = make_server(runs_dir, port)
-    print(f"LiteTraffic dashboard for {Path(runs_dir).resolve()} at http://{HOST}:{server.server_address[1]}/ (Ctrl-C to stop)", flush=True)
+def make_server(runs_dir: Path, port: int, ui_dir: Path = UI_DIR, library_dir: Path | None = None) -> _Server:
+    runs_dir = Path(runs_dir)
+    console = Console(runs_dir, Path(library_dir) if library_dir is not None else runs_dir.parent / "scenarios")
+    server = _Server((HOST, port), _handler(runs_dir, Path(ui_dir), console))
+    server.console = console
+    return server
+
+
+def serve(runs_dir: Path, port: int, library_dir: Path | None = None, open_browser: bool = False) -> int:
+    server = make_server(runs_dir, port, library_dir=library_dir)
+    url = f"http://{HOST}:{server.server_address[1]}/"
+    print(f"LiteTraffic console for {Path(runs_dir).resolve()} (scenarios in {server.console.library.root.resolve()}) at {url} (Ctrl-C to stop)", flush=True)
+    if open_browser:
+        webbrowser.open(url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

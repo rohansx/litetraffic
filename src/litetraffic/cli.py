@@ -13,13 +13,12 @@ from litetraffic.activity import up
 from litetraffic.approval import approve, require_approval
 from litetraffic.breakscale import build_design, write_design
 from litetraffic.capture import parse_spec
-from litetraffic.auth import secret_env_names
 from litetraffic.compare import ComparisonError, compare_runs
 from litetraffic.dashboard import serve
 from litetraffic.doctor import run_doctor
 from litetraffic.e2b import resolve_target
 from litetraffic.kits import tenant_isolation
-from litetraffic.models import resolve_expected
+from litetraffic.inspection import inspect_payload
 from litetraffic.human import format_diff, format_export, format_inspect, format_verify
 from litetraffic.runner import RunnerError, verify
 from litetraffic.series import repeat_verify
@@ -112,9 +111,11 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--name", help="design name shown in Breakscale (at most 80 characters)")
     export.add_argument("--json", action="store_true")
 
-    dashboard = commands.add_parser("dashboard", help="browse run artifacts on a local web page")
+    dashboard = commands.add_parser("dashboard", help="local console: create, run and browse tests in a web page")
     dashboard.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
+    dashboard.add_argument("--scenarios-dir", type=Path, help="where saved scenarios live (default: scenarios next to --runs-dir)")
     dashboard.add_argument("--port", type=_port, default=8780)
+    dashboard.add_argument("--open", action="store_true", help="open the console in your browser")
 
     prune_command = commands.add_parser("prune", help="delete old run directories")
     prune_command.add_argument("--runs-dir", type=Path, default=Path(".litetraffic/runs"))
@@ -186,7 +187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0 if report.ok else 3
 
         if args.command == "dashboard":
-            return serve(args.runs_dir, args.port)
+            return serve(args.runs_dir, args.port, args.scenarios_dir, args.open)
 
         if args.command == "prune":
             try:
@@ -282,45 +283,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, args.json, format_diff)
             return {"pass": 0, "fail": 1}.get(payload["verdict"], 2)
 
-        bundle = load_scenario(args.scenario)
-        manifest = bundle.manifest
-        resolved_schedule = manifest.schedule.resolve(args.seed)
-        owned, observations = manifest.fixtures.owned_http, manifest.observations
-        plan = {"planned_journeys": manifest.planned_journeys, "seed": args.seed}
-        observation = observations[0] if observations else None
-        payload = {
-            "ok": True,
-            "name": manifest.name,
-            "schema_version": manifest.schema_version,
-            "script": str(bundle.script_path),
-            "scenario_sha256": bundle.digest,
-            "planned_journeys": manifest.planned_journeys,
-            "maximum_journey_requests": manifest.maximum_journey_requests,
-            "maximum_observation_requests": sum(o.max_requests for o in observations),
-            "maximum_journey_writes": manifest.maximum_journey_writes,
-            "resolved_schedule": [phase.model_dump(exclude={"admitted_journeys"}) for phase in resolved_schedule],
-            "assertions": manifest.assertions,
-            "stages": {journey.name: journey.stages for journey in manifest.journeys if journey.stages},
-            "actors": [actor.model_dump(by_alias=True, exclude_none=True) for actor in manifest.actors],
-            "budgets": manifest.budgets.model_dump(),
-            "fixture": {
-                "recipe": manifest.fixtures.recipe,
-                "owned_http": owned and owned.model_dump(include={"create_path", "delete_path"}),
-                "command": manifest.fixtures.command
-                and manifest.fixtures.command.model_dump() | {"hashed_files": list(bundle.command_files)},
-            },
-            # Names only: the environment is never read here.
-            "secret_env": sorted(secret_env_names(manifest)),
-            "observer": manifest.observer,
-            "allowed_origins_env": manifest.allowed_origins_env,  # names only, like secret_env
-            # observation_path/observation_expected describe the first observation; `observations` lists every one.
-            "observation_path": observation and observation.path,
-            "observation_expected": observation and resolve_expected(observation.expected, plan),
-            "observations": [
-                {"assertion": item.assertion, "path": item.path, "origin_env": item.origin_env, "expected": resolve_expected(item.expected, plan)}
-                for item in observations
-            ],
-        }
+        payload = inspect_payload(load_scenario(args.scenario), args.seed)
         _emit(payload, args.json, format_inspect)
         return 0
     except (ComparisonError, RunnerError, ScenarioError, ValidationError, ValueError, OSError) as exc:

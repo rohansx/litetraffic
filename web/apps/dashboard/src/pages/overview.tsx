@@ -1,3 +1,4 @@
+import { Plus, Radio } from "lucide-react";
 import { Link } from "react-router";
 import { api } from "@/api/client";
 import type { RunListEntry, ScenarioList } from "@/api/types";
@@ -5,6 +6,7 @@ import { Page } from "@/components/page";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SectionCards } from "@/components/section-cards";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VerdictBadge, VerdictStrip } from "@/components/verdict";
@@ -18,12 +20,38 @@ export function OverviewPage() {
     return { runs, scenarios };
   });
 
+  // The banner is a convenience: a console that cannot list jobs just shows no banner.
+  const jobs = useApi("jobs", (signal) => api.jobs(signal));
+  const running = jobs.data?.find((job) => job.state === "running");
+
   return (
     <Page
       title="Overview"
       crumbs={[{ label: "Overview" }]}
       description="Where every scenario stands, from the runs LiteTraffic wrote to this machine."
+      actions={
+        <Button asChild>
+          <Link to="/new">
+            <Plus aria-hidden />
+            New test
+          </Link>
+        </Button>
+      }
     >
+      {running && (
+        <Alert>
+          <Radio aria-hidden />
+          <AlertTitle>A test is running</AlertTitle>
+          <AlertDescription>
+            <p>
+              {running.kind === "draft" ? "A draft is being written" : `${running.scenario ?? "A test"} is running`}.{" "}
+              <Link to={`/jobs/${encodeURIComponent(running.id)}`} className="font-medium text-foreground underline">
+                Watch it live
+              </Link>
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
       {data ? <Overview runs={data.runs} scenarios={data.scenarios} /> : error ? <ErrorState error={error} onRetry={reload} /> : <LoadingState label="Loading overview" />}
     </Page>
   );
@@ -34,7 +62,8 @@ function Overview({ runs, scenarios }: { runs: RunListEntry[]; scenarios: Scenar
   if (!runs.length) {
     return (
       <EmptyState title="No runs yet">
-        Run <code className="font-mono">litetraffic verify scenario.yaml</code> and its evidence shows up here.
+        Create and run a test from <Link to="/new" className="underline">New test</Link>, or run{" "}
+        <code className="font-mono">litetraffic verify scenario.yaml</code>, and its evidence shows up here.
       </EmptyState>
     );
   }

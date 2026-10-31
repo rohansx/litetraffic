@@ -9,7 +9,8 @@ from pydantic import Field, JsonValue, computed_field, model_validator
 
 from litetraffic.auth import token_env_name
 from litetraffic.modelbase import ENV_NAME, StrictModel
-from litetraffic.observation_config import FinalObservation, as_matcher, resolve_expected  # noqa: F401 (re-exported)
+from litetraffic.expression import evaluate, fixture_keys, is_expression
+from litetraffic.observation_config import FinalObservation, Placeholders, as_matcher, resolve_expected  # noqa: F401 (re-exported)
 from litetraffic.process import STOP_GRACE_SECONDS
 from litetraffic.target import normalize_origin
 
@@ -143,6 +144,30 @@ class Journey(StrictModel):
         if self.stages and len(set(self.stages)) != len(self.stages):
             raise ValueError("journey stages must be unique")
         return self
+
+
+class StageAssertion(StrictModel):
+    """After the run: the number of journeys that reached `stage` must be eq/gte/lte an integer or `${expression}`."""
+
+    assertion: str = Field(min_length=1)
+    stage: str = Field(pattern=STAGE_NAME)
+    expected: dict[str, JsonValue]
+
+    @model_validator(mode="after")
+    def require_count_matcher(self) -> "StageAssertion":
+        if len(self.expected) != 1 or next(iter(self.expected)) not in {"eq", "gte", "lte"}:
+            raise ValueError("stage assertion expected must have exactly one of eq, gte, lte")
+        (op, operand), = self.expected.items()
+        if is_expression(operand):
+            evaluate(operand, Placeholders())
+        elif isinstance(operand, bool) or not isinstance(operand, int) or operand < 0:
+            raise ValueError(f"stage assertion {op} needs a non-negative integer or a ${{expression}}")
+        return self
+
+    @property
+    def fixture_keys(self) -> set[str]:
+        operand = next(iter(self.expected.values()))
+        return fixture_keys(operand) if is_expression(operand) else set()
 
 
 class Phase(StrictModel):
@@ -321,6 +346,7 @@ class ScenarioManifest(StrictModel):
     observer: str = Field(min_length=1)
     observation: FinalObservation | None = None
     observations: list[FinalObservation] = Field(default_factory=list)  # the legacy `observation` becomes its only entry
+    stage_assertions: list[StageAssertion] = Field(default_factory=list)
     allowed_origins: list[str] = Field(default_factory=list)
     allowed_origins_env: str | None = None  # names a variable holding comma-separated extra origins for origin_env
     secret_env: list[str] = Field(default_factory=list)  # names of other credential variables to scrub, such as ready bearer tokens
@@ -350,6 +376,18 @@ class ScenarioManifest(StrictModel):
             raise ValueError("observation assertion must be declared in assertions")
         if len(set(observed)) != len(observed):
             raise ValueError("observation assertions must be distinct")
+        counted = [check.assertion for check in self.stage_assertions]
+        if any(assertion not in self.assertions for assertion in counted):
+            raise ValueError("stage assertion must be declared in assertions")
+        if len(set(counted + observed)) != len(counted + observed):
+            raise ValueError("observation and stage assertions must be distinct")
+        declared_stages = {stage for journey in self.journeys for stage in journey.stages or []}
+        for check in self.stage_assertions:
+            if check.stage not in declared_stages:
+                raise ValueError(f"stage assertion {check.assertion}: no journey declares stage {check.stage}")
+        self.require_fixture_values(
+            {key for item in (*self.observations, *self.stage_assertions) for key in item.fixture_keys}
+        )
         if self.allowed_origins_env is not None and not re.fullmatch(ENV_NAME, self.allowed_origins_env):
             raise ValueError("allowed_origins_env must name an uppercase environment variable")
         if any(not re.fullmatch(ENV_NAME, name) for name in self.secret_env):
@@ -366,6 +404,15 @@ class ScenarioManifest(StrictModel):
             if observation.origin and observation.origin not in self.allowed_origins:
                 raise ValueError(f"observation origin {observation.origin} must be listed in allowed_origins")
         return self
+
+    def require_fixture_values(self, keys: set[str]) -> None:
+        """`${fixture.KEY}` needs a fixture that can provide KEY: a command fixture's setup output, or owned_http's `id`."""
+        if not keys or self.fixtures.command:
+            return
+        if not self.fixtures.owned_http:
+            raise ValueError(f"${{fixture.{min(keys)}}} needs fixtures.command or fixtures.owned_http to provide it")
+        if keys - {"id"}:
+            raise ValueError(f"fixtures.owned_http provides only ${{fixture.id}}, not fixture.{min(keys - {'id'})}")
 
     @computed_field
     @property

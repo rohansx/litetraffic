@@ -1,5 +1,13 @@
 {
   "explain_cli": "claude",
   "runs_dir": "/home/dev/acme-api/runs",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "console": {
+    "library_dir": "/home/dev/.litetraffic/library",
+    "ai": {
+      "available": true,
+      "model": "claude-sonnet-4-5"
+    },
+    "busy_job": null
+  }
 }

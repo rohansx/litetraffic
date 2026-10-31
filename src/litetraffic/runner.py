@@ -13,7 +13,7 @@ from litetraffic.capture import Capture
 from litetraffic.auth import AuthError, mint_tokens, redact, redact_value, secret_values
 from litetraffic.engine import SUPPORTED_K6_VERSION, RunnerError, _engine, _target, k6_command  # noqa: F401 (re-exported)
 from litetraffic.evidence import _read_events, _read_metrics, budget_overruns, evaluate_assertions, overlap_shortfalls, target_unreachable
-from litetraffic.funnel import journey_funnels, unfinished_journeys
+from litetraffic.funnel import journey_funnels, stage_assertion_results, unfinished_journeys
 from litetraffic.fixture import cleanup_fixture, create_fixture, fixture_json, fixture_pool, run_fixture_command
 from litetraffic.observation import observe, sent_request
 from litetraffic.process import GROUP_SURVIVED, _communicate, _stop_process
@@ -293,6 +293,11 @@ def _verify(
 
     _record_stage(run_dir, run, "observing")
     observations, engine_finished_ok = [], lifecycle == "finished"
+    # `${fixture.KEY}` in an observation or stage assertion: the command fixture's setup JSON, or owned_http's id
+    fixture_values = json.loads(environment.get("LT_FIXTURE_JSON") or "{}")
+    if "LT_FIXTURE_ID" in environment:
+        fixture_values["id"] = environment["LT_FIXTURE_ID"]
+    variables = {"planned_journeys": bundle.manifest.planned_journeys, "seed": seed} | {f"fixture.{key}": value for key, value in fixture_values.items()}
     for config in bundle.manifest.observations:  # sequentially, each after k6 has finished
         record = {"assertion": config.assertion, "status": "unknown", "reason": "engine did not finish", "requested": False}
         if engine_finished_ok and lifecycle == "cancelled":
@@ -304,7 +309,7 @@ def _verify(
                     config,
                     run_id,
                     fixture_id=environment.get("LT_FIXTURE_ID"),
-                    variables={"planned_journeys": bundle.manifest.planned_journeys, "seed": seed},
+                    variables=variables,
                     environ=environment,  # includes the LT_TOKEN_<CLASS> tokens minted for this run
                     allowed_origins=bundle.manifest.allowed_origins,
                     allowed_origins_env=bundle.manifest.allowed_origins_env,
@@ -358,8 +363,10 @@ def _verify(
     metrics["iterations_per_second"] = round(float(metrics.get("iterations", 0)) / engine_window, 3)
     metrics["http_reqs_per_second"] = round(float(metrics.get("http_reqs", 0)) / engine_window, 3)
 
+    funnels, funnel_limitations = journey_funnels(bundle.manifest.journeys, events, metrics.get("iterations"))
+    stage_checks = stage_assertion_results(bundle.manifest.stage_assertions, funnels, variables, lifecycle == "finished")
     assertions, missing, partial, identity, definite_failure = evaluate_assertions(
-        bundle.manifest.assertions, events, observations, bundle.manifest.planned_journeys
+        bundle.manifest.assertions, events, [*observations, *stage_checks], bundle.manifest.planned_journeys
     )
 
     limitations = list(scrub_limitations)
@@ -385,7 +392,6 @@ def _verify(
     if thresholds_breached:
         limitations.append("k6 thresholds breached")
     limitations.extend(overlap_shortfalls(metrics, bundle.manifest.journeys))
-    funnels, funnel_limitations = journey_funnels(bundle.manifest.journeys, events, metrics.get("iterations"))
     limitations.extend(funnel_limitations)
     if malformed_events:
         limitations.append(f"ignored {malformed_events} malformed event record(s)")

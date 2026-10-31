@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { GitCompareArrows, Info, LayoutDashboard, ListChecks, Workflow } from "lucide-react";
+import { GitCompareArrows, Info, LayoutDashboard, LibraryBig, ListChecks, Plus, Workflow } from "lucide-react";
 import { Link } from "react-router";
 import { api } from "@/api/client";
 import { NavFooter } from "@/components/nav-footer";
@@ -20,6 +20,8 @@ import { useApi } from "@/lib/use-api";
 
 const NAV_MAIN: NavItem[] = [
   { title: "Overview", url: "/", icon: LayoutDashboard, end: true, eyebrow: "verdict board" },
+  { title: "New test", url: "/new", icon: Plus, eyebrow: "create, aim, run" },
+  { title: "Library", url: "/library", icon: LibraryBig, eyebrow: "saved tests" },
   { title: "Runs", url: "/runs", icon: ListChecks, eyebrow: "evidence on disk" },
   { title: "Scenarios", url: "/scenarios", icon: Workflow, eyebrow: "trends per scenario" },
   { title: "Compare", url: "/compare", icon: GitCompareArrows, eyebrow: "baseline vs candidate" },
@@ -54,7 +56,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
                 </span>
                 <span className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-heading font-semibold">LiteTraffic</span>
-                  <span className="truncate text-xs text-muted-foreground">Local dashboard</span>
+                  <span className="truncate text-xs text-muted-foreground">Local console</span>
                 </span>
               </Link>
             </SidebarMenuButton>

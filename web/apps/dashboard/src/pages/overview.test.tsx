@@ -91,3 +91,21 @@ test("verdict badges carry a signal with the matching lamp lit, next to the word
   expect(signal).toHaveAttribute("aria-hidden", "true");
   expect(screen.getByText("attention · 5 not passed")).toHaveClass("window-card-header");
 });
+
+test("offers New test and links to a running job in a banner", async () => {
+  const quiet = renderApp("/");
+  await screen.findByRole("heading", { level: 1, name: "Overview" });
+  expect(screen.getAllByRole("link", { name: "New test" }).some((link) => link.getAttribute("href") === "/new")).toBe(true);
+  expect(screen.queryByText("A test is running")).not.toBeInTheDocument();
+  quiet.unmount();
+
+  renderApp("/", { "/api/jobs": fixtures.jobs });
+  expect(await screen.findByText("A test is running")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Watch it live" })).toHaveAttribute("href", `/jobs/${fixtures.jobRunning.id}`);
+});
+
+test("a console that cannot list jobs still shows the overview", async () => {
+  renderApp("/", { "/api/jobs": [500, { error: "jobs unavailable" }] });
+  expect(await screen.findByRole("region", { name: "Key figures" })).toBeInTheDocument();
+  expect(screen.queryByText("A test is running")).not.toBeInTheDocument();
+});

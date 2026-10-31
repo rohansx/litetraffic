@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
+from urllib.parse import quote
 
 from pydantic import Field, JsonValue, model_validator
 
-from litetraffic.expression import NAMES, evaluate, is_expression
+from litetraffic.expression import NAMES, evaluate, fixture_keys, is_expression
 from litetraffic.modelbase import ENV_NAME, StrictModel
 from litetraffic.target import normalize_origin
 
@@ -22,17 +24,64 @@ def as_matcher(expected: JsonValue) -> dict[str, JsonValue]:
     return {"eq": expected}
 
 
-def resolve_expected(expected: dict[str, JsonValue], variables: dict[str, int]) -> dict[str, JsonValue]:
-    """Evaluate `${...}` literals and matcher operands; every other value is kept as written."""
+class Placeholders(dict):
+    """Stand-in plan variables for load-time checks: every plan name and every fixture.KEY is 0."""
+
+    def __init__(self):
+        super().__init__(dict.fromkeys(NAMES, 0))
+
+    def __contains__(self, name: object) -> bool:
+        return super().__contains__(name) or str(name).startswith("fixture.")
+
+    def __missing__(self, name: str) -> int:
+        return 0
+
+
+WHOLE_FIXTURE_REF = re.compile(r"\$\{\s*fixture\.([A-Za-z_][A-Za-z0-9_]*)\s*\}")
+PATH_FIXTURE_REF = re.compile(r"\$\{fixture\.([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def resolve_expected(expected: dict[str, JsonValue], variables: Mapping[str, object], defer_fixture: bool = False) -> dict[str, JsonValue]:
+    """Evaluate `${...}` literals and matcher operands; every other value is kept as written.
+
+    A whole `${fixture.KEY}` operand takes the fixture value as it is (a string or a number); inside a larger
+    expression it must be an integer. `defer_fixture` keeps operands that need a fixture value as written."""
     resolved = {}
     for pointer, value in expected.items():
         matcher = as_matcher(value)
         (op, operand), = matcher.items()  # validation already rejected multi-key matchers
+        if is_expression(operand) and defer_fixture and any(f"fixture.{key}" not in variables for key in fixture_keys(operand)):
+            resolved[pointer] = value
+            continue
         if is_expression(operand):
-            operand = evaluate(operand, variables)
+            whole = WHOLE_FIXTURE_REF.fullmatch(operand)
+            raw = variables.get(f"fixture.{whole[1]}") if whole else None
+            operand = raw if isinstance(raw, str | int | float) and not isinstance(raw, bool) else evaluate(operand, variables)
             value = operand if matcher is not value else {op: operand}
         resolved[pointer] = value
     return resolved
+
+
+def resolve_path(path: str, variables: Mapping[str, object]) -> str:
+    """Substitute each `${fixture.KEY}` with its URL-encoded value; a missing or unusable value is a ValueError."""
+
+    def value(match: re.Match) -> str:
+        found = variables.get(f"fixture.{match[1]}")
+        if isinstance(found, bool) or not isinstance(found, str | int | float) or str(found) in {"", ".", ".."}:
+            raise ValueError(f"fixture.{match[1]} has no usable value")
+        return quote(str(found), safe="")
+
+    return PATH_FIXTURE_REF.sub(value, path)
+
+
+def fixture_refs(path: str, expected: Mapping[str, JsonValue]) -> set[str]:
+    """Every fixture KEY a path or an expected map refers to."""
+    keys = set(PATH_FIXTURE_REF.findall(path))
+    for value in expected.values():
+        operand = next(iter(as_matcher(value).values()))
+        if is_expression(operand):
+            keys |= fixture_keys(operand)
+    return keys
 
 
 def _check_matcher(pointer: str, matcher: dict[str, JsonValue]) -> None:
@@ -89,6 +138,10 @@ class FinalObservation(StrictModel):
     def max_requests(self) -> int:
         return self.until.max_attempts if self.until else 1
 
+    @property
+    def fixture_keys(self) -> set[str]:
+        return fixture_refs(self.path, self.expected)
+
     @model_validator(mode="after")
     def require_safe_read(self) -> "FinalObservation":
         if not self.path.startswith("/") or self.path.startswith("//") or "#" in self.path:
@@ -99,9 +152,11 @@ class FinalObservation(StrictModel):
             if as_matcher(value) is value:
                 _check_matcher(pointer, value)
         try:
-            resolve_expected(self.expected, dict.fromkeys(NAMES, 0))
+            resolve_expected(self.expected, Placeholders())
         except ValueError as exc:
             raise ValueError(f"expected {exc}") from None
+        if "${fixture." in PATH_FIXTURE_REF.sub("", self.path):
+            raise ValueError("observation path has a malformed ${fixture.KEY} placeholder")
         if self.bearer_token_env and not re.fullmatch(ENV_NAME, self.bearer_token_env):
             raise ValueError("bearer_token_env must name an uppercase environment variable")
         for header, env in self.headers_env.items():

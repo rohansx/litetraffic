@@ -126,10 +126,16 @@ The app's `serviceMs` is an upper bound on its own time: latency measured from t
 ## `dashboard`
 
 ```text
-litetraffic dashboard [--runs-dir DIR] [--port PORT]
+litetraffic dashboard [--runs-dir DIR] [--scenarios-dir DIR] [--port PORT] [--open]
 ```
 
 Serves a read-only dashboard over `--runs-dir` (default `.litetraffic/runs`) on `http://127.0.0.1:PORT/` (default port `8780`, clear of the example servers' ports 8765-8769; `0` picks a free port; a port outside 0-65535 is a usage error and exits 2). It always binds to `127.0.0.1`; there is no `--host` option. It prints the URL, uses only the Python standard library at runtime, and does not contact a target. The UI is a prebuilt single-page app shipped inside the package (`src/litetraffic/dashboard_ui/`), so no Node is needed to run it; a checkout without the bundle serves a plain page on `/` explaining how to build it (`pnpm -C web install && pnpm -C web build`), and the JSON API still works.
+
+The console writes only to the library and the runs directory, through requests the server accepts only from its own page (custom action header, same-origin, loopback Host). One background job runs at a time:
+
+- **Library** (`/library`): save a scenario by pasting files, from a `tenant-isolation` kit config, or from an AI draft. Every save is validated like `inspect`. A bundle with a `fixtures.command` is only saved if you trust it explicitly, and it stops running if its files change afterwards until you save it again.
+- **New test** (`/new`): pick a scenario, enter the target and any `secret_env` values, tick the permission box and run. The run is `litetraffic verify` in a child process that gets only a minimal environment plus the secrets you typed (never the console's own `ANTHROPIC_API_KEY`); secret values are redacted from the live log and never returned by the API. Cancel sends Ctrl-C, so fixtures are torn down and artifacts scrubbed as in the terminal.
+- **Describe it (AI)**: Claude (`LITETRAFFIC_DRAFT_MODEL`, default `claude-sonnet-5-5`; needs `litetraffic[ai]` and `ANTHROPIC_API_KEY`, or a key pasted into the form for that draft only) drafts `manifest.json` and `journeys.js` from your plain-language rules and an API spec, and repairs its own mistakes against the validator (up to 4 attempts). Drafts may not use setup commands, are never saved automatically and need your review: you still decide what must never break.
 
 Pages (client-side routes; the server returns the app for any path outside `/api/`):
 
