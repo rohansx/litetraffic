@@ -34,6 +34,10 @@ The controller cleans up `owned_http` fixtures and runs `command` fixture teardo
 
 Files LiteTraffic writes itself (`run.json`, `result.json`, reports, logs, events, the series summary) are written to a `0600` temporary file in the same directory and then renamed over the target, so they are never readable by others and a crash leaves either the previous file or the new one, never a truncated one. When a run finishes, every directory in the run directory is set to `0700` and every file to `0600` (symlinks are skipped, never followed, so a link cannot change the mode of a file outside the run directory), including the `console.log` and `metrics.jsonl` that k6 creates. While k6 is still running, those two files keep the mode k6 gave them. `verify --repeat` also sets the output directory that holds the series summary to `0700`. They contain raw k6 output and whatever the script logs, so review them before sharing.
 
+## Reporting a failure upstream
+
+`litetraffic report issue` turns a failing run into an issue draft under `RUN/issue/`. By default nothing leaves the machine; it only prints the `gh` command it would run. Every file in the draft is scrubbed (declared credential values, JWT and GitHub tokens, the target origin, local paths) and re-read before the command succeeds; if anything still leaks, the draft is deleted and the command exits `3`. The optional replay video is drawn from the scrubbed evidence only, and its text passes the same check. Filing needs an explicit `--submit`. A failure that looks like a security problem is only ever sent as a private vulnerability report, never as a public issue, and no file is attached to it. Review the draft before submitting: scrubbing removes what LiteTraffic knows is secret, not everything your app might put in a response.
+
 ## Known limitations of this preview
 
 - Real-engine execution is validated on Linux. Other platforms are not release-qualified.

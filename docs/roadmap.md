@@ -12,6 +12,7 @@ The long-term goal is **users as an API**: give an application a believable, sta
 - `dashboard`: a read-only local page on `127.0.0.1:8780` for runs, series, activities, per-scenario p95 trends and diffs, with filters, auto-refresh and a light/dark theme
 - `prune`: run retention by count or age
 - `export` (`export breakscale`): a run as a Breakscale design file (client rate, app service time and spread, observed overlap, an optional database), with every assumed number listed in the design and printed
+- `report issue`: a scrubbed issue draft (or private vulnerability report for security-class failures) from a failing run
 - Explicit phases and seeded spiky, random-burst, and sustained-burst profiles
 - Declared budgets with static and post-run checks, including counted write attempts and k6 `vus_max`
 - Assertion evidence, verdicts, lifecycle, HTML report

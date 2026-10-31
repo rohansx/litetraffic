@@ -1,0 +1,37 @@
+{
+  "files": [
+    {
+      "bytes": 9156,
+      "path": "events/000001.jsonl",
+      "sha256": "9103b26e8f9e02045d65607e3a593e4b90d154b483d687f72be7a74a1dab9a1d"
+    },
+    {
+      "bytes": 9479,
+      "path": "metrics.jsonl",
+      "sha256": "7ff9d8c3cb88dd8ee26581832a3f599f2cd4189a44c7b17039adf40d5d4d6ef6"
+    },
+    {
+      "bytes": 582,
+      "path": "observation.json",
+      "sha256": "1c8e761a0c5970bc90423169cbd86f616367337955a916b48306b8f67f7e021e"
+    },
+    {
+      "bytes": 2398,
+      "path": "result.json",
+      "sha256": "baf469e9b1bafb902126ef30b057862ecf16b83dd2250b64be119a8073e42305"
+    },
+    {
+      "bytes": 719,
+      "path": "run.json",
+      "sha256": "863e08412ad69d859a6e9b9f83658bbac79d642841d950f1aab7ab86e402020e"
+    },
+    {
+      "bytes": 2384,
+      "path": "scenario.lock.json",
+      "sha256": "2907d859b364a613e8b811972c7b1554f5400dad3cd27e778d0d9a2c2202376e"
+    }
+  ],
+  "run_id": "run_20261017T105857Z_4508abfb",
+  "schema_version": 1,
+  "total_bytes": 24718
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "name": "hievents-promo-oversell",
+  "script": "journeys.js",
+  "actors": [{"class": "buyer", "count": 10, "auth_recipe": "public-checkout-session"}],
+  "secret_env": ["LT_HIEVENTS_ORG_TOKEN"],
+  "fixtures": {
+    "recipe": "fresh-single-use-promo",
+    "command": {
+      "setup": ["sh", "setup.sh"],
+      "teardown": ["sh", "teardown.sh"],
+      "setup_timeout_seconds": 20,
+      "teardown_timeout_seconds": 10
+    }
+  },
+  "journeys": [
+    {
+      "name": "buy",
+      "max_requests": 2,
+      "max_writes": 2,
+      "stages": ["reserved", "completed"],
+      "expected_statuses": {
+        "reserve_order": [200, 201],
+        "complete_order": [200, 402, 409, 422]
+      }
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {"name": "burst", "seconds": 1, "rate": 10}
+    ]
+  },
+  "assertions": ["reservation_accepted", "order_total_matches_promo", "promo_usage_within_limit"],
+  "observer": "promo-usage-count",
+  "observation": {
+    "path": "/api/events/1/promo-codes",
+    "bearer_token_env": "LT_HIEVENTS_ORG_TOKEN",
+    "assertion": "promo_usage_within_limit",
+    "expected": {
+      "/data/0/order_usage_count": {"lte": 1},
+      "/data/0/max_allowed_usages": 1
+    },
+    "until": {"deadline_seconds": 12, "interval_seconds": 2}
+  },
+  "budgets": {
+    "max_seconds": 90,
+    "max_requests": 100,
+    "max_write_attempts": 50,
+    "max_in_flight": 10,
+    "max_artifact_bytes": 67108864
+  }
+}

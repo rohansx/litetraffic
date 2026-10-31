@@ -302,6 +302,13 @@ class Budgets(StrictModel):
     max_artifact_bytes: int = Field(gt=0)
 
 
+class ScenarioReport(StrictModel):
+    """How `report issue` treats this scenario's failures. Digests hash the raw manifest, so omitting it changes nothing."""
+
+    security: bool = False  # every failure is security-class (a limit or money invariant, say), routed to a private report
+    known_issue: str | None = Field(default=None, min_length=1, max_length=200)  # e.g. a CVE or upstream issue this reproduces
+
+
 class ScenarioManifest(StrictModel):
     schema_version: int
     name: str = Field(min_length=1)
@@ -318,6 +325,7 @@ class ScenarioManifest(StrictModel):
     allowed_origins_env: str | None = None  # names a variable holding comma-separated extra origins for origin_env
     secret_env: list[str] = Field(default_factory=list)  # names of other credential variables to scrub, such as ready bearer tokens
     budgets: Budgets
+    report: ScenarioReport = Field(default_factory=ScenarioReport)
 
     @model_validator(mode="after")
     def require_supported_version_and_duration(self) -> "ScenarioManifest":

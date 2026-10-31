@@ -147,6 +147,7 @@ class Capture:
         self.problems: list[str] = []
         self.logs: list[_Log] = []
         self.samples: dict[str, list[dict]] = {}
+        self.images: dict[str, str | None] = {}
         self.stopping = threading.Event()
         self.stats_thread: threading.Thread | None = None
         self.docker = shutil.which("docker")
@@ -173,12 +174,14 @@ class Capture:
             return
         since = datetime.now(UTC).isoformat()
         for name in self.containers:
-            found = self._run("inspect", "--type", "container", "--format", "{{.Name}}", name)
+            found = self._run("inspect", "--type", "container", "--format", "{{.Name}}\t{{.Config.Image}}", name)
             if found is None:
                 continue
             if found.returncode:
                 self._problem(f"{name}: {(found.stderr.strip().splitlines() or ['docker inspect failed'])[-1]}")
                 continue
+            fields = (found.stdout.strip().splitlines() or [""])[0].split("\t", 1)
+            self.images[name] = fields[1].strip() or None if len(fields) == 2 else None  # the tag is the app version
             log = _Log(name, self.server_dir / f"{name}.log", self.secrets)
             try:
                 log.process = subprocess.Popen(
@@ -243,7 +246,8 @@ class Capture:
         return returncode < 0 or returncode in (137, 143)  # SIGKILL/SIGTERM, raw or as a shell-style status
 
     def summary(self) -> dict:
-        containers = {log.name: {**_resources(self.samples.get(log.name, [])), **log.summary()} for log in self.logs}
+        containers = {log.name: {**_resources(self.samples.get(log.name, [])), **log.summary(), "image": self.images.get(log.name)}
+                      for log in self.logs}
         return {"schema_version": 1, "source": "docker", "containers": containers, "problems": list(self.problems)}
 
 

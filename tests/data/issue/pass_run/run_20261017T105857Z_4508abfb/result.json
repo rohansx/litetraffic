@@ -1,0 +1,116 @@
+{
+  "assertions": [
+    {
+      "id": "reservation_accepted",
+      "samples": 10,
+      "status": "pass"
+    },
+    {
+      "id": "order_total_matches_promo",
+      "samples": 10,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/data/0/max_allowed_usages": 1,
+        "/data/0/order_usage_count": 1
+      },
+      "expected": {
+        "/data/0/max_allowed_usages": 1,
+        "/data/0/order_usage_count": {
+          "lte": 1
+        }
+      },
+      "id": "promo_usage_within_limit",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-17T10:59:02.485226+00:00",
+  "journeys": {
+    "buy": {
+      "stages": [
+        {
+          "name": "reserved",
+          "reached": 10
+        },
+        {
+          "name": "completed",
+          "reached": 1
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 0
+        },
+        {
+          "after": "reserved",
+          "count": 9
+        }
+      ],
+      "started": 10,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "complete_order": {
+        "failed_rate": 0.0,
+        "p95": 74.295,
+        "samples": 10
+      },
+      "reserve_order": {
+        "failed_rate": 0.0,
+        "p95": 68.128,
+        "samples": 10
+      }
+    },
+    "elapsed_seconds": 4.812727,
+    "http_req_duration_ms": {
+      "average": 42.83,
+      "max": 102.082,
+      "p50": 37.12,
+      "p95": 90.69,
+      "samples": 20
+    },
+    "http_req_failed_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 20
+    },
+    "http_reqs": 20.0,
+    "http_reqs_per_second": 5.801,
+    "iterations": 10.0,
+    "iterations_per_second": 2.901,
+    "observer_requests": 1,
+    "overlap": {
+      "complete_order": 2,
+      "reserve_order": 1
+    },
+    "total_http_reqs": 21.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 20
+    },
+    "vus_max": 10,
+    "write_attempts": 20
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 10,
+  "planned_journeys_per_second": 10.0,
+  "report": "report.html",
+  "run_id": "run_20261017T105857Z_4508abfb",
+  "schema_version": 1,
+  "seed": 42,
+  "verdict": "pass"
+}

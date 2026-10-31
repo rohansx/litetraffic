@@ -52,7 +52,8 @@ def fake_docker(tmp_path, monkeypatch):
         "elif args[0] == 'inspect':\n"
         "    if args[-1] != 'api':\n"
         "        print(f'Error: No such container: {args[-1]}', file=sys.stderr); raise SystemExit(1)\n"
-        "    print('/api')\n"
+        "    image = os.environ.get('FAKE_DOCKER_IMAGE')\n"
+        "    print('/api' + (chr(9) + image if image and '{{.Config.Image}}' in args[-2] else ''))\n"
         "elif args[0] == 'logs':\n"
         f"    lines = {LOGS!r} * int(os.environ.get('FAKE_DOCKER_REPEAT', '1'))\n"
         "    sys.stdout.write(''.join(line + '\\n' for line in lines)); sys.stdout.flush()\n"
@@ -118,6 +119,21 @@ def test_capture_summarises_logs_stats_and_problems(tmp_path, fake_docker):
     assert (tmp_path / "server" / "api.log").read_text().count("\n") == 5
     assert all("Name" in json.loads(line) and "at" in json.loads(line) for line in (tmp_path / "server" / "stats.jsonl").read_text().splitlines())
     assert all(log.process.poll() is not None for log in run.logs)  # the blocking `docker logs -f` was stopped
+
+
+def test_capture_records_each_container_image(tmp_path, fake_docker, monkeypatch):
+    """The image reference (and so its tag) is the target's version when the app does not report one."""
+    monkeypatch.setenv("FAKE_DOCKER_IMAGE", "daveearley/hi.events-all-in-one:v1.9.0-beta")
+    run = Capture(["api"], tmp_path / "server")
+    run.start()
+    summary = run.stop()
+    assert summary["containers"]["api"]["image"] == "daveearley/hi.events-all-in-one:v1.9.0-beta"
+
+
+def test_capture_image_is_none_when_docker_does_not_report_it(tmp_path, fake_docker):
+    run = Capture(["api"], tmp_path / "server")
+    run.start()
+    assert run.stop()["containers"]["api"]["image"] is None
 
 
 def test_capture_caps_each_log_file_but_keeps_counting(tmp_path, fake_docker, monkeypatch):

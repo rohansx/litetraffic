@@ -1,0 +1,37 @@
+{
+  "files": [
+    {
+      "bytes": 11001,
+      "path": "events/000001.jsonl",
+      "sha256": "a63f8fd3d7e43d102ab68686759cb0c094b9b2633fbbfe7d35df79d5520d21ec"
+    },
+    {
+      "bytes": 9479,
+      "path": "metrics.jsonl",
+      "sha256": "a02ffc2553bf72d193fbcee9c47823fc9c880eabf8cd5491dc3f04da5ac9589f"
+    },
+    {
+      "bytes": 588,
+      "path": "observation.json",
+      "sha256": "e2a104cd8308420cef1dc0459266a03de434ad3dfa9bdcfb4647b17ae2828de0"
+    },
+    {
+      "bytes": 2404,
+      "path": "result.json",
+      "sha256": "2fff0d3779df49747220663e965e35161452ef5681008607b85cbae1061b7dd5"
+    },
+    {
+      "bytes": 719,
+      "path": "run.json",
+      "sha256": "f582e47f2bf79907d914ded08a45a84ff43bc76d16f5571fb24934ee22db2822"
+    },
+    {
+      "bytes": 2384,
+      "path": "scenario.lock.json",
+      "sha256": "2907d859b364a613e8b811972c7b1554f5400dad3cd27e778d0d9a2c2202376e"
+    }
+  ],
+  "run_id": "run_20261017T105826Z_54eaa342",
+  "schema_version": 1,
+  "total_bytes": 26575
+}
