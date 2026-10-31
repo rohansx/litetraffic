@@ -1,0 +1,23 @@
+{
+  "setup": {
+    "argv": [
+      "sh",
+      "setup.sh",
+      "quota"
+    ],
+    "duration_seconds": 0.263,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  },
+  "teardown": {
+    "argv": [
+      "sh",
+      "teardown.sh"
+    ],
+    "duration_seconds": 0.668,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  }
+}

@@ -1,0 +1,28 @@
+account d5eb2efc-fb7f-4c33-a2dd-5d71026b6ccf
+pm 52ea6964-ac9c-4864-b491-94c065244ee4
+--- external charge 100
+HTTP/1.1 200 
+[{"invoiceItemId":"91377758-7f5e-4d46-9bf0-7b77bc4f5d52","invoiceId":"8b993fef-4475-4fbc-a0f0-2c4764a914a2","linkedInvoiceItemId":null,"accountId":"d5eb2efc-fb7f-4c33-a2dd-5d71026b6ccf","childAccountId":null,"bundleId":null,"subscriptionId":null,"productName":null,"planName":null,"phaseName":null,"usageName":null,"prettyProductName":null,"prettyPlanName":null,"prettyPhaseName":null,"prettyUsageName":null,"itemType":"EXTERNAL_CHARGE","description":"lt charge","startDate":"2026-10-21","endDate":null,"amount":100.00,"rate":null,"currency":"USD","quantity":null,"itemDetails":null,"catalogEffectiveDate":null,"childItems":null,"auditLogs":[]}]
+invoice 8b993fef-4475-4fbc-a0f0-2c4764a914a2
+HTTP/1.1 200 
+{"amount":100.00,"currency":"USD","status":"COMMITTED","creditAdj":0.00,"refundAdj":0.00,"invoiceId":"8b993fef-4475-4fbc-a0f0-2c4764a914a2","invoiceDate":"2026-10-21","targetDate":"2026-10-21","invoiceNumber":"1","balance":100.00,"accountId":"d5eb2efc-fb7f-4c33-a2dd-5d71026b6ccf","bundleKeys":null,"credits":null,"items":[{"invoiceItemId":"91377758-7f5e-4d46-9bf0-7b77bc4f5d52","invoiceId":"8b993fef-4475-4fbc-a0f0-2c4764a914a2","linkedInvoiceItemId":null,"accountId":"d5eb2efc-fb7f-4c33-a2dd-5d71026b6ccf","childAccountId":null,"bundleId":null,"subscriptionId":null,"productName":null,"planName":null,"phaseName":null,"usageName":null,"prettyProductName":null,"prettyPlanName":null,"prettyPhaseName
+--- pay 100
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/invoicePayments/5b2c8f84-d4df-4f62-bac9-826a83b15073/
+--- pay 100 again
+HTTP/1.1 204 
+HTTP/1.1 404 
+{"className":"org.killbill.billing.account.api.AccountApiException","code":3003,"message":"Account does not exist for key none","causeClassName":null,"causeMessage":null,"stackTrace":[]}
+HTTP/1.1 200 
+{"accountId":"d5eb2efc-fb7f-4c33-a2dd-5d71026b6ccf","name":"probe5","firstNameLength":null,"externalKey":"d5eb2efc-fb7f-4c33-a2dd-5d71026b6ccf","email":"p5@example.com","billCycleDayLocal":0,"currency":"USD","parentAccountId":null,"isPaymentDelegatedToParent":false,"paymentMethodId":null,"referenceTime":"2026-10-21T16:25:53.000Z","timeZone":"UTC","address1":null,"address2":null,"postalCode":null,"company":null,"city":null,"state":null,"country":null,"locale":null,"phone":null,"notes":null,"isMigrated":null,"accountBalance":0.00,"accountCBA":null,"auditLogs":[]}
+--- adjust
+item 91377758-7f5e-4d46-9bf0-7b77bc4f5d52
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/invoices/8b993fef-4475-4fbc-a0f0-2c4764a914a2/
+HTTP/1.1 400 
+{"className":"org.killbill.billing.invoice.api.InvoiceApiException","code":4020,"message":"Invoice adjustment amount 100 should be lower than 0","causeClassName":null,"causeMessage":null,"stackTrace":[]}
+"accountBalance":-100.00
+"amount":0.00,"currency":"USD","status":"COMMITTED"
+"creditAdj":100.00
+"refundAdj":0.00
+"balance":0.00

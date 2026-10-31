@@ -1,0 +1,610 @@
+{
+  "completed_runs": 5,
+  "consistent": true,
+  "dispersion": {
+    "http_req_failed_rate": {
+      "max": 0.9,
+      "mean": 0.9,
+      "min": 0.9,
+      "stdev": 0.0
+    },
+    "http_reqs_per_second": {
+      "max": 6.994,
+      "mean": 6.939,
+      "min": 6.855,
+      "stdev": 0.06068360569379497
+    },
+    "p95_ms": {
+      "max": 63.582,
+      "mean": 59.416199999999996,
+      "min": 54.852,
+      "stdev": 3.720762179984097
+    }
+  },
+  "lifecycle": "finished",
+  "mode": "repeat",
+  "requested_runs": 5,
+  "result": "series_20261021T054108Z_c5a38842.json",
+  "runs": [
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "id": "charge_matches_rules",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": 1
+          },
+          "expected": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_counter_within_limit",
+          "samples": 1,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/count": 1
+          },
+          "expected": {
+            "/count": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_orders_within_limit",
+          "samples": 1,
+          "status": "pass"
+        }
+      ],
+      "completeness": "complete",
+      "engine_exit_code": 0,
+      "finished_at": "2026-10-21T05:41:00.825975+00:00",
+      "journeys": {
+        "buy": {
+          "stages": [
+            {
+              "name": "ordered",
+              "reached": 1
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 9
+            }
+          ],
+          "started": 10,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "finished",
+      "limitations": [],
+      "metrics": {
+        "by_operation": {
+          "place_order": {
+            "failed_rate": 0.9,
+            "p95": 63.582,
+            "samples": 10
+          }
+        },
+        "elapsed_seconds": 1.983275,
+        "http_req_duration_ms": {
+          "average": 37.18,
+          "max": 83.942,
+          "p50": 31.808,
+          "p95": 63.582,
+          "samples": 10
+        },
+        "http_req_failed_rate": {
+          "failed": 9,
+          "rate": 0.9,
+          "samples": 10
+        },
+        "http_reqs": 10.0,
+        "http_reqs_per_second": 6.988,
+        "iterations": 10.0,
+        "iterations_per_second": 6.988,
+        "observer_requests": 2,
+        "overlap": {
+          "place_order": 1
+        },
+        "total_http_reqs": 12.0,
+        "unexpected_http_failure_rate": {
+          "failed": 0,
+          "rate": 0.0,
+          "samples": 10
+        },
+        "vus_max": 10,
+        "write_attempts": 10
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T054058Z_32cf9144",
+      "schema_version": 1,
+      "seed": 10,
+      "verdict": "pass"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "id": "charge_matches_rules",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": 1
+          },
+          "expected": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_counter_within_limit",
+          "samples": 1,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/count": 1
+          },
+          "expected": {
+            "/count": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_orders_within_limit",
+          "samples": 1,
+          "status": "pass"
+        }
+      ],
+      "completeness": "complete",
+      "engine_exit_code": 0,
+      "finished_at": "2026-10-21T05:41:02.826620+00:00",
+      "journeys": {
+        "buy": {
+          "stages": [
+            {
+              "name": "ordered",
+              "reached": 1
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 9
+            }
+          ],
+          "started": 10,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "finished",
+      "limitations": [],
+      "metrics": {
+        "by_operation": {
+          "place_order": {
+            "failed_rate": 0.9,
+            "p95": 62.387,
+            "samples": 10
+          }
+        },
+        "elapsed_seconds": 1.977922,
+        "http_req_duration_ms": {
+          "average": 36.865,
+          "max": 84.365,
+          "p50": 33.096,
+          "p95": 62.387,
+          "samples": 10
+        },
+        "http_req_failed_rate": {
+          "failed": 9,
+          "rate": 0.9,
+          "samples": 10
+        },
+        "http_reqs": 10.0,
+        "http_reqs_per_second": 6.961,
+        "iterations": 10.0,
+        "iterations_per_second": 6.961,
+        "observer_requests": 2,
+        "overlap": {
+          "place_order": 1
+        },
+        "total_http_reqs": 12.0,
+        "unexpected_http_failure_rate": {
+          "failed": 0,
+          "rate": 0.0,
+          "samples": 10
+        },
+        "vus_max": 10,
+        "write_attempts": 10
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T054100Z_d6a78cf8",
+      "schema_version": 1,
+      "seed": 11,
+      "verdict": "pass"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "id": "charge_matches_rules",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": 1
+          },
+          "expected": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_counter_within_limit",
+          "samples": 1,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/count": 1
+          },
+          "expected": {
+            "/count": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_orders_within_limit",
+          "samples": 1,
+          "status": "pass"
+        }
+      ],
+      "completeness": "complete",
+      "engine_exit_code": 0,
+      "finished_at": "2026-10-21T05:41:04.823381+00:00",
+      "journeys": {
+        "buy": {
+          "stages": [
+            {
+              "name": "ordered",
+              "reached": 1
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 9
+            }
+          ],
+          "started": 10,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "finished",
+      "limitations": [],
+      "metrics": {
+        "by_operation": {
+          "place_order": {
+            "failed_rate": 0.9,
+            "p95": 54.852,
+            "samples": 10
+          }
+        },
+        "elapsed_seconds": 1.974477,
+        "http_req_duration_ms": {
+          "average": 34.928,
+          "max": 72.634,
+          "p50": 30.738,
+          "p95": 54.852,
+          "samples": 10
+        },
+        "http_req_failed_rate": {
+          "failed": 9,
+          "rate": 0.9,
+          "samples": 10
+        },
+        "http_reqs": 10.0,
+        "http_reqs_per_second": 6.897,
+        "iterations": 10.0,
+        "iterations_per_second": 6.897,
+        "observer_requests": 2,
+        "overlap": {
+          "place_order": 1
+        },
+        "total_http_reqs": 12.0,
+        "unexpected_http_failure_rate": {
+          "failed": 0,
+          "rate": 0.0,
+          "samples": 10
+        },
+        "vus_max": 10,
+        "write_attempts": 10
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T054102Z_1b9d844b",
+      "schema_version": 1,
+      "seed": 12,
+      "verdict": "pass"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "id": "charge_matches_rules",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": 1
+          },
+          "expected": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_counter_within_limit",
+          "samples": 1,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/count": 1
+          },
+          "expected": {
+            "/count": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_orders_within_limit",
+          "samples": 1,
+          "status": "pass"
+        }
+      ],
+      "completeness": "complete",
+      "engine_exit_code": 0,
+      "finished_at": "2026-10-21T05:41:06.823796+00:00",
+      "journeys": {
+        "buy": {
+          "stages": [
+            {
+              "name": "ordered",
+              "reached": 1
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 9
+            }
+          ],
+          "started": 10,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "finished",
+      "limitations": [],
+      "metrics": {
+        "by_operation": {
+          "place_order": {
+            "failed_rate": 0.9,
+            "p95": 59.72,
+            "samples": 10
+          }
+        },
+        "elapsed_seconds": 1.9784,
+        "http_req_duration_ms": {
+          "average": 37.045,
+          "max": 78.966,
+          "p50": 32.114,
+          "p95": 59.72,
+          "samples": 10
+        },
+        "http_req_failed_rate": {
+          "failed": 9,
+          "rate": 0.9,
+          "samples": 10
+        },
+        "http_reqs": 10.0,
+        "http_reqs_per_second": 6.994,
+        "iterations": 10.0,
+        "iterations_per_second": 6.994,
+        "observer_requests": 2,
+        "overlap": {
+          "place_order": 1
+        },
+        "total_http_reqs": 12.0,
+        "unexpected_http_failure_rate": {
+          "failed": 0,
+          "rate": 0.0,
+          "samples": 10
+        },
+        "vus_max": 10,
+        "write_attempts": 10
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T054104Z_da3ced5b",
+      "schema_version": 1,
+      "seed": 13,
+      "verdict": "pass"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "id": "charge_matches_rules",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": 1
+          },
+          "expected": {
+            "/results/0/max_usages": 1,
+            "/results/0/redeemed": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_counter_within_limit",
+          "samples": 1,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/count": 1
+          },
+          "expected": {
+            "/count": {
+              "lte": 1
+            }
+          },
+          "id": "voucher_orders_within_limit",
+          "samples": 1,
+          "status": "pass"
+        }
+      ],
+      "completeness": "complete",
+      "engine_exit_code": 0,
+      "finished_at": "2026-10-21T05:41:08.890742+00:00",
+      "journeys": {
+        "buy": {
+          "stages": [
+            {
+              "name": "ordered",
+              "reached": 1
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 9
+            }
+          ],
+          "started": 10,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "finished",
+      "limitations": [],
+      "metrics": {
+        "by_operation": {
+          "place_order": {
+            "failed_rate": 0.9,
+            "p95": 56.54,
+            "samples": 10
+          }
+        },
+        "elapsed_seconds": 2.045549,
+        "http_req_duration_ms": {
+          "average": 37.309,
+          "max": 73.76,
+          "p50": 33.73,
+          "p95": 56.54,
+          "samples": 10
+        },
+        "http_req_failed_rate": {
+          "failed": 9,
+          "rate": 0.9,
+          "samples": 10
+        },
+        "http_reqs": 10.0,
+        "http_reqs_per_second": 6.855,
+        "iterations": 10.0,
+        "iterations_per_second": 6.855,
+        "observer_requests": 2,
+        "overlap": {
+          "place_order": 1
+        },
+        "total_http_reqs": 12.0,
+        "unexpected_http_failure_rate": {
+          "failed": 0,
+          "rate": 0.0,
+          "samples": 10
+        },
+        "vus_max": 10,
+        "write_attempts": 10
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T054106Z_465d9c58",
+      "schema_version": 1,
+      "seed": 14,
+      "verdict": "pass"
+    }
+  ],
+  "same_seed": false,
+  "schema_version": 1,
+  "series_id": "series_20261021T054108Z_c5a38842",
+  "starting_seed": 10,
+  "verdict": "pass"
+}

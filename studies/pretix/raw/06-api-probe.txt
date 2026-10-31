@@ -1,0 +1,10 @@
+== vouchers/?ordering=-id
+{"count":1,"next":null,"previous":null,"results":[{"id":1,"created":"2026-10-21T05:37:06.133581Z","code":"ONEUSE1","max_usages":1,"redeemed":1,"min_usages":1,"valid_until":null,"block_quota":false,"allow_ignore_quota":false,"price_mode":"set","value":"10.00","
+== quotas/?ordering=-id
+{"count":1,"next":null,"previous":null,"results":[{"id":1,"name":"Main","size":5,"items":[1],"variations":[],"subevent":null,"closed":false,"close_when_sold_out":false,"release_after_exit":false,"ignore_for_event_availability":false}]} HTTP 200
+== orderpositions/?voucher=1
+{"count":1,"next":null,"previous":null,"results":[{"id":2,"order":"ESA7C","positionid":1,"item":1,"variation":null,"price":"10.00","attendee_name":"A","attendee_name_parts":{"_legacy":"A"},"company":null,"street":null,"zipcode":null,"city":null,"country":null,
+== orderpositions/?item=1&status=n
+{"count":1,"next":null,"previous":null,"results":[{"id":2,"order":"ESA7C","positionid":1,"item":1,"variation":null,"price":"10.00","attendee_name":"A","attendee_name_parts":{"_legacy":"A"},"company":null,"street":null,"zipcode":null,"city":null,"country":null,
+== quotas/1/availability/
+{"paid_orders":0,"pending_orders":1,"exited_orders":0,"blocking_vouchers":0,"cart_positions":0,"waiting_list":1,"available_number":4,"available":true,"total_size":5} HTTP 200

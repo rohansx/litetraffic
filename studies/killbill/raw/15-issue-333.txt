@@ -1,0 +1,42 @@
+author:	sbrossie
+association:	member
+edited:	false
+status:	none
+--
+Which gateway were those payments using? I don't believe KB will check amounts, but the gateway/payment processor should. Also, as i write that, i think Payment processor actually allow a capture greater than authorize amounts (for instance to take care of tips in restaurant, ...) Unclear. My point is i am not sure this is a bug. We need more details.
+
+--
+author:	kevinpostlewaite
+association:	contributor
+edited:	false
+status:	none
+--
+This is for killbill-cybersource. If this is not valid case to test, just let me know but that seems a little strange
+
+--
+author:	pierre
+association:	member
+edited:	false
+status:	none
+--
+For CyberSource specifically, they return a special error code 235 `The requested capture amount exceeds the originally authorized amount`, see page 351 of [Credit_Cards_SO_API.pdf](http://apps.cybersource.com/library/documentation/dev_guides/CC_Svcs_SO_API/Credit_Cards_SO_API.pdf). On that same guide, page 47, you can see that some specific processors require the captured amount to be less than or equal to the authorized amount, but it is unspecified for others.
+
+Finally, this behavior is probably not enforced in the sandbox environment.
+
+--
+author:	pierre
+association:	member
+edited:	false
+status:	none
+--
+@kevinpostlewaite Is there something more to be investigated?
+
+--
+author:	kevinpostlewaite
+association:	contributor
+edited:	false
+status:	none
+--
+This can be closed
+
+--

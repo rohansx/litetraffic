@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "name": "canary-quota",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "buyer",
+      "count": 20,
+      "auth_recipe": "api-token"
+    }
+  ],
+  "secret_env": [
+    "LT_PRETIX_AUTH"
+  ],
+  "fixtures": {
+    "recipe": "fresh-quota-fixture",
+    "command": {
+      "setup": [
+        "sh",
+        "setup.sh",
+        "quota"
+      ],
+      "teardown": [
+        "sh",
+        "teardown.sh"
+      ],
+      "setup_timeout_seconds": 40,
+      "teardown_timeout_seconds": 30
+    }
+  },
+  "journeys": [
+    {
+      "name": "buy",
+      "max_requests": 1,
+      "max_writes": 1,
+      "stages": [
+        "ordered"
+      ],
+      "expected_statuses": {
+        "place_order": [
+          201,
+          400,
+          409
+        ]
+      }
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {
+        "name": "burst",
+        "seconds": 1,
+        "rate": 20
+      }
+    ]
+  },
+  "assertions": [
+    "clean_response",
+    "charge_matches_rules",
+    "quota_not_oversold"
+  ],
+  "observer": "pretix-records",
+  "observations": [
+    {
+      "path": "/api/v1/organizers/study/events/lab/orderpositions/",
+      "assertion": "quota_not_oversold",
+      "headers_env": {
+        "Authorization": "LT_PRETIX_AUTH"
+      },
+      "expected": {
+        "/count": {
+          "lte": 4
+        }
+      }
+    }
+  ],
+  "budgets": {
+    "max_seconds": 150,
+    "max_requests": 200,
+    "max_write_attempts": 100,
+    "max_in_flight": 20,
+    "max_artifact_bytes": 67108864
+  }
+}

@@ -1,0 +1,249 @@
+{
+  "assertions": [
+    {
+      "id": "own_read_works",
+      "samples": 10,
+      "status": "pass"
+    },
+    {
+      "failed": 10,
+      "failures": [
+        {
+          "actual": [
+            {
+              "marker": true,
+              "op": "x_account",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_payments",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_invoices",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_methods",
+              "status": 200
+            },
+            {
+              "marker": true,
+              "op": "x_search",
+              "status": 200
+            },
+            {
+              "marker": true,
+              "op": "x_bykey",
+              "status": 200
+            }
+          ],
+          "detail": null,
+          "expected": "every cross-tenant probe refused and free of the owner's marker",
+          "logical_key": "run_20261021T163207Z_64bbf576-traffic-0",
+          "sequence": 7
+        },
+        {
+          "actual": [
+            {
+              "marker": true,
+              "op": "x_account",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_payments",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_invoices",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_methods",
+              "status": 200
+            },
+            {
+              "marker": true,
+              "op": "x_search",
+              "status": 200
+            },
+            {
+              "marker": true,
+              "op": "x_bykey",
+              "status": 200
+            }
+          ],
+          "detail": null,
+          "expected": "every cross-tenant probe refused and free of the owner's marker",
+          "logical_key": "run_20261021T163207Z_64bbf576-traffic-1",
+          "sequence": 10
+        },
+        {
+          "actual": [
+            {
+              "marker": true,
+              "op": "x_account",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_payments",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_invoices",
+              "status": 200
+            },
+            {
+              "marker": false,
+              "op": "x_methods",
+              "status": 200
+            },
+            {
+              "marker": true,
+              "op": "x_search",
+              "status": 200
+            },
+            {
+              "marker": true,
+              "op": "x_bykey",
+              "status": 200
+            }
+          ],
+          "detail": null,
+          "expected": "every cross-tenant probe refused and free of the owner's marker",
+          "logical_key": "run_20261021T163207Z_64bbf576-traffic-2",
+          "sequence": 13
+        }
+      ],
+      "id": "no_foreign_data",
+      "samples": 10,
+      "status": "fail"
+    },
+    {
+      "id": "clean_response",
+      "samples": 10,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T16:32:10.514662+00:00",
+  "journeys": {
+    "client": {
+      "stages": [
+        {
+          "name": "refused",
+          "reached": 0
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 10
+        }
+      ],
+      "started": 10,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "own_read": {
+        "failed_rate": 0.0,
+        "p95": 89.246,
+        "samples": 10
+      },
+      "x_account": {
+        "failed_rate": 0.0,
+        "p95": 88.384,
+        "samples": 10
+      },
+      "x_bykey": {
+        "failed_rate": 0.0,
+        "p95": 87.868,
+        "samples": 10
+      },
+      "x_invoices": {
+        "failed_rate": 0.0,
+        "p95": 90.372,
+        "samples": 10
+      },
+      "x_methods": {
+        "failed_rate": 0.0,
+        "p95": 89.421,
+        "samples": 10
+      },
+      "x_payments": {
+        "failed_rate": 0.0,
+        "p95": 92.965,
+        "samples": 10
+      },
+      "x_search": {
+        "failed_rate": 0.0,
+        "p95": 90.147,
+        "samples": 10
+      },
+      "x_write": {
+        "failed_rate": 1.0,
+        "p95": 92.954,
+        "samples": 10
+      }
+    },
+    "elapsed_seconds": 2.657814,
+    "http_req_duration_ms": {
+      "average": 84.553,
+      "max": 94.544,
+      "p50": 83.127,
+      "p95": 91.469,
+      "samples": 80
+    },
+    "http_req_failed_rate": {
+      "failed": 10,
+      "rate": 0.125,
+      "samples": 80
+    },
+    "http_reqs": 80.0,
+    "http_reqs_per_second": 37.81,
+    "iterations": 10.0,
+    "iterations_per_second": 4.726,
+    "overlap": {
+      "own_read": 1,
+      "x_account": 1,
+      "x_bykey": 1,
+      "x_invoices": 1,
+      "x_methods": 1,
+      "x_payments": 1,
+      "x_search": 2,
+      "x_write": 2
+    },
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 80
+    },
+    "vus_max": 10,
+    "write_attempts": 10
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 10,
+  "planned_journeys_per_second": 10.0,
+  "report": "report.html",
+  "run_id": "run_20261021T163207Z_64bbf576",
+  "schema_version": 1,
+  "seed": 1,
+  "verdict": "fail"
+}

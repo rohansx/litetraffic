@@ -1,0 +1,24 @@
+{
+  "setup": {
+    "argv": [
+      "sh",
+      "setup.sh",
+      "voucher"
+    ],
+    "duration_seconds": 0.254,
+    "exit_code": 1,
+    "reason": "fixture setup failed: exit 1",
+    "status": "error",
+    "stderr": "setup.sh: line 29: [: too many arguments\ncreate quota failed\n"
+  },
+  "teardown": {
+    "argv": [
+      "sh",
+      "teardown.sh"
+    ],
+    "duration_seconds": 0.038,
+    "exit_code": 0,
+    "status": "ok",
+    "stderr": ""
+  }
+}

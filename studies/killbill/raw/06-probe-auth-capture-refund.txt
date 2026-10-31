@@ -1,0 +1,19 @@
+--- auth, capture, refund 60, refund 60
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/7f8e45a1-ee61-4aa8-8bd8-286bf5140e48/
+HTTP/1.1 201 
+Location: http://127.0.0.1:8480/1.0/kb/payments/7f8e45a1-ee61-4aa8-8bd8-286bf5140e48/
+HTTP/1.1 500 
+{"className":"org.killbill.billing.payment.api.PaymentApiException","code":7019,"message":"Internal payment error : java.lang.NullPointerException","causeClassName":"java.lang.NullPointerException","causeMessage":null,"stackTrace":[]}
+HTTP/1.1 500 
+{"className":"org.killbill.billing.payment.api.PaymentApiException","code":7019,"message":"Internal payment error : java.lang.NullPointerException","causeClassName":"java.lang.NullPointerException","causeMessage":null,"stackTrace":[]}
+"capturedAmount":100.00
+"refundedAmount":0
+"transactionType":"AUTHORIZE","amount":100.00
+"status":"SUCCESS"
+"transactionType":"CAPTURE","amount":100.00
+"status":"SUCCESS"
+"transactionType":"REFUND","amount":60.00
+"status":"UNKNOWN"
+"transactionType":"REFUND","amount":60.00
+"status":"UNKNOWN"

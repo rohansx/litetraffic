@@ -1,0 +1,8 @@
+== delete order ESA7C
+{"detail":"Only test mode orders can be deleted."} HTTP 403
+== voucher state
+"redeemed":1
+== delete voucher
+{"detail":"This voucher can not be deleted as it has already been used."} HTTP 403
+== delete quota
+ HTTP 204

@@ -1,0 +1,316 @@
+2026-10-21T05:41:09.364180205Z [2026-10-21 05:41:09,363: INFO/ForkPoolWorker-7] Task pretix.api.webhooks.notify_webhooks[878ff070-da2b-4a84-90fb-03e51ac601e6] succeeded in 0.01598209099029191s: None
+2026-10-21T05:41:09.476522051Z [2026-10-21 05:41:09,475: INFO/MainProcess] Task pretix.base.services.notifications.notify[bd93e36c-4d41-4e40-9df0-9a03b2dd07cf] received
+2026-10-21T05:41:09.476554968Z [2026-10-21 05:41:09,475: INFO/MainProcess] Task bd93e36c-4d41-4e40-9df0-9a03b2dd07cf has trace b3cad98e-1924-43ad-919e-37cb4fdb3200
+2026-10-21T05:41:09.477897809Z [2026-10-21 05:41:09,477: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[f5f54087-8585-4994-b09a-c88406f19155] received
+2026-10-21T05:41:09.478127893Z [2026-10-21 05:41:09,477: INFO/MainProcess] Task f5f54087-8585-4994-b09a-c88406f19155 has trace b3cad98e-1924-43ad-919e-37cb4fdb3200
+2026-10-21T05:41:09.497567921Z [2026-10-21 05:41:09,495: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[f5f54087-8585-4994-b09a-c88406f19155] succeeded in 0.016835346003063023s: None
+2026-10-21T05:41:09.499369722Z [2026-10-21 05:41:09,498: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[bd93e36c-4d41-4e40-9df0-9a03b2dd07cf] succeeded in 0.021832708007423207s: None
+2026-10-21T05:41:09.503749664Z [2026-10-21 05:41:09,503: INFO/MainProcess] Task pretix.base.services.notifications.notify[a22ead24-aa30-40d1-a983-eaf906d1b29b] received
+2026-10-21T05:41:09.503771039Z [2026-10-21 05:41:09,503: INFO/MainProcess] Task a22ead24-aa30-40d1-a983-eaf906d1b29b has trace fbc8cf4b-bdb7-4c7a-a480-f16dfd1a0685
+2026-10-21T05:41:09.504402918Z [2026-10-21 05:41:09,504: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[d3d8d269-4464-4a02-a0c5-cfc1c88cf3c7] received
+2026-10-21T05:41:09.504522918Z [2026-10-21 05:41:09,504: INFO/MainProcess] Task d3d8d269-4464-4a02-a0c5-cfc1c88cf3c7 has trace fbc8cf4b-bdb7-4c7a-a480-f16dfd1a0685
+2026-10-21T05:41:09.522374686Z [2026-10-21 05:41:09,521: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[d3d8d269-4464-4a02-a0c5-cfc1c88cf3c7] succeeded in 0.016950637989793904s: None
+2026-10-21T05:41:09.526382626Z [2026-10-21 05:41:09,526: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[a22ead24-aa30-40d1-a983-eaf906d1b29b] succeeded in 0.02094520299579017s: None
+2026-10-21T05:41:09.532531494Z [2026-10-21 05:41:09,532: INFO/MainProcess] Task pretix.base.services.notifications.notify[e115d8d4-fe63-4530-9dfb-72fdd5ca5fef] received
+2026-10-21T05:41:09.532558161Z [2026-10-21 05:41:09,532: INFO/MainProcess] Task e115d8d4-fe63-4530-9dfb-72fdd5ca5fef has trace 5722348d-7131-44be-a71f-251a91423fcd
+2026-10-21T05:41:09.533524416Z [2026-10-21 05:41:09,533: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[a2ab8d25-88c5-4a81-88f1-521fd3e3ca45] received
+2026-10-21T05:41:09.533540875Z [2026-10-21 05:41:09,533: INFO/MainProcess] Task a2ab8d25-88c5-4a81-88f1-521fd3e3ca45 has trace 5722348d-7131-44be-a71f-251a91423fcd
+2026-10-21T05:41:09.550500346Z [2026-10-21 05:41:09,550: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[a2ab8d25-88c5-4a81-88f1-521fd3e3ca45] succeeded in 0.01653030200395733s: None
+2026-10-21T05:41:09.554330284Z [2026-10-21 05:41:09,554: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[e115d8d4-fe63-4530-9dfb-72fdd5ca5fef] succeeded in 0.020273239992093295s: None
+2026-10-21T05:41:09.562624040Z [2026-10-21 05:41:09,561: INFO/MainProcess] Task pretix.base.services.notifications.notify[77b5d153-3c93-4ad1-a91e-16513b7f6c36] received
+2026-10-21T05:41:09.562644998Z [2026-10-21 05:41:09,562: INFO/MainProcess] Task 77b5d153-3c93-4ad1-a91e-16513b7f6c36 has trace 56fe3d64-c464-4235-848c-3beaee979256
+2026-10-21T05:41:09.563337002Z [2026-10-21 05:41:09,563: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[6a391225-e334-4d69-a1fd-fefa9911c00d] received
+2026-10-21T05:41:09.563458461Z [2026-10-21 05:41:09,563: INFO/MainProcess] Task 6a391225-e334-4d69-a1fd-fefa9911c00d has trace 56fe3d64-c464-4235-848c-3beaee979256
+2026-10-21T05:41:09.582478903Z [2026-10-21 05:41:09,581: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[6a391225-e334-4d69-a1fd-fefa9911c00d] succeeded in 0.018096811007126234s: None
+2026-10-21T05:41:09.586035298Z [2026-10-21 05:41:09,585: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[77b5d153-3c93-4ad1-a91e-16513b7f6c36] succeeded in 0.02174737300083507s: None
+2026-10-21T05:41:09.591177077Z [2026-10-21 05:41:09,590: INFO/MainProcess] Task pretix.base.services.notifications.notify[03c51d95-cea2-49f5-b625-b0823c68e3a5] received
+2026-10-21T05:41:09.591201244Z [2026-10-21 05:41:09,591: INFO/MainProcess] Task 03c51d95-cea2-49f5-b625-b0823c68e3a5 has trace 6c59a06e-3481-498c-92f4-72b2b1531922
+2026-10-21T05:41:09.594248803Z [2026-10-21 05:41:09,593: INFO/MainProcess] Task pretix.api.webhooks.notify_webhooks[093a9b67-e9e7-400c-afd6-20087d22f693] received
+2026-10-21T05:41:09.594302886Z [2026-10-21 05:41:09,593: INFO/MainProcess] Task 093a9b67-e9e7-400c-afd6-20087d22f693 has trace 6c59a06e-3481-498c-92f4-72b2b1531922
+2026-10-21T05:41:09.596196105Z INFO 2026-10-21 05:41:09,595 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.596996735Z WARNING 2026-10-21 05:41:09,596 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.597007235Z WARNING 2026-10-21 05:41:09,596 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.602394974Z INFO 2026-10-21 05:41:09,601 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.603264395Z WARNING 2026-10-21 05:41:09,602 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.603297979Z WARNING 2026-10-21 05:41:09,602 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.616488346Z [2026-10-21 05:41:09,616: INFO/ForkPoolWorker-8] Task pretix.api.webhooks.notify_webhooks[093a9b67-e9e7-400c-afd6-20087d22f693] succeeded in 0.021095745003549382s: None
+2026-10-21T05:41:09.618947193Z [2026-10-21 05:41:09,617: INFO/ForkPoolWorker-7] Task pretix.base.services.notifications.notify[03c51d95-cea2-49f5-b625-b0823c68e3a5] succeeded in 0.025242976000299677s: None
+2026-10-21T05:41:09.618964193Z INFO 2026-10-21 05:41:09,617 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.618966526Z WARNING 2026-10-21 05:41:09,617 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.618967901Z WARNING 2026-10-21 05:41:09,617 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.626178859Z INFO 2026-10-21 05:41:09,625 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.626638528Z WARNING 2026-10-21 05:41:09,626 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.627072697Z WARNING 2026-10-21 05:41:09,626 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.632876355Z INFO 2026-10-21 05:41:09,632 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.633689985Z WARNING 2026-10-21 05:41:09,633 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.633697485Z WARNING 2026-10-21 05:41:09,633 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.642380493Z INFO 2026-10-21 05:41:09,641 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.642523410Z WARNING 2026-10-21 05:41:09,642 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.642526577Z WARNING 2026-10-21 05:41:09,642 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.647480313Z INFO 2026-10-21 05:41:09,647 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.648249151Z WARNING 2026-10-21 05:41:09,647 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.648261901Z WARNING 2026-10-21 05:41:09,647 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.653909308Z INFO 2026-10-21 05:41:09,653 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.654546395Z WARNING 2026-10-21 05:41:09,654 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.654554520Z WARNING 2026-10-21 05:41:09,654 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.661245016Z INFO 2026-10-21 05:41:09,660 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.661960020Z WARNING 2026-10-21 05:41:09,661 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.662398815Z WARNING 2026-10-21 05:41:09,661 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.670932405Z INFO 2026-10-21 05:41:09,670 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.671207531Z WARNING 2026-10-21 05:41:09,671 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.671211615Z WARNING 2026-10-21 05:41:09,671 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.678512614Z INFO 2026-10-21 05:41:09,677 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.678532989Z WARNING 2026-10-21 05:41:09,678 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.678540656Z WARNING 2026-10-21 05:41:09,678 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.683998479Z INFO 2026-10-21 05:41:09,683 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.686621535Z WARNING 2026-10-21 05:41:09,684 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.686636369Z WARNING 2026-10-21 05:41:09,684 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.692575402Z INFO 2026-10-21 05:41:09,692 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.695941838Z WARNING 2026-10-21 05:41:09,694 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.695959922Z WARNING 2026-10-21 05:41:09,694 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.700448155Z INFO 2026-10-21 05:41:09,700 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.700885241Z WARNING 2026-10-21 05:41:09,700 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.700981117Z WARNING 2026-10-21 05:41:09,700 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.707416153Z INFO 2026-10-21 05:41:09,706 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.707963823Z WARNING 2026-10-21 05:41:09,707 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.707970948Z WARNING 2026-10-21 05:41:09,707 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.714169983Z INFO 2026-10-21 05:41:09,713 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.715172989Z WARNING 2026-10-21 05:41:09,714 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.715205323Z WARNING 2026-10-21 05:41:09,714 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.721136606Z INFO 2026-10-21 05:41:09,720 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.721156023Z WARNING 2026-10-21 05:41:09,720 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.721157773Z WARNING 2026-10-21 05:41:09,720 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.726669554Z INFO 2026-10-21 05:41:09,726 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.727255516Z WARNING 2026-10-21 05:41:09,726 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.727386350Z WARNING 2026-10-21 05:41:09,726 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.733172675Z INFO 2026-10-21 05:41:09,732 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.733880762Z WARNING 2026-10-21 05:41:09,733 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.733888929Z WARNING 2026-10-21 05:41:09,733 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.740139297Z INFO 2026-10-21 05:41:09,739 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.740916427Z WARNING 2026-10-21 05:41:09,740 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.741691556Z WARNING 2026-10-21 05:41:09,740 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.747420089Z INFO 2026-10-21 05:41:09,746 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.747445422Z WARNING 2026-10-21 05:41:09,747 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.747447297Z WARNING 2026-10-21 05:41:09,747 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.753394956Z INFO 2026-10-21 05:41:09,752 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.753410581Z WARNING 2026-10-21 05:41:09,752 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.753412289Z WARNING 2026-10-21 05:41:09,752 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.758584735Z INFO 2026-10-21 05:41:09,758 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.759084780Z WARNING 2026-10-21 05:41:09,758 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.759160239Z WARNING 2026-10-21 05:41:09,758 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.765366149Z INFO 2026-10-21 05:41:09,765 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.766240737Z WARNING 2026-10-21 05:41:09,765 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.766255487Z WARNING 2026-10-21 05:41:09,765 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.777146383Z INFO 2026-10-21 05:41:09,776 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.778149347Z WARNING 2026-10-21 05:41:09,777 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.778159138Z WARNING 2026-10-21 05:41:09,777 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.786261601Z INFO 2026-10-21 05:41:09,785 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.786303185Z WARNING 2026-10-21 05:41:09,785 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.786305685Z WARNING 2026-10-21 05:41:09,785 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.792386802Z INFO 2026-10-21 05:41:09,792 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.792808221Z WARNING 2026-10-21 05:41:09,792 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.793132182Z WARNING 2026-10-21 05:41:09,792 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.800478182Z INFO 2026-10-21 05:41:09,799 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.800493682Z WARNING 2026-10-21 05:41:09,799 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.800495265Z WARNING 2026-10-21 05:41:09,799 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.806457341Z INFO 2026-10-21 05:41:09,806 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.806925302Z WARNING 2026-10-21 05:41:09,806 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.806985677Z WARNING 2026-10-21 05:41:09,806 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.812100289Z INFO 2026-10-21 05:41:09,811 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.812620126Z WARNING 2026-10-21 05:41:09,812 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.812693751Z WARNING 2026-10-21 05:41:09,812 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.818308991Z INFO 2026-10-21 05:41:09,817 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.818970078Z WARNING 2026-10-21 05:41:09,818 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.818990828Z WARNING 2026-10-21 05:41:09,818 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.824633985Z INFO 2026-10-21 05:41:09,824 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.824653986Z WARNING 2026-10-21 05:41:09,824 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.824853153Z WARNING 2026-10-21 05:41:09,824 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.830513519Z INFO 2026-10-21 05:41:09,829 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.830666520Z WARNING 2026-10-21 05:41:09,830 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.830677936Z WARNING 2026-10-21 05:41:09,830 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.836954055Z INFO 2026-10-21 05:41:09,836 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.836977014Z WARNING 2026-10-21 05:41:09,836 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.836978972Z WARNING 2026-10-21 05:41:09,836 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.846833486Z INFO 2026-10-21 05:41:09,846 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.847331323Z WARNING 2026-10-21 05:41:09,847 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.847378281Z WARNING 2026-10-21 05:41:09,847 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.853594400Z INFO 2026-10-21 05:41:09,852 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.853610733Z WARNING 2026-10-21 05:41:09,853 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.853612483Z WARNING 2026-10-21 05:41:09,853 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.862514200Z INFO 2026-10-21 05:41:09,862 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.862754660Z WARNING 2026-10-21 05:41:09,862 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.862765327Z WARNING 2026-10-21 05:41:09,862 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.872411840Z INFO 2026-10-21 05:41:09,871 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.872428090Z WARNING 2026-10-21 05:41:09,871 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.872429757Z WARNING 2026-10-21 05:41:09,871 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.879418255Z INFO 2026-10-21 05:41:09,878 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.879437422Z WARNING 2026-10-21 05:41:09,878 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.879439338Z WARNING 2026-10-21 05:41:09,878 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.888775100Z INFO 2026-10-21 05:41:09,888 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.889595604Z WARNING 2026-10-21 05:41:09,889 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.889686855Z WARNING 2026-10-21 05:41:09,889 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.899851787Z INFO 2026-10-21 05:41:09,899 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.900639250Z WARNING 2026-10-21 05:41:09,900 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.900647542Z WARNING 2026-10-21 05:41:09,900 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.910909058Z INFO 2026-10-21 05:41:09,910 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.910925392Z WARNING 2026-10-21 05:41:09,910 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.911020851Z WARNING 2026-10-21 05:41:09,910 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.919948110Z INFO 2026-10-21 05:41:09,919 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.920305070Z WARNING 2026-10-21 05:41:09,920 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.920446738Z WARNING 2026-10-21 05:41:09,920 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.931461842Z INFO 2026-10-21 05:41:09,930 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.931483342Z WARNING 2026-10-21 05:41:09,931 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.931494800Z WARNING 2026-10-21 05:41:09,931 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.944104830Z INFO 2026-10-21 05:41:09,943 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.944732792Z WARNING 2026-10-21 05:41:09,944 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.945203503Z WARNING 2026-10-21 05:41:09,944 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.951085662Z INFO 2026-10-21 05:41:09,950 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.951554539Z WARNING 2026-10-21 05:41:09,951 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.951638998Z WARNING 2026-10-21 05:41:09,951 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.959248708Z INFO 2026-10-21 05:41:09,958 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.959965879Z WARNING 2026-10-21 05:41:09,959 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.959977504Z WARNING 2026-10-21 05:41:09,959 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.970527480Z INFO 2026-10-21 05:41:09,970 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.970738315Z WARNING 2026-10-21 05:41:09,970 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.970742940Z WARNING 2026-10-21 05:41:09,970 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.981329917Z INFO 2026-10-21 05:41:09,980 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.981348958Z WARNING 2026-10-21 05:41:09,980 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.981350708Z WARNING 2026-10-21 05:41:09,980 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.993581986Z INFO 2026-10-21 05:41:09,993 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:09.994058655Z WARNING 2026-10-21 05:41:09,993 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:09.994311990Z WARNING 2026-10-21 05:41:09,993 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.003180999Z INFO 2026-10-21 05:41:10,002 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.003986337Z WARNING 2026-10-21 05:41:10,003 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.004004629Z WARNING 2026-10-21 05:41:10,003 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.013235973Z INFO 2026-10-21 05:41:10,012 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.013717392Z WARNING 2026-10-21 05:41:10,013 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.014066644Z WARNING 2026-10-21 05:41:10,013 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.023931617Z INFO 2026-10-21 05:41:10,023 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.024850955Z WARNING 2026-10-21 05:41:10,024 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.024859747Z WARNING 2026-10-21 05:41:10,024 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.031193450Z INFO 2026-10-21 05:41:10,030 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.031646411Z WARNING 2026-10-21 05:41:10,031 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.032028579Z WARNING 2026-10-21 05:41:10,031 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.039229954Z INFO 2026-10-21 05:41:10,038 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.039923916Z WARNING 2026-10-21 05:41:10,039 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.039939583Z WARNING 2026-10-21 05:41:10,039 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.050564518Z INFO 2026-10-21 05:41:10,050 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.051348397Z WARNING 2026-10-21 05:41:10,050 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.051363689Z WARNING 2026-10-21 05:41:10,050 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.060647617Z INFO 2026-10-21 05:41:10,060 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.061269245Z WARNING 2026-10-21 05:41:10,060 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.061294037Z WARNING 2026-10-21 05:41:10,060 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.074063985Z INFO 2026-10-21 05:41:10,073 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.074897031Z WARNING 2026-10-21 05:41:10,074 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.074909198Z WARNING 2026-10-21 05:41:10,074 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.084930171Z INFO 2026-10-21 05:41:10,084 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.085389591Z WARNING 2026-10-21 05:41:10,085 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.085766468Z WARNING 2026-10-21 05:41:10,085 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.091066956Z INFO 2026-10-21 05:41:10,090 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.091119165Z WARNING 2026-10-21 05:41:10,090 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.091122665Z WARNING 2026-10-21 05:41:10,090 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.101136972Z INFO 2026-10-21 05:41:10,100 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.101608558Z WARNING 2026-10-21 05:41:10,101 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.102070519Z WARNING 2026-10-21 05:41:10,101 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.109440185Z INFO 2026-10-21 05:41:10,109 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.110137189Z WARNING 2026-10-21 05:41:10,109 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.110602609Z WARNING 2026-10-21 05:41:10,109 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.119546576Z INFO 2026-10-21 05:41:10,119 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.119828994Z WARNING 2026-10-21 05:41:10,119 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.119843036Z WARNING 2026-10-21 05:41:10,119 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.130851515Z INFO 2026-10-21 05:41:10,129 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.130881432Z WARNING 2026-10-21 05:41:10,130 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.130883474Z WARNING 2026-10-21 05:41:10,130 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.141362367Z INFO 2026-10-21 05:41:10,140 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.141811536Z WARNING 2026-10-21 05:41:10,141 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.141871870Z WARNING 2026-10-21 05:41:10,141 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.153337518Z INFO 2026-10-21 05:41:10,152 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.154127356Z WARNING 2026-10-21 05:41:10,153 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.154137064Z WARNING 2026-10-21 05:41:10,153 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.161239688Z INFO 2026-10-21 05:41:10,160 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.161259230Z WARNING 2026-10-21 05:41:10,160 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.161260855Z WARNING 2026-10-21 05:41:10,160 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.170930910Z INFO 2026-10-21 05:41:10,170 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.171376620Z WARNING 2026-10-21 05:41:10,171 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.171853540Z WARNING 2026-10-21 05:41:10,171 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.182245765Z INFO 2026-10-21 05:41:10,181 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.182718518Z WARNING 2026-10-21 05:41:10,182 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.183036187Z WARNING 2026-10-21 05:41:10,182 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.198433107Z INFO 2026-10-21 05:41:10,197 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.198694692Z WARNING 2026-10-21 05:41:10,198 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.198721317Z WARNING 2026-10-21 05:41:10,198 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.207219115Z INFO 2026-10-21 05:41:10,206 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.207239116Z WARNING 2026-10-21 05:41:10,206 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.207240866Z WARNING 2026-10-21 05:41:10,206 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.216281209Z INFO 2026-10-21 05:41:10,215 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.216303292Z WARNING 2026-10-21 05:41:10,215 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.216305084Z WARNING 2026-10-21 05:41:10,215 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.231495212Z INFO 2026-10-21 05:41:10,231 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.232355425Z WARNING 2026-10-21 05:41:10,231 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.232371925Z WARNING 2026-10-21 05:41:10,231 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.238384251Z INFO 2026-10-21 05:41:10,237 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.238402709Z WARNING 2026-10-21 05:41:10,237 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.238404501Z WARNING 2026-10-21 05:41:10,237 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.248383057Z INFO 2026-10-21 05:41:10,247 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.248402474Z WARNING 2026-10-21 05:41:10,247 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.248404099Z WARNING 2026-10-21 05:41:10,247 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.255283638Z INFO 2026-10-21 05:41:10,254 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.256203810Z WARNING 2026-10-21 05:41:10,255 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.256467478Z WARNING 2026-10-21 05:41:10,255 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.263533060Z INFO 2026-10-21 05:41:10,262 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.263560727Z WARNING 2026-10-21 05:41:10,262 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.263562269Z WARNING 2026-10-21 05:41:10,262 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.272483444Z INFO 2026-10-21 05:41:10,272 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.273217532Z WARNING 2026-10-21 05:41:10,272 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.273228657Z WARNING 2026-10-21 05:41:10,272 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.282046749Z INFO 2026-10-21 05:41:10,281 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.282472376Z WARNING 2026-10-21 05:41:10,282 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.282569252Z WARNING 2026-10-21 05:41:10,282 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.290377171Z INFO 2026-10-21 05:41:10,290 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.291132467Z WARNING 2026-10-21 05:41:10,290 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.291138175Z WARNING 2026-10-21 05:41:10,290 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.300396103Z INFO 2026-10-21 05:41:10,300 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.300884522Z WARNING 2026-10-21 05:41:10,300 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.301300275Z WARNING 2026-10-21 05:41:10,300 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.309907657Z INFO 2026-10-21 05:41:10,309 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.310388743Z WARNING 2026-10-21 05:41:10,310 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.310469827Z WARNING 2026-10-21 05:41:10,310 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.320778885Z INFO 2026-10-21 05:41:10,319 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.320798344Z WARNING 2026-10-21 05:41:10,320 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.320805135Z WARNING 2026-10-21 05:41:10,320 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.332485118Z INFO 2026-10-21 05:41:10,332 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.333020288Z WARNING 2026-10-21 05:41:10,332 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.333026746Z WARNING 2026-10-21 05:41:10,332 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.344358311Z INFO 2026-10-21 05:41:10,343 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.344376769Z WARNING 2026-10-21 05:41:10,343 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.344378519Z WARNING 2026-10-21 05:41:10,343 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.357507844Z INFO 2026-10-21 05:41:10,356 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.357693720Z WARNING 2026-10-21 05:41:10,357 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.357697886Z WARNING 2026-10-21 05:41:10,357 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.365819891Z INFO 2026-10-21 05:41:10,365 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.366048309Z WARNING 2026-10-21 05:41:10,365 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.366053017Z WARNING 2026-10-21 05:41:10,365 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.375060777Z INFO 2026-10-21 05:41:10,374 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.375080360Z WARNING 2026-10-21 05:41:10,374 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.375082027Z WARNING 2026-10-21 05:41:10,374 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.383501616Z INFO 2026-10-21 05:41:10,382 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.383520075Z WARNING 2026-10-21 05:41:10,382 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.383521908Z WARNING 2026-10-21 05:41:10,382 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.393081171Z INFO 2026-10-21 05:41:10,391 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.393110462Z WARNING 2026-10-21 05:41:10,392 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.393122587Z WARNING 2026-10-21 05:41:10,392 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.402252598Z INFO 2026-10-21 05:41:10,401 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.402748934Z WARNING 2026-10-21 05:41:10,402 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.402784517Z WARNING 2026-10-21 05:41:10,402 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.419702197Z INFO 2026-10-21 05:41:10,419 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.421650791Z WARNING 2026-10-21 05:41:10,419 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.421675125Z WARNING 2026-10-21 05:41:10,419 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.433055856Z INFO 2026-10-21 05:41:10,432 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.433348732Z WARNING 2026-10-21 05:41:10,433 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.433355649Z WARNING 2026-10-21 05:41:10,433 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.438760638Z INFO 2026-10-21 05:41:10,437 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.438774722Z WARNING 2026-10-21 05:41:10,438 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.438776305Z WARNING 2026-10-21 05:41:10,438 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.444896381Z INFO 2026-10-21 05:41:10,444 pretix.api.exception exception API Exception [400]: {"positions":[{"item":["There is not enough quota available on quota \"five\" to perform the operation."]}]}
+2026-10-21T05:41:10.445300675Z WARNING 2026-10-21 05:41:10,445 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/
+2026-10-21T05:41:10.445373801Z WARNING 2026-10-21 05:41:10,445 django.request log Bad Request: /api/v1/organizers/study/events/lab/orders/

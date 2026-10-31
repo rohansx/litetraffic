@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "name": "killbill-refund-seq",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "client",
+      "count": 10,
+      "auth_recipe": "api-key-and-secret"
+    }
+  ],
+  "secret_env": [
+    "LT_KB_AUTH",
+    "LT_KB_KEY",
+    "LT_KB_SECRET",
+    "LT_KB_KEY_B",
+    "LT_KB_SECRET_B"
+  ],
+  "fixtures": {
+    "recipe": "fresh-account-per-run",
+    "command": {
+      "setup": [
+        "python3",
+        "setup.py",
+        "refund"
+      ],
+      "teardown": [
+        "sh",
+        "teardown.sh"
+      ],
+      "setup_timeout_seconds": 40,
+      "teardown_timeout_seconds": 10
+    }
+  },
+  "journeys": [
+    {
+      "name": "client",
+      "max_requests": 1,
+      "max_writes": 1,
+      "stages": [
+        "refund_accepted"
+      ],
+      "expected_statuses": {
+        "refund": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ]
+      }
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {
+        "name": "one_at_a_time",
+        "seconds": 10,
+        "rate": 1
+      }
+    ]
+  },
+  "assertions": [
+    "clean_response",
+    "refunds_within_paid"
+  ],
+  "observer": "killbill-records",
+  "budgets": {
+    "max_seconds": 150,
+    "max_requests": 400,
+    "max_write_attempts": 200,
+    "max_in_flight": 10,
+    "max_artifact_bytes": 67108864
+  },
+  "observations": [
+    {
+      "path": "/1.0/kb/payments?externalKey=__KEY__",
+      "assertion": "refunds_within_paid",
+      "headers_env": {
+        "Authorization": "LT_KB_AUTH",
+        "X-Killbill-ApiKey": "LT_KB_KEY",
+        "X-Killbill-ApiSecret": "LT_KB_SECRET"
+      },
+      "expected": {
+        "/refundedAmount": {
+          "lte": 100
+        }
+      }
+    }
+  ]
+}

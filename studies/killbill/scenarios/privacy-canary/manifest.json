@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "name": "killbill-privacy-canary",
+  "script": "journeys.js",
+  "actors": [
+    {
+      "class": "client",
+      "count": 10,
+      "auth_recipe": "api-key-and-secret"
+    }
+  ],
+  "secret_env": [
+    "LT_KB_AUTH",
+    "LT_KB_KEY",
+    "LT_KB_SECRET",
+    "LT_KB_KEY_B",
+    "LT_KB_SECRET_B"
+  ],
+  "fixtures": {
+    "recipe": "fresh-account-per-run",
+    "command": {
+      "setup": [
+        "python3",
+        "setup.py",
+        "privacy-canary"
+      ],
+      "teardown": [
+        "sh",
+        "teardown.sh"
+      ],
+      "setup_timeout_seconds": 40,
+      "teardown_timeout_seconds": 10
+    }
+  },
+  "journeys": [
+    {
+      "name": "client",
+      "max_requests": 8,
+      "max_writes": 1,
+      "stages": [
+        "refused"
+      ],
+      "expected_statuses": {
+        "own_read": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ],
+        "x_account": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ],
+        "x_payments": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ],
+        "x_invoices": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ],
+        "x_methods": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ],
+        "x_search": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ],
+        "x_bykey": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ],
+        "x_write": [
+          200,
+          201,
+          204,
+          400,
+          401,
+          403,
+          404,
+          409,
+          422
+        ]
+      }
+    }
+  ],
+  "schedule": {
+    "unit": "journeys_per_second",
+    "phases": [
+      {
+        "name": "burst",
+        "seconds": 1,
+        "rate": 10
+      }
+    ]
+  },
+  "assertions": [
+    "own_read_works",
+    "no_foreign_data",
+    "clean_response"
+  ],
+  "observer": "killbill-records",
+  "budgets": {
+    "max_seconds": 150,
+    "max_requests": 400,
+    "max_write_attempts": 200,
+    "max_in_flight": 10,
+    "max_artifact_bytes": 67108864
+  }
+}

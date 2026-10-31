@@ -1,0 +1,5 @@
+== newest variant (this run's product)
+{"data":{"productVariants":{"items":[{"id":"89","name":"LT stock 815z89929183","stockOnHand":5,"stockAllocated":5,"stockLevel":"OUT_OF_STOCK"}]}}}
+
+== orders in a paid state that contain this variant (count + states)
+paid units by (variant,state), newest first: [(('89', 'PaymentAuthorized'), 8), (('2', 'PaymentAuthorized'), 1), (('1', 'PaymentAuthorized'), 1)]

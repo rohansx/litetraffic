@@ -1,0 +1,53 @@
+[
+  {
+    "actual": {
+      "/data/productVariants/items/0/stockAllocated": 5,
+      "/data/productVariants/items/0/stockOnHand": 5
+    },
+    "assertion": "stock_ledger_consistent",
+    "checks": {
+      "/data/productVariants/items/0/stockAllocated": {
+        "actual": 5,
+        "matcher": {
+          "lte": 5
+        },
+        "pass": true
+      },
+      "/data/productVariants/items/0/stockOnHand": {
+        "actual": 5,
+        "matcher": {
+          "eq": 5
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "/data/productVariants/items/0/stockAllocated": {
+        "lte": 5
+      },
+      "/data/productVariants/items/0/stockOnHand": 5
+    },
+    "status": "pass"
+  },
+  {
+    "actual": {
+      "/data/orders/totalItems": 5
+    },
+    "assertion": "paid_orders_within_stock",
+    "checks": {
+      "/data/orders/totalItems": {
+        "actual": 5,
+        "matcher": {
+          "lte": 5
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "/data/orders/totalItems": {
+        "lte": 5
+      }
+    },
+    "status": "pass"
+  }
+]

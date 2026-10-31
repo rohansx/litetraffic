@@ -1,0 +1,25 @@
+{
+  "containers": {
+    "lt-pretix-pretix-1": {
+      "baseline_cpu_percent": 35.51,
+      "baseline_mem_mb": 2780.16,
+      "error_lines": 9,
+      "log_lines": 34,
+      "peak_at": "2026-10-21T05:41:08.221067+00:00",
+      "peak_cpu_percent": 35.51,
+      "peak_mem_mb": 2780.16,
+      "signatures": [
+        {
+          "count": 9,
+          "example": "INFO 2026-10-21 05:41:07,415 pretix.api.exception exception API Exception [400]: {\"positions\":[{\"voucher\":[\"The voucher has already been used the maximum number of times.\"]}]}",
+          "first_seen": "2026-10-21T05:41:07.416307606Z",
+          "signature": "INFO <ts> pretix.api.exception exception API Exception [400]: {<str>:[{<str>:[<str>]}]}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

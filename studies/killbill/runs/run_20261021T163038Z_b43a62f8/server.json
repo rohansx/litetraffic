@@ -1,0 +1,31 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 8.61,
+      "baseline_mem_mb": 983.8,
+      "error_lines": 10,
+      "log_lines": 39,
+      "peak_at": "2026-10-21T16:30:42.497347+00:00",
+      "peak_cpu_percent": 16.12,
+      "peak_mem_mb": 984.0,
+      "signatures": [
+        {
+          "count": 9,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:40.562Z\",\"message\":\"Bad request\",\"logger_name\":\"org.killbill.billing.server.providers.KillbillExceptionListener\",\"thread_name\":\"catalina-exec-2\",\"level\":\"WARN\",\"req.requestURI\":\"/1.0/kb/invoices/947483a3-aebb-4115-8b31-c96ae75c7156\",\"kb.tenantRecordId\":\"3\",\"kb.userTok",
+          "first_seen": "2026-10-21T16:30:40.562952452Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        },
+        {
+          "count": 1,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:38.955Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='6296103d-1761-4403-a2ab-830100b038a3', paymentControlPluginNames='__INVOICE_PAYMENT_CONTROL_PLUGIN__', aborted=true, error='PAYMENT_PLUGIN_API_ABORTED', exception='Control plugin aborted ca",
+          "first_seen": "2026-10-21T16:30:38.956403021Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

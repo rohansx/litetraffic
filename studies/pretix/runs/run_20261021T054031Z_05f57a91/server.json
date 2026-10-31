@@ -1,0 +1,25 @@
+{
+  "containers": {
+    "lt-pretix-pretix-1": {
+      "baseline_cpu_percent": 79.82,
+      "baseline_mem_mb": 2775.04,
+      "error_lines": 15,
+      "log_lines": 76,
+      "peak_at": "2026-10-21T05:40:32.980025+00:00",
+      "peak_cpu_percent": 79.82,
+      "peak_mem_mb": 2775.04,
+      "signatures": [
+        {
+          "count": 15,
+          "example": "INFO 2026-10-21 05:40:32,293 pretix.api.exception exception API Exception [400]: {\"positions\":[{\"item\":[\"There is not enough quota available on quota \\\"five\\\" to perform the operation.\"]}]}",
+          "first_seen": "2026-10-21T05:40:32.294158861Z",
+          "signature": "INFO <ts> pretix.api.exception exception API Exception [400]: {<str>:[{<str>:[<str>]}]}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

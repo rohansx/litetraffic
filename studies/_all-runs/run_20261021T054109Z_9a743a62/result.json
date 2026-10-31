@@ -1,0 +1,100 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 100,
+      "status": "pass"
+    },
+    {
+      "id": "charge_matches_rules",
+      "samples": 100,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/count": 5
+      },
+      "expected": {
+        "/count": {
+          "lte": 5
+        }
+      },
+      "id": "quota_not_oversold",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T05:41:11.494809+00:00",
+  "journeys": {
+    "buy": {
+      "stages": [
+        {
+          "name": "ordered",
+          "reached": 5
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 95
+        }
+      ],
+      "started": 100,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "place_order": {
+        "failed_rate": 0.95,
+        "p95": 116.464,
+        "samples": 100
+      }
+    },
+    "elapsed_seconds": 2.403896,
+    "http_req_duration_ms": {
+      "average": 49.439,
+      "max": 156.55,
+      "p50": 29.239,
+      "p95": 116.464,
+      "samples": 100
+    },
+    "http_req_failed_rate": {
+      "failed": 95,
+      "rate": 0.95,
+      "samples": 100
+    },
+    "http_reqs": 100.0,
+    "http_reqs_per_second": 69.501,
+    "iterations": 100.0,
+    "iterations_per_second": 69.501,
+    "observer_requests": 1,
+    "overlap": {
+      "place_order": 14
+    },
+    "total_http_reqs": 101.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 100
+    },
+    "vus_max": 100,
+    "write_attempts": 100
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 100,
+  "planned_journeys_per_second": 100.0,
+  "report": "report.html",
+  "run_id": "run_20261021T054109Z_9a743a62",
+  "schema_version": 1,
+  "seed": 2,
+  "verdict": "pass"
+}

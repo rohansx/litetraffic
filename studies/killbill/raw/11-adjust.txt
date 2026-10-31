@@ -1,0 +1,25 @@
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+line_adjusted_once  pass  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163003Z_71327bac/report.html
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+line_adjusted_once  pass  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163005Z_213610a5/report.html
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+line_adjusted_once  pass  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163007Z_def20044/report.html
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+line_adjusted_once  pass  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163010Z_ad39a78c/report.html
+verdict: PASS  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+line_adjusted_once  pass  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T163012Z_2227660e/report.html

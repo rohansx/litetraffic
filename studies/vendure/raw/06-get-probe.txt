@@ -1,0 +1,2 @@
+{"data":{"productVariants":{"items":[{"id":"88","stockOnHand":100,"stockAllocated":0}]}}}
+ HTTP 200

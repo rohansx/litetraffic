@@ -1,0 +1,7 @@
+verdict: ERROR  lifecycle: finished  runs: 5/5  consistent: no
+seed 100  PASS  finished  journeys: 10/10
+seed 101  ERROR  crashed  journeys: ?/10
+seed 102  ERROR  crashed  journeys: ?/10
+seed 103  ERROR  crashed  journeys: ?/10
+seed 104  ERROR  crashed  journeys: ?/10
+summary: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/series_20261021T162800Z_77f4ef4e.json

@@ -1,0 +1,25 @@
+{
+  "containers": {
+    "lt-killbill-killbill-1": {
+      "baseline_cpu_percent": 77.78,
+      "baseline_mem_mb": 985.4,
+      "error_lines": 9,
+      "log_lines": 51,
+      "peak_at": "2026-10-21T16:30:55.718616+00:00",
+      "peak_cpu_percent": 77.78,
+      "peak_mem_mb": 985.4,
+      "signatures": [
+        {
+          "count": 9,
+          "example": "{\"@timestamp\":\"2026-10-21T16:30:54.998Z\",\"message\":\"EXITING PaymentApi: transactionType='PURCHASE', accountId='46f7afe7-8edd-48ea-b051-7b09c38aa7b3', paymentControlPluginNames='__INVOICE_PAYMENT_CONTROL_PLUGIN__', aborted=true, error='PAYMENT_PLUGIN_API_ABORTED', exception='Control plugin aborted ca",
+          "first_seen": "2026-10-21T16:30:54.998639614Z",
+          "signature": "{<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>,<str>:<str>}"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "problems": [],
+  "schema_version": 1,
+  "source": "docker"
+}

@@ -1,0 +1,25 @@
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+refunds_within_paid  fail  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T162911Z_798dc518/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+refunds_within_paid  fail  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T162913Z_94049dc8/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+refunds_within_paid  fail  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T162916Z_aec05230/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+refunds_within_paid  fail  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T162918Z_4890440a/report.html
+verdict: FAIL  lifecycle: finished  journeys: 10/10
+clean_response  pass  10
+refunds_within_paid  fail  1
+unexpected HTTP failure rate: 0.0% (0/10)
+report: /Users/rohan/orca/projects/Litetraffic/.claude/worktrees/wf_9e7aa704-52c-2/studies/killbill/runs/run_20261021T162921Z_ce0e9f03/report.html

@@ -1,0 +1,12 @@
+[
+  {
+    "assertion": "stock_ledger_consistent",
+    "reason": "engine did not finish",
+    "status": "unknown"
+  },
+  {
+    "assertion": "paid_orders_within_stock",
+    "reason": "engine did not finish",
+    "status": "unknown"
+  }
+]

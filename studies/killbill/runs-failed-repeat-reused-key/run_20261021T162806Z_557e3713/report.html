@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiteTraffic — killbill-pay</title>
+<style>
+body{font:16px system-ui,sans-serif;max-width:960px;margin:40px auto;padding:0 20px;color:#17211b;background:#f7f8fa}
+h1{color:#0e6b3c} .card{background:white;border:1px solid #dfe5e1;border-radius:12px;padding:20px;margin:16px 0}
+.verdict{font-size:2rem;font-weight:750} table{width:100%;border-collapse:collapse} th,td{padding:10px;text-align:left;border-bottom:1px solid #e5e7eb}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px} dt{font-weight:700}
+</style></head><body>
+<h1>killbill-pay</h1>
+<section class="card"><div class="verdict">ERROR</div>
+<dl><dt>Lifecycle</dt><dd>crashed</dd><dt>Run</dt><dd>run_20261021T162806Z_557e3713</dd>
+<dt>Seed</dt><dd>103</dd><dt>Target</dt><dd>http://127.0.0.1:8480</dd>
+<dt>Engine</dt><dd>k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)</dd>
+<dt>Journeys</dt><dd>0 / 10</dd>
+<dt>HTTP requests</dt><dd>0</dd>
+<dt>HTTP avg</dt><dd>Unavailable</dd><dt>HTTP p50</dt><dd>Unavailable</dd><dt>HTTP p95</dt><dd>Unavailable</dd><dt>HTTP max</dt><dd>Unavailable</dd><dt>Latency samples</dt><dd>0</dd><dt>HTTP failure rate</dt><dd>Unavailable</dd>
+<dt>HTTP throughput</dt><dd>0.0 req/s</dd></dl></section>
+<section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody><tr><td>clean_response</td><td>UNKNOWN</td><td>0</td></tr><tr><td>invoice_paid_once</td><td>UNKNOWN</td><td>0</td></tr></tbody></table></section>
+<section class="card"><h2>Concurrency</h2><table><thead><tr><th>Operation</th><th>Peak requests in flight</th></tr></thead><tbody><tr><td colspan="2">No timed request samples</td></tr></tbody></table></section>
+
+<section class="card"><h2>Limitations</h2><ul><li>missing assertion evidence: clean_response, invoice_paid_once</li><li>fixture setup failed: exit 1</li><li>delivered journeys None do not match planned journeys 10</li></ul></section>
+<section class="card"><h2>Notes</h2><ul><li>per-arrival lateness not measured</li><li>workload is synthetic (no traces supplied)</li></ul></section>
+</body></html>

@@ -1,0 +1,378 @@
+{
+  "completed_runs": 5,
+  "consistent": false,
+  "dispersion": {
+    "http_req_failed_rate": {
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "stdev": null
+    },
+    "http_reqs_per_second": {
+      "max": 6.428,
+      "mean": 1.2856,
+      "min": 0.0,
+      "stdev": 2.8746889918737297
+    },
+    "p95_ms": {
+      "max": 106.551,
+      "mean": 106.551,
+      "min": 106.551,
+      "stdev": null
+    }
+  },
+  "lifecycle": "finished",
+  "mode": "repeat",
+  "requested_runs": 5,
+  "result": "series_20261021T162757Z_afc19aab.json",
+  "runs": [
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 10,
+          "status": "pass"
+        },
+        {
+          "actual": {
+            "/refundedAmount": 1000.0
+          },
+          "expected": {
+            "/refundedAmount": {
+              "lte": 100
+            }
+          },
+          "id": "refunds_within_paid",
+          "samples": 1,
+          "status": "fail"
+        }
+      ],
+      "completeness": "complete",
+      "engine_exit_code": 0,
+      "finished_at": "2026-10-21T16:27:56.325341+00:00",
+      "journeys": {
+        "client": {
+          "stages": [
+            {
+              "name": "refund_accepted",
+              "reached": 10
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 0
+            }
+          ],
+          "started": 10,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "finished",
+      "limitations": [],
+      "metrics": {
+        "by_operation": {
+          "refund": {
+            "failed_rate": 0.0,
+            "p95": 106.551,
+            "samples": 10
+          }
+        },
+        "elapsed_seconds": 2.237638,
+        "http_req_duration_ms": {
+          "average": 97.03,
+          "max": 108.576,
+          "p50": 94.108,
+          "p95": 106.551,
+          "samples": 10
+        },
+        "http_req_failed_rate": {
+          "failed": 0,
+          "rate": 0.0,
+          "samples": 10
+        },
+        "http_reqs": 10.0,
+        "http_reqs_per_second": 6.428,
+        "iterations": 10.0,
+        "iterations_per_second": 6.428,
+        "observer_requests": 1,
+        "overlap": {
+          "refund": 2
+        },
+        "total_http_reqs": 11.0,
+        "unexpected_http_failure_rate": {
+          "failed": 0,
+          "rate": 0.0,
+          "samples": 10
+        },
+        "vus_max": 10,
+        "write_attempts": 10
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T162754Z_5d885a9a",
+      "schema_version": 1,
+      "seed": 100,
+      "verdict": "fail"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 0,
+          "status": "unknown"
+        },
+        {
+          "id": "refunds_within_paid",
+          "reason": "engine did not finish",
+          "samples": 0,
+          "status": "unknown"
+        }
+      ],
+      "completeness": "incomplete",
+      "engine_exit_code": null,
+      "finished_at": "2026-10-21T16:27:56.514344+00:00",
+      "journeys": {
+        "client": {
+          "stages": [
+            {
+              "name": "refund_accepted",
+              "reached": 0
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 0
+            }
+          ],
+          "started": 0,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "crashed",
+      "limitations": [
+        "missing assertion evidence: clean_response, refunds_within_paid",
+        "fixture setup failed: exit 1",
+        "delivered journeys None do not match planned journeys 10"
+      ],
+      "metrics": {
+        "elapsed_seconds": 0.166361,
+        "http_reqs_per_second": 0.0,
+        "iterations_per_second": 0.0,
+        "observer_requests": 0,
+        "total_http_reqs": 0.0,
+        "write_attempts": 0
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T162756Z_6165afa1",
+      "schema_version": 1,
+      "seed": 101,
+      "verdict": "error"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 0,
+          "status": "unknown"
+        },
+        {
+          "id": "refunds_within_paid",
+          "reason": "engine did not finish",
+          "samples": 0,
+          "status": "unknown"
+        }
+      ],
+      "completeness": "incomplete",
+      "engine_exit_code": null,
+      "finished_at": "2026-10-21T16:27:56.694456+00:00",
+      "journeys": {
+        "client": {
+          "stages": [
+            {
+              "name": "refund_accepted",
+              "reached": 0
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 0
+            }
+          ],
+          "started": 0,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "crashed",
+      "limitations": [
+        "missing assertion evidence: clean_response, refunds_within_paid",
+        "fixture setup failed: exit 1",
+        "delivered journeys None do not match planned journeys 10"
+      ],
+      "metrics": {
+        "elapsed_seconds": 0.159408,
+        "http_reqs_per_second": 0.0,
+        "iterations_per_second": 0.0,
+        "observer_requests": 0,
+        "total_http_reqs": 0.0,
+        "write_attempts": 0
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T162756Z_5c50211e",
+      "schema_version": 1,
+      "seed": 102,
+      "verdict": "error"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 0,
+          "status": "unknown"
+        },
+        {
+          "id": "refunds_within_paid",
+          "reason": "engine did not finish",
+          "samples": 0,
+          "status": "unknown"
+        }
+      ],
+      "completeness": "incomplete",
+      "engine_exit_code": null,
+      "finished_at": "2026-10-21T16:27:56.878878+00:00",
+      "journeys": {
+        "client": {
+          "stages": [
+            {
+              "name": "refund_accepted",
+              "reached": 0
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 0
+            }
+          ],
+          "started": 0,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "crashed",
+      "limitations": [
+        "missing assertion evidence: clean_response, refunds_within_paid",
+        "fixture setup failed: exit 1",
+        "delivered journeys None do not match planned journeys 10"
+      ],
+      "metrics": {
+        "elapsed_seconds": 0.163614,
+        "http_reqs_per_second": 0.0,
+        "iterations_per_second": 0.0,
+        "observer_requests": 0,
+        "total_http_reqs": 0.0,
+        "write_attempts": 0
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T162756Z_85add8f2",
+      "schema_version": 1,
+      "seed": 103,
+      "verdict": "error"
+    },
+    {
+      "assertions": [
+        {
+          "id": "clean_response",
+          "samples": 0,
+          "status": "unknown"
+        },
+        {
+          "id": "refunds_within_paid",
+          "reason": "engine did not finish",
+          "samples": 0,
+          "status": "unknown"
+        }
+      ],
+      "completeness": "incomplete",
+      "engine_exit_code": null,
+      "finished_at": "2026-10-21T16:27:57.065424+00:00",
+      "journeys": {
+        "client": {
+          "stages": [
+            {
+              "name": "refund_accepted",
+              "reached": 0
+            }
+          ],
+          "stalled": [
+            {
+              "after": "start",
+              "count": 0
+            }
+          ],
+          "started": 0,
+          "undeclared": []
+        }
+      },
+      "lifecycle": "crashed",
+      "limitations": [
+        "missing assertion evidence: clean_response, refunds_within_paid",
+        "fixture setup failed: exit 1",
+        "delivered journeys None do not match planned journeys 10"
+      ],
+      "metrics": {
+        "elapsed_seconds": 0.165188,
+        "http_reqs_per_second": 0.0,
+        "iterations_per_second": 0.0,
+        "observer_requests": 0,
+        "total_http_reqs": 0.0,
+        "write_attempts": 0
+      },
+      "mode": "verify",
+      "notes": [
+        "per-arrival lateness not measured",
+        "workload is synthetic (no traces supplied)"
+      ],
+      "planned_journeys": 10,
+      "planned_journeys_per_second": 10.0,
+      "report": "report.html",
+      "run_id": "run_20261021T162756Z_fe8db78e",
+      "schema_version": 1,
+      "seed": 104,
+      "verdict": "error"
+    }
+  ],
+  "same_seed": false,
+  "schema_version": 1,
+  "series_id": "series_20261021T162757Z_afc19aab",
+  "starting_seed": 100,
+  "verdict": "error"
+}

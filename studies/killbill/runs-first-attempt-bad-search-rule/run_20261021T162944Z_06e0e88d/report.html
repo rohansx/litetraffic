@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiteTraffic — killbill-privacy</title>
+<style>
+body{font:16px system-ui,sans-serif;max-width:960px;margin:40px auto;padding:0 20px;color:#17211b;background:#f7f8fa}
+h1{color:#0e6b3c} .card{background:white;border:1px solid #dfe5e1;border-radius:12px;padding:20px;margin:16px 0}
+.verdict{font-size:2rem;font-weight:750} table{width:100%;border-collapse:collapse} th,td{padding:10px;text-align:left;border-bottom:1px solid #e5e7eb}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px} dt{font-weight:700}
+</style></head><body>
+<h1>killbill-privacy</h1>
+<section class="card"><div class="verdict">FAIL</div>
+<dl><dt>Lifecycle</dt><dd>finished</dd><dt>Run</dt><dd>run_20261021T162944Z_06e0e88d</dd>
+<dt>Seed</dt><dd>103</dd><dt>Target</dt><dd>http://127.0.0.1:8480</dd>
+<dt>Engine</dt><dd>k6 v2.2.0 (commit/00a9a1b7f5, go1.26.5, darwin/arm64)</dd>
+<dt>Journeys</dt><dd>10 / 10</dd>
+<dt>HTTP requests</dt><dd>80</dd>
+<dt>HTTP avg</dt><dd>85.736 ms</dd><dt>HTTP p50</dt><dd>84.328 ms</dd><dt>HTTP p95</dt><dd>94.128 ms</dd><dt>HTTP max</dt><dd>96.172 ms</dd><dt>Latency samples</dt><dd>80</dd><dt>HTTP failure rate</dt><dd>75.0%</dd><dt>Unexpected HTTP failure rate</dt><dd>62.5%</dd>
+<dt>HTTP throughput</dt><dd>37.693 req/s</dd></dl></section>
+<section class="card"><h2>Assertions</h2><table><thead><tr><th>Assertion</th><th>Status</th><th>Samples</th></tr></thead><tbody><tr><td>own_read_works</td><td>PASS</td><td>10</td></tr><tr><td>no_foreign_data</td><td>FAIL</td><td>10</td></tr><tr><td>clean_response</td><td>FAIL</td><td>10</td></tr><tr><td>foreign_write_not_applied</td><td>PASS</td><td>1</td></tr></tbody></table></section>
+<section class="card"><h2>Concurrency</h2><table><thead><tr><th>Operation</th><th>Peak requests in flight</th></tr></thead><tbody><tr><td>own_read</td><td>1</td></tr><tr><td>x_account</td><td>1</td></tr><tr><td>x_bykey</td><td>2</td></tr><tr><td>x_invoices</td><td>1</td></tr><tr><td>x_methods</td><td>1</td></tr><tr><td>x_payments</td><td>1</td></tr><tr><td>x_search</td><td>1</td></tr><tr><td>x_write</td><td>1</td></tr></tbody></table></section>
+<section class="card"><h2>Failing samples</h2><h3>no_foreign_data</h3><table><thead><tr><th>Sample</th><th>Logical key</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead><tbody><tr><td>7</td><td>run_20261021T162944Z_06e0e88d-traffic-0</td><td>every cross-tenant probe refused and free of the owner&#x27;s marker</td><td>[{&quot;marker&quot;: false, &quot;op&quot;: &quot;x_search&quot;, &quot;status&quot;: 200}]</td><td></td></tr><tr><td>10</td><td>run_20261021T162944Z_06e0e88d-traffic-1</td><td>every cross-tenant probe refused and free of the owner&#x27;s marker</td><td>[{&quot;marker&quot;: false, &quot;op&quot;: &quot;x_search&quot;, &quot;status&quot;: 200}]</td><td></td></tr><tr><td>14</td><td>run_20261021T162944Z_06e0e88d-traffic-2</td><td>every cross-tenant probe refused and free of the owner&#x27;s marker</td><td>[{&quot;marker&quot;: false, &quot;op&quot;: &quot;x_search&quot;, &quot;status&quot;: 200}]</td><td></td></tr></tbody></table><h3>clean_response</h3><table><thead><tr><th>Sample</th><th>Logical key</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead><tbody><tr><td>8</td><td>run_20261021T162944Z_06e0e88d-traffic-0</td><td>cross-tenant refusals are 4xx</td><td>{&quot;worst_status&quot;: 500}</td><td></td></tr><tr><td>11</td><td>run_20261021T162944Z_06e0e88d-traffic-1</td><td>cross-tenant refusals are 4xx</td><td>{&quot;worst_status&quot;: 500}</td><td></td></tr><tr><td>15</td><td>run_20261021T162944Z_06e0e88d-traffic-2</td><td>cross-tenant refusals are 4xx</td><td>{&quot;worst_status&quot;: 500}</td><td></td></tr></tbody></table></section>
+<section class="card"><h2>Limitations</h2><ul><li>None</li></ul></section>
+<section class="card"><h2>Notes</h2><ul><li>per-arrival lateness not measured</li><li>workload is synthetic (no traces supplied)</li></ul></section>
+</body></html>

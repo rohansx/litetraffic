@@ -1,0 +1,46 @@
+{
+ "system": {
+  "timeMs": 30000.000000000753,
+  "offeredRps": 120,
+  "goodputRps": 24.444444444444443,
+  "errorRate": 0.7962962962962963,
+  "p50": 3435.2613168458447,
+  "p95": 3695.6812648986565,
+  "p99": 3817.7875318719507,
+  "totalRequests": 3573,
+  "totalFailed": 2842
+ },
+ "failuresByReason": {
+  "error": 0,
+  "shed": 2842,
+  "timeout": 0,
+  "no-route": 0,
+  "depth": 0,
+  "throttled": 0,
+  "rejected": 0,
+  "crashed": 0,
+  "partitioned": 0,
+  "region-down": 0,
+  "conn-refused": 0,
+  "unauthorized": 0,
+  "bulkhead-full": 0,
+  "acquire-timeout": 0,
+  "deprioritized": 0
+ },
+ "nodes": {
+  "users": {
+   "arrivalRate": 120,
+   "throughput": 24.444444444444443,
+   "utilization": 0,
+   "p99": 3817.7875318719507,
+   "queued": 0
+  },
+  "app": {
+   "arrivalRate": 120,
+   "throughput": 24.444444444444443,
+   "utilization": 0.9999999999999983,
+   "p99": 782.0172546526585,
+   "queued": 64
+  }
+ }
+}

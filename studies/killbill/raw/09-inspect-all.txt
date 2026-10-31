@@ -1,0 +1,65 @@
+== scenarios/adjust
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation line_adjusted_once expected: {"/accountBalance": 0}
+== scenarios/adjust-seq
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation line_adjusted_once expected: {"/accountBalance": 0}
+== scenarios/dup
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation one_payment_per_key expected: {"/purchasedAmount": 100, "/transactions": {"len": 1}}
+== scenarios/dup-canary
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation one_payment_per_key expected: {"/purchasedAmount": 100, "/transactions": {"len": 2}}
+== scenarios/dup-seq
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation one_payment_per_key expected: {"/purchasedAmount": 100, "/transactions": {"len": 1}}
+== scenarios/pay
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation invoice_paid_once expected: {"/accountBalance": 0}
+== scenarios/pay-canary
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation invoice_paid_once expected: {"/accountBalance": 1}
+== scenarios/pay-seq
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation invoice_paid_once expected: {"/accountBalance": 0}
+== scenarios/privacy
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation foreign_write_not_applied expected: {"/purchasedAmount": 100, "/transactions": {"len": 1}}
+== scenarios/privacy-canary
+fixture setup: python3 setup.py privacy-canary
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+== scenarios/refund
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation refunds_within_paid expected: {"/refundedAmount": {"lte": 100}}
+== scenarios/refund-canary
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation refunds_within_paid expected: {"/refundedAmount": {"lte": 99}}
+== scenarios/refund-seq
+fixture teardown: sh teardown.sh
+fixture command file: setup.py
+fixture command file: teardown.sh
+observation refunds_within_paid expected: {"/refundedAmount": {"lte": 100}}

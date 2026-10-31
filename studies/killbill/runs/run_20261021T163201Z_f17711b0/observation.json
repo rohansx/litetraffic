@@ -1,0 +1,38 @@
+[
+  {
+    "actual": {
+      "/purchasedAmount": 100.0,
+      "/transactions": {
+        "length": 1,
+        "type": "array"
+      }
+    },
+    "assertion": "foreign_write_not_applied",
+    "checks": {
+      "/purchasedAmount": {
+        "actual": 100.0,
+        "matcher": {
+          "eq": 100
+        },
+        "pass": true
+      },
+      "/transactions": {
+        "actual": {
+          "length": 1,
+          "type": "array"
+        },
+        "matcher": {
+          "len": 1
+        },
+        "pass": true
+      }
+    },
+    "expected": {
+      "/purchasedAmount": 100,
+      "/transactions": {
+        "len": 1
+      }
+    },
+    "status": "pass"
+  }
+]

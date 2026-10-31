@@ -1,0 +1,23 @@
+[
+  {
+    "actual": {
+      "/refundedAmount": 1000.0
+    },
+    "assertion": "refunds_within_paid",
+    "checks": {
+      "/refundedAmount": {
+        "actual": 1000.0,
+        "matcher": {
+          "lte": 99
+        },
+        "pass": false
+      }
+    },
+    "expected": {
+      "/refundedAmount": {
+        "lte": 99
+      }
+    },
+    "status": "fail"
+  }
+]

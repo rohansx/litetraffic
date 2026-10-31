@@ -1,0 +1,93 @@
+{
+  "assertions": [
+    {
+      "id": "clean_response",
+      "samples": 10,
+      "status": "pass"
+    },
+    {
+      "actual": {
+        "/accountBalance": 0.0
+      },
+      "expected": {
+        "/accountBalance": 0
+      },
+      "id": "line_adjusted_once",
+      "samples": 1,
+      "status": "pass"
+    }
+  ],
+  "completeness": "complete",
+  "engine_exit_code": 0,
+  "finished_at": "2026-10-21T16:30:12.352857+00:00",
+  "journeys": {
+    "client": {
+      "stages": [
+        {
+          "name": "adjustment_accepted",
+          "reached": 1
+        }
+      ],
+      "stalled": [
+        {
+          "after": "start",
+          "count": 9
+        }
+      ],
+      "started": 10,
+      "undeclared": []
+    }
+  },
+  "lifecycle": "finished",
+  "limitations": [],
+  "metrics": {
+    "by_operation": {
+      "adjust": {
+        "failed_rate": 0.9,
+        "p95": 92.524,
+        "samples": 10
+      }
+    },
+    "elapsed_seconds": 2.101351,
+    "http_req_duration_ms": {
+      "average": 85.325,
+      "max": 93.672,
+      "p50": 83.523,
+      "p95": 92.524,
+      "samples": 10
+    },
+    "http_req_failed_rate": {
+      "failed": 9,
+      "rate": 0.9,
+      "samples": 10
+    },
+    "http_reqs": 10.0,
+    "http_reqs_per_second": 6.599,
+    "iterations": 10.0,
+    "iterations_per_second": 6.599,
+    "observer_requests": 1,
+    "overlap": {
+      "adjust": 1
+    },
+    "total_http_reqs": 11.0,
+    "unexpected_http_failure_rate": {
+      "failed": 0,
+      "rate": 0.0,
+      "samples": 10
+    },
+    "vus_max": 10,
+    "write_attempts": 10
+  },
+  "mode": "verify",
+  "notes": [
+    "per-arrival lateness not measured",
+    "workload is synthetic (no traces supplied)"
+  ],
+  "planned_journeys": 10,
+  "planned_journeys_per_second": 10.0,
+  "report": "report.html",
+  "run_id": "run_20261021T163010Z_ad39a78c",
+  "schema_version": 1,
+  "seed": 103,
+  "verdict": "pass"
+}

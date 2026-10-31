@@ -1,0 +1,62 @@
+{
+  "files": [
+    {
+      "bytes": 17763,
+      "path": "console.log",
+      "sha256": "6cfdce87625c966083ceffe4d7a1cda99e02d28c3ce20a5f275eeb62d56e1762"
+    },
+    {
+      "bytes": 0,
+      "path": "engine.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 806,
+      "path": "engine.stdout.log",
+      "sha256": "13ea0de87ac15833582df1bdc095ba93aa944ade0dffec6d2644bb0c02e780f0"
+    },
+    {
+      "bytes": 19395,
+      "path": "events/000001.jsonl",
+      "sha256": "34021ae489c3ea47262bb4083d029767b43829d1aef9d272f9f9cf0eb7ee40ae"
+    },
+    {
+      "bytes": 324,
+      "path": "fixture.json",
+      "sha256": "2f2e5ee6bc53a0b166bba878530f0ea336f2b76ce8aea1c58f3d42f6f754d97f"
+    },
+    {
+      "bytes": 215456,
+      "path": "metrics.jsonl",
+      "sha256": "7ad6c68e46e6fb8480d14695e7b992d2cb04d6a2f426f1186e4a176728621db6"
+    },
+    {
+      "bytes": 727,
+      "path": "observation.json",
+      "sha256": "67fdd968ff8557b4b07bed714c0536140ebdcbcd64674d4b04b8fe6b7204df13"
+    },
+    {
+      "bytes": 2377,
+      "path": "report.html",
+      "sha256": "372f7f5224865d029e418bcd23b1fc8544b4de563e20f80670dde3b889b36da5"
+    },
+    {
+      "bytes": 3165,
+      "path": "result.json",
+      "sha256": "06263f0b65e494f7bfea67d0f0ca3464f3f39d14cf6a51fcbb4f0e99c9f35deb"
+    },
+    {
+      "bytes": 718,
+      "path": "run.json",
+      "sha256": "cc5d77e8b570ac96d8d3a0aa0a602adab468cdae59f3cba85489049a365f5d9a"
+    },
+    {
+      "bytes": 2717,
+      "path": "scenario.lock.json",
+      "sha256": "d0399129226c17b2a19923a25e65580aec62d82c195c93f0762fc9a19127882c"
+    }
+  ],
+  "run_id": "run_20261021T055751Z_31817667",
+  "schema_version": 1,
+  "total_bytes": 263448
+}

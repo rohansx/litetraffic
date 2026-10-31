@@ -1,0 +1,72 @@
+{
+  "files": [
+    {
+      "bytes": 10990,
+      "path": "console.log",
+      "sha256": "2792d046315ab227f9c7ca67e470438e596c6c0343463592e75a0337e9900e8a"
+    },
+    {
+      "bytes": 0,
+      "path": "engine.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 821,
+      "path": "engine.stdout.log",
+      "sha256": "fbcf1a6aad01caa919dcd38b27970efafb1c4446d297806dec1f840f51a441f0"
+    },
+    {
+      "bytes": 12031,
+      "path": "events/000001.jsonl",
+      "sha256": "d2ff5e6a5d4e459fad7d3874591cf852c9539025b43102f450a426f20bb6c449"
+    },
+    {
+      "bytes": 350,
+      "path": "fixture.json",
+      "sha256": "a710d3a560b9bb10d232fc97b5eb993a187e4c52f83ba136b4021067c132daf7"
+    },
+    {
+      "bytes": 315336,
+      "path": "metrics.jsonl",
+      "sha256": "9bf8c0da2440be45fc0e996cf0110e42b39d68e4850a275623078678c16ac899"
+    },
+    {
+      "bytes": 5378,
+      "path": "report.html",
+      "sha256": "2f50ae88cbe8d8d064125f2e5d41531a3b2fc9659f025f185283bb5bd3f109b4"
+    },
+    {
+      "bytes": 5665,
+      "path": "result.json",
+      "sha256": "ae2fc69e0751991421a118f8291ea08d911ef6fddaf000dac2185bce19fcaa4c"
+    },
+    {
+      "bytes": 718,
+      "path": "run.json",
+      "sha256": "cc8e085ea48e405e1a719089ea49463741170da321fbe0c796c4e895efd6b864"
+    },
+    {
+      "bytes": 3378,
+      "path": "scenario.lock.json",
+      "sha256": "9d0743ecaa918a542a68a67aa92a0511a6deca6520e7b521d932ab25a2b14146"
+    },
+    {
+      "bytes": 268770,
+      "path": "server/lt-killbill-killbill-1.log",
+      "sha256": "f88c81fbb56859af7f956f13a255bfb176020d610c7a520a2d4e3899e160ae2c"
+    },
+    {
+      "bytes": 283,
+      "path": "server/stats.jsonl",
+      "sha256": "bf4c5c2d949f8ffffd24ed2f46e98a0a5606bdea6189c2a7b321f1f9a950b4c3"
+    },
+    {
+      "bytes": 1686,
+      "path": "server.json",
+      "sha256": "fa5199bb1ebb6360dfa99031bf43952a42e26e49d8a6c1a0c29aaacecdaa803b"
+    }
+  ],
+  "run_id": "run_20261021T162852Z_263800cd",
+  "schema_version": 1,
+  "total_bytes": 625406
+}

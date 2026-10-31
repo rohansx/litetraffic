@@ -1,0 +1,19 @@
+name: vendure-stock-checkout
+script: /Users/rohan/orca/workspaces/Litetraffic/litetraffic/studies/vendure/draft/attempt-hinted-2/journeys.js
+scenario sha256: a1081310af05ba932a7b471158487a9f76732d57ee06cc93261a5178332d3370
+planned journeys: 20
+max journey requests: 120
+max observation requests: 2
+max journey writes: 120
+phase: burst  1s at 20/s
+assertion: clean_response
+assertion: charge_matches_rules
+assertion: stock_ledger_not_oversold
+assertion: paid_orders_not_oversold
+stages checkout: in_cart -> customer_set -> address_set -> shipping_set -> arranging_payment -> paid
+fixture setup: node setup.mjs
+fixture teardown: sh teardown.sh
+fixture command file: setup.mjs
+fixture command file: teardown.sh
+observation stock_ledger_not_oversold expected: {"/data/productVariants/items/0/stockAllocated": {"lte": 5}, "/data/productVariants/items/0/stockOnHand": {"gte": 0}}
+observation paid_orders_not_oversold expected: {"/data/orders/totalItems": {"lte": 5}}
